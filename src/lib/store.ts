@@ -198,7 +198,7 @@ export class MessStore {
         userId: d.userId,
         amount: d.amount,
         type: d.type,
-        isPaid: d.isPaid,
+        isPaid: Boolean(d.isPaid || d.status === 'approved'),
       }));
 
     const utilityBillsInput = this.bills

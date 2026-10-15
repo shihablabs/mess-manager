@@ -46,7 +46,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 
     if (isManager && diningMembers.length > 0) {
       const currentValid = diningMembers.some((m) => (m.userId || m._id) === selectedUser);
-      if (!currentValid && selectedUser !== 'mess_fund') {
+      if (!currentValid) {
         setSelectedUser(diningMembers[0].userId || diningMembers[0]._id);
       }
     }
@@ -161,21 +161,14 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                 onChange={(e) => setSelectedUser(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-slate-200 outline-none focus:border-emerald-500 transition cursor-pointer text-xs"
               >
-                <optgroup label="👤 মেস সদস্যবৃন্দ">
-                  {diningMembers.map((m) => {
-                    const id = m.userId || m._id;
-                    return (
-                      <option key={id} value={id}>
-                        {m.name} {m.role === 'admin' ? '(মেস ম্যানেজার)' : ''}
-                      </option>
-                    );
-                  })}
-                </optgroup>
-                <optgroup label="🏦 মেস সাধারণ তহবিল (সরাসরি ক্যাশ)">
-                  <option value="mess_fund">
-                    🏦 মেস সাধারণ তহবিল (ক্যাশ বাক্স / সরাসরি ইউটিলিটি পরিশোধ)
-                  </option>
-                </optgroup>
+                {diningMembers.map((m) => {
+                  const id = m.userId || m._id;
+                  return (
+                    <option key={id} value={id}>
+                      👤 {m.name || m.displayName} {m.role === 'admin' ? '(মেস ম্যানেজার)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             ) : (
               <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 flex items-center justify-between">
@@ -187,14 +180,13 @@ export const DepositModal: React.FC<DepositModalProps> = ({
             )}
           </div>
 
-          {selectedUser === 'mess_fund' && isManager && (
-            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-xs flex items-start gap-2">
-              <Info className="w-4 h-4 shrink-0 mt-0.5 text-indigo-400" />
-              <div className="leading-relaxed">
-                <strong>সাধারণ তহবিল মোড:</strong> এই টাকা কোনো একক সদস্যের ব্যক্তিগত ব্যালেন্সে নয়, সরাসরি মেসের ক্যাশ বক্স ও সাধারণ তহবিলে জমা হিসেবে যুক্ত হবে।
-              </div>
+          {/* Due reduction info notice */}
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs flex items-start gap-2">
+            <Info className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+            <div className="leading-relaxed text-[11px]">
+              <strong>বকেয়া হ্রাস:</strong> এই টাকা সরাসরি সদস্যের ব্যক্তিগত জমা হিসেবে যুক্ত হবে এবং তার চলতি মাসের সমস্ত বকেয়া (বাসা ভাড়া, ইউটিলিটি বিল, মিল খরচ) থেকে সমমূল্যে মাইনাস হবে।
             </div>
-          )}
+          </div>
 
           {/* Deposit Type */}
           <div>
