@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
-import { getDb, isMongoConfigured } from '@/lib/db';
+import { getDb, isMongoConfigured, idFilter, safeObjectId } from '@/lib/db';
 import { UserDoc, MembershipDoc, MemberCycleDoc, UserRole } from '@/models/types';
 import { ObjectId } from 'mongodb';
 
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
       }
 
       if (db) {
-        const query = ObjectId.isValid(userId) ? { _id: new ObjectId(userId) } : { _id: userId };
+        const query = idFilter(userId);
         const targetUser = await db.collection('users').findOne(query);
 
         if (targetUser?.role === 'super_admin') {
@@ -222,9 +222,7 @@ export async function POST(request: Request) {
 
       if (db) {
         const uId = userId.toString();
-        await db.collection('users').deleteOne({
-          $or: [{ _id: new ObjectId(uId) as any }, { _id: uId as any }],
-        });
+        await db.collection('users').deleteOne(idFilter(uId));
         await db.collection('memberships').deleteMany({ userId: uId });
         await db.collection('member_cycles').deleteMany({ userId: uId });
       }
@@ -255,7 +253,7 @@ export async function POST(request: Request) {
       if (db) {
         const uId = userId.toString();
         await db.collection('users').updateOne(
-          { $or: [{ _id: new ObjectId(uId) as any }, { _id: uId as any }] },
+          idFilter(uId),
           { $set: updateData }
         );
       }

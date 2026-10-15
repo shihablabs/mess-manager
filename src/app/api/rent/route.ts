@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getDb } from '@/lib/db';
+import { getDb, idFilter, userKeyFilter, safeObjectId } from '@/lib/db';
 import { getStore } from '@/lib/store';
-import { ObjectId } from 'mongodb';
 
 export async function GET(request: Request) {
   try {
@@ -18,24 +17,25 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: 'ডাটাবেজ সংযোগে সমস্যা' }, { status: 500 });
     }
 
-    // Determine target cycle
+    // Determine target cycle safely
     let cycleId = searchParams.get('cycleId');
     let targetCycle: any;
 
     if (cycleId) {
-      targetCycle = await db.collection('cycles').findOne({
-        $or: [{ _id: new ObjectId(cycleId) as any }, { _id: cycleId as any }],
-      });
+      targetCycle = await db.collection('cycles').findOne(idFilter(cycleId));
     }
 
     if (!targetCycle) {
-      targetCycle = await db.collection('cycles').findOne({ status: 'open' }) || await db.collection('cycles').findOne();
+      targetCycle = (await db.collection('cycles').findOne({ status: 'open' })) || (await db.collection('cycles').findOne());
       cycleId = targetCycle ? targetCycle._id.toString() : 'cycle_1';
     }
 
     // Fetch members and their cycle settings
     const users = await db.collection('users').find({ role: { $ne: 'super_admin' } }).toArray();
-    const memberCycles = await db.collection('member_cycles').find({ cycleId }).toArray();
+
+    // Query member_cycles matching any variation of cycleId
+    const possibleCycleIds = Array.from(new Set([cycleId, targetCycle?._id?.toString()].filter(Boolean) as string[]));
+    const memberCycles = await db.collection('member_cycles').find({ cycleId: { $in: possibleCycleIds } }).toArray();
     const memberships = await db.collection('memberships').find().toArray();
 
     let totalRentDue = 0;
@@ -45,7 +45,8 @@ export async function GET(request: Request) {
 
     const rentList = users
       .filter((u: any) => {
-        const mem = memberships.find((m: any) => m.userId === u._id.toString() || m.userId === u._id);
+        const userIdStr = u._id.toString();
+        const mem = memberships.find((m: any) => m.userId === userIdStr || m.userId === u._id);
         return mem ? mem.status === 'active' : true;
       })
       .map((u: any) => {
@@ -80,6 +81,7 @@ export async function GET(request: Request) {
           rentPaidAt: mc?.rentPaidAt || null,
           rentDepositId: mc?.rentDepositId || null,
           rentPaidMethod: mc?.rentPaidMethod || 'cash',
+          rentNotes: mc?.rentNotes || '',
           isActive,
         };
       });
@@ -119,7 +121,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { action, userId, cycleId, amount, paymentMethod = 'cash', notes } = body;
+    const { action, userId, cycleId, amount, paymentMethod = 'cash', notes, paidAt } = body;
 
     if (!userId || !cycleId) {
       return NextResponse.json({ success: false, error: 'ইউজার ও সাইকেল আইডি আবশ্যক' }, { status: 400 });
@@ -130,31 +132,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'ডাটাবেজ সংযোগে সমস্যা' }, { status: 500 });
     }
 
-    const cycle = await db.collection('cycles').findOne({
-      $or: [{ _id: new ObjectId(cycleId) as any }, { _id: cycleId as any }],
-    });
+    const userIdStr = String(userId);
+    const cycleIdStr = String(cycleId);
+
+    const cycle = await db.collection('cycles').findOne(idFilter(cycleIdStr));
     const messId = cycle?.messId || 'mess_1';
 
-    // 1. MARK RENT AS PAID (1-Click Action)
-    if (action === 'mark_rent_paid') {
-      const mcFilter = {
-        cycleId,
-        $or: [{ userId }, { userId: new ObjectId(userId) as any }],
-      };
+    const possibleCycleIds = Array.from(new Set([cycleIdStr, cycle?._id?.toString()].filter(Boolean) as string[]));
+    const mcFilter = {
+      cycleId: { $in: possibleCycleIds },
+      ...userKeyFilter('userId', userIdStr),
+    };
 
+    // 1. MARK RENT AS PAID (Interactive modal action)
+    if (action === 'mark_rent_paid') {
       const existingMc = await db.collection('member_cycles').findOne(mcFilter);
       const roomRent = amount ? Number(amount) : (existingMc?.roomRent || 3000);
 
-      // Create a deposit record for the rent paid
+      // Determine payment date & timestamp
+      const parsedDate = paidAt ? new Date(paidAt) : new Date();
+      const effectivePaidAt = !isNaN(parsedDate.getTime()) ? parsedDate : new Date();
+      const dateStr = effectivePaidAt.toISOString().split('T')[0];
+
+      // Create a deposit record for the rent paid (automatically credits member's account)
       const depositResult = await db.collection('deposits').insertOne({
-        userId,
-        cycleId,
+        userId: userIdStr,
+        cycleId: cycleIdStr,
         messId,
         amount: roomRent,
-        date: new Date().toISOString().split('T')[0],
+        date: dateStr,
         type: 'general', // General credit offsets the roomRent in billing engine
         isPaid: true,
         notes: notes || `বাসা ভাড়া পরিশোধ (${cycle?.name || 'চলতি মাস'}) - ${paymentMethod}`,
+        paymentMethod,
+        paidAt: effectivePaidAt,
         createdAt: new Date(),
       });
 
@@ -164,23 +175,25 @@ export async function POST(request: Request) {
         await db.collection('member_cycles').updateOne(mcFilter, {
           $set: {
             rentPaid: true,
-            rentPaidAt: new Date(),
+            rentPaidAt: effectivePaidAt,
             rentDepositId,
             rentPaidMethod: paymentMethod,
+            rentNotes: notes || '',
             roomRent,
             updatedAt: new Date(),
           },
         });
       } else {
         await db.collection('member_cycles').insertOne({
-          userId,
-          cycleId,
+          userId: userIdStr,
+          cycleId: cycleIdStr,
           messId,
           roomRent,
           rentPaid: true,
-          rentPaidAt: new Date(),
+          rentPaidAt: effectivePaidAt,
           rentDepositId,
           rentPaidMethod: paymentMethod,
+          rentNotes: notes || '',
           isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -190,24 +203,26 @@ export async function POST(request: Request) {
       // Record audit log
       await db.collection('audit_logs').insertOne({
         messId,
-        cycleId,
+        cycleId: cycleIdStr,
         performedByUserId: (session.user as any).id,
         performedByUserName: session.user.name || 'Admin',
         action: 'MARK_RENT_PAID',
         targetCollection: 'member_cycles',
-        targetId: userId,
-        newValue: { amount: roomRent, rentDepositId, paymentMethod },
+        targetId: userIdStr,
+        newValue: { amount: roomRent, rentDepositId, paymentMethod, paidAt: effectivePaidAt, notes },
         createdAt: new Date(),
       });
 
       // Sync store
       try {
         const store = await getStore();
-        const storeMc = store.memberCycles.find((m) => m.userId === userId && m.cycleId === cycleId);
+        const storeMc = store.memberCycles.find((m) => m.userId === userIdStr && possibleCycleIds.includes(m.cycleId));
         if (storeMc) {
           (storeMc as any).rentPaid = true;
-          (storeMc as any).rentPaidAt = new Date();
+          (storeMc as any).rentPaidAt = effectivePaidAt;
           (storeMc as any).rentDepositId = rentDepositId;
+          (storeMc as any).rentPaidMethod = paymentMethod;
+          (storeMc as any).rentNotes = notes || '';
         }
       } catch (e) {
         // non-fatal
@@ -216,25 +231,16 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: `বাসা ভাড়া ৳${roomRent.toLocaleString('bn-BD')} সফলভাবে আদায় ও জমা হিসেবে রেকর্ড হয়েছে!`,
+        rentDepositId,
       });
     }
 
     // 2. REVERT RENT PAID TO UNPAID (In case of mistake)
     if (action === 'revert_rent_paid') {
-      const mcFilter = {
-        cycleId,
-        $or: [{ userId }, { userId: new ObjectId(userId) as any }],
-      };
-
       const existingMc = await db.collection('member_cycles').findOne(mcFilter);
       if (existingMc?.rentDepositId) {
         // Delete or remove the linked deposit
-        await db.collection('deposits').deleteOne({
-          $or: [
-            { _id: new ObjectId(existingMc.rentDepositId) as any },
-            { _id: existingMc.rentDepositId as any },
-          ],
-        });
+        await db.collection('deposits').deleteOne(idFilter(existingMc.rentDepositId));
       }
 
       await db.collection('member_cycles').updateOne(mcFilter, {
@@ -242,6 +248,7 @@ export async function POST(request: Request) {
           rentPaid: false,
           rentPaidAt: null,
           rentDepositId: null,
+          rentNotes: null,
           updatedAt: new Date(),
         },
       });
@@ -249,19 +256,19 @@ export async function POST(request: Request) {
       // Record audit log
       await db.collection('audit_logs').insertOne({
         messId,
-        cycleId,
+        cycleId: cycleIdStr,
         performedByUserId: (session.user as any).id,
         performedByUserName: session.user.name || 'Admin',
         action: 'REVERT_RENT_PAID',
         targetCollection: 'member_cycles',
-        targetId: userId,
+        targetId: userIdStr,
         createdAt: new Date(),
       });
 
       // Sync store
       try {
         const store = await getStore();
-        const storeMc = store.memberCycles.find((m) => m.userId === userId && m.cycleId === cycleId);
+        const storeMc = store.memberCycles.find((m) => m.userId === userIdStr && possibleCycleIds.includes(m.cycleId));
         if (storeMc) {
           (storeMc as any).rentPaid = false;
           (storeMc as any).rentPaidAt = null;
@@ -284,14 +291,19 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'সঠিক টাকার পরিমাণ দিন' }, { status: 400 });
       }
 
-      const mcFilter = {
-        cycleId,
-        $or: [{ userId }, { userId: new ObjectId(userId) as any }],
-      };
-
       await db.collection('member_cycles').updateOne(
         mcFilter,
-        { $set: { roomRent: newRent, updatedAt: new Date() } },
+        {
+          $set: { roomRent: newRent, updatedAt: new Date() },
+          $setOnInsert: {
+            userId: userIdStr,
+            cycleId: cycleIdStr,
+            messId,
+            isActive: true,
+            rentPaid: false,
+            createdAt: new Date(),
+          },
+        },
         { upsert: true }
       );
 

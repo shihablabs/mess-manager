@@ -28,7 +28,7 @@ import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { confirmAction } from '@/lib/alerts';
+import { confirmAction, promptRentPaymentModal, showRentSuccessModal } from '@/lib/alerts';
 
 interface MembersTabProps {
   currentUser: AppUser;
@@ -235,8 +235,16 @@ export const MembersTab: React.FC<MembersTabProps> = ({
     }
   };
 
-  // 1-Click Mark Rent Paid from Members Tab
+  // Double Popup Mark Rent Paid from Members Tab
   const handleMarkRentPaid = async (userId: string, roomRent: number, memberName: string) => {
+    const paymentInput = await promptRentPaymentModal({
+      memberName,
+      roomRent,
+      cycleName: cycle?.name,
+    });
+
+    if (!paymentInput) return; // User cancelled
+
     try {
       setRentProcessingId(userId);
       const res = await fetch('/api/rent', {
@@ -246,14 +254,23 @@ export const MembersTab: React.FC<MembersTabProps> = ({
           action: 'mark_rent_paid',
           userId,
           cycleId: cycle?._id,
-          amount: roomRent,
-          paymentMethod: 'cash',
+          amount: paymentInput.amount,
+          paymentMethod: paymentInput.paymentMethod,
+          paidAt: paymentInput.paidAt,
+          notes: paymentInput.notes,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(data.message || `${memberName} এর বাসা ভাড়া আদায় সম্পন্ন হয়েছে!`);
         onRefresh();
+        // Step 2: Show Success Receipt Modal
+        await showRentSuccessModal({
+          memberName,
+          amount: paymentInput.amount,
+          paymentMethodLabel: paymentInput.paymentMethodLabel,
+          paidAt: paymentInput.paidAt,
+          notes: paymentInput.notes,
+        });
       } else {
         toast.error(data.error || 'ভাড়া পরিশোধ রেকর্ড করতে ব্যর্থ হয়েছে');
       }
@@ -955,7 +972,13 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                         পরিশোধিত
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                      <span
+                        onClick={() => isManagerOrSuperAdmin && rentProcessingId !== mem.userId && handleMarkRentPaid(mem.userId, mem.roomRent, mem.name)}
+                        className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 ${
+                          isManagerOrSuperAdmin ? 'cursor-pointer hover:bg-rose-500/25 active:scale-95 transition' : ''
+                        }`}
+                        title={isManagerOrSuperAdmin ? 'ক্লিক করে বাসা ভাড়া আদায় ও রেকর্ড করুন' : undefined}
+                      >
                         <Clock className="w-2.5 h-2.5" />
                         বকেয়া
                       </span>

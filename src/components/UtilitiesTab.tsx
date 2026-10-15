@@ -34,7 +34,7 @@ import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
-import { confirmAction } from '@/lib/alerts';
+import { confirmAction, promptRentPaymentModal, showRentSuccessModal } from '@/lib/alerts';
 
 interface UtilitiesTabProps {
   currentUser: AppUser;
@@ -107,8 +107,16 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
     fetchRentData();
   }, [cycle?._id]);
 
-  // 1-Click Mark Rent Paid
+  // Double Popup Mark Rent Paid (Interactive SweetAlert with time, note & receipt)
   const handleMarkRentPaid = async (member: any) => {
+    const paymentInput = await promptRentPaymentModal({
+      memberName: member.name,
+      roomRent: member.roomRent,
+      cycleName: cycle?.name,
+    });
+
+    if (!paymentInput) return; // User cancelled
+
     try {
       setRentProcessingUserId(member.userId);
       const res = await fetch('/api/rent', {
@@ -118,23 +126,22 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
           action: 'mark_rent_paid',
           userId: member.userId,
           cycleId: cycle?._id,
-          amount: member.roomRent,
-          paymentMethod: 'cash',
+          amount: paymentInput.amount,
+          paymentMethod: paymentInput.paymentMethod,
+          paidAt: paymentInput.paidAt,
+          notes: paymentInput.notes,
         }),
       });
       const data = await res.json();
       if (data.success) {
         await Promise.all([fetchRentData(), onRefresh()]);
-        Swal.fire({
-          title: 'ভাড়া আদায় সম্পন্ন!',
-          text: `${member.name} এর বাসা ভাড়া ৳${Number(member.roomRent).toLocaleString('bn-BD')} সফলভাবে আদায় ও জমা হিসেবে রেকর্ড হয়েছে।`,
-          icon: 'success',
-          confirmButtonColor: '#10b981',
-          background: '#0f172a',
-          color: '#f8fafc',
-          customClass: {
-            popup: 'border border-slate-700/80 rounded-3xl shadow-2xl backdrop-blur-xl',
-          },
+        // Step 2: Show Success Receipt Modal
+        await showRentSuccessModal({
+          memberName: member.name,
+          amount: paymentInput.amount,
+          paymentMethodLabel: paymentInput.paymentMethodLabel,
+          paidAt: paymentInput.paidAt,
+          notes: paymentInput.notes,
         });
       } else {
         toast.error(data.error || 'ভাড়া পরিশোধ রেকর্ড করতে ব্যর্থ হয়েছে');
@@ -643,7 +650,13 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                             )}
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-bold">
+                          <div
+                            onClick={() => isManager && !isProcessing && handleMarkRentPaid(member)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-bold ${
+                              isManager ? 'cursor-pointer hover:bg-rose-500/25 active:scale-95 transition' : ''
+                            }`}
+                            title={isManager ? 'ক্লিক করে বাসা ভাড়া আদায় ও রেকর্ড করুন' : undefined}
+                          >
                             <Clock className="w-3.5 h-3.5 text-rose-400" />
                             <span>বকেয়া রয়েছে</span>
                           </div>

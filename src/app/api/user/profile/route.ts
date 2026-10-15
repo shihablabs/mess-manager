@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getDb } from '@/lib/db';
-import { ObjectId } from 'mongodb';
+import { getDb, idFilter, safeObjectId } from '@/lib/db';
 import { UserDoc } from '@/models/types';
 import { getStore } from '@/lib/store';
 
@@ -25,9 +24,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: 'ডাটাবেজ সংযোগে সমস্যা' }, { status: 500 });
     }
 
+    const oid = safeObjectId(requestedUserId);
     const user = await db.collection('users').findOne({
       $or: [
-        { _id: new ObjectId(requestedUserId) as any },
+        ...(oid ? [{ _id: oid }] : []),
         { _id: requestedUserId as any },
         { email: requestedUserId },
       ],
@@ -144,12 +144,7 @@ export async function POST(request: Request) {
       occupation,
     };
 
-    const filter = {
-      $or: [
-        { _id: new ObjectId(targetUserId) as any },
-        { _id: targetUserId as any },
-      ],
-    };
+    const filter = idFilter(targetUserId);
 
     await db.collection('users').updateOne(filter, { $set: updateFields });
 

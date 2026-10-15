@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
-import { getDb } from '@/lib/db';
+import { getDb, idFilter } from '@/lib/db';
 import { BillDoc } from '@/models/types';
-import { ObjectId } from 'mongodb';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -83,9 +82,7 @@ export async function DELETE(request: Request) {
     }
     const db = await getDb();
     if (db) {
-      await db.collection('bills').deleteOne({
-        $or: [{ _id: id as any }, { _id: new ObjectId(id) as any }],
-      });
+      await db.collection('bills').deleteOne(idFilter(id));
     }
     return NextResponse.json({ success: true, message: 'বিল সফলভাবে মুছে ফেলা হয়েছে' });
   } catch (err: any) {

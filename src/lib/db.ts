@@ -1,4 +1,4 @@
-import { MongoClient, Db } from 'mongodb';
+import { MongoClient, Db, ObjectId } from 'mongodb';
 import dns from 'dns';
 
 // Fix for Windows / ISP DNS servers failing MongoDB Atlas SRV query (ECONNREFUSED)
@@ -6,6 +6,38 @@ try {
   dns.setServers(['8.8.8.8', '1.1.1.1']);
 } catch {
   // Ignore in environments where setServers is restricted
+}
+
+/**
+ * Safely parse a string as a MongoDB ObjectId without throwing BSONError
+ */
+export function safeObjectId(id: unknown): ObjectId | null {
+  if (!id || typeof id !== 'string') return null;
+  const cleanId = id.trim();
+  if (/^[0-9a-fA-F]{24}$/.test(cleanId)) {
+    try {
+      return new ObjectId(cleanId);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Creates a safe query filter for MongoDB _id (matches ObjectId or string)
+ */
+export function idFilter(id: string): any {
+  const oid = safeObjectId(id);
+  return oid ? { $or: [{ _id: oid }, { _id: id }] } : { _id: id };
+}
+
+/**
+ * Creates a safe query filter for user fields like userId
+ */
+export function userKeyFilter(key: string, id: string): any {
+  const oid = safeObjectId(id);
+  return oid ? { $or: [{ [key]: oid }, { [key]: id }] } : { [key]: id };
 }
 
 const options = {};
