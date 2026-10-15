@@ -41,22 +41,65 @@ export async function POST(request: Request) {
       paidFromBigBazarFund = false,
     } = body;
 
-    if (!amount || amount <= 0 || !description) {
-      return NextResponse.json({ success: false, error: 'টাকা ও বিবরণ আবশ্যক' }, { status: 400 });
+    const user = store.users.find((u) => u._id === userId);
+    const membership = store.memberships.find((m) => m.userId === userId);
+    const isManagerOrAdmin =
+      user?.role === 'super_admin' ||
+      user?.role === 'admin' ||
+      membership?.role === 'super_admin' ||
+      membership?.role === 'admin';
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // 1. Big Bazar Constraint: Only Admin/Manager can manage Big Bazar
+    if (type === 'big') {
+      if (!isManagerOrAdmin) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              'বড় বাজার শুধুমাত্র মেস অ্যাডমিন / ম্যানেজার পরিচালনা ও এন্ট্রি করতে পারেন (সাধারণত ১০-১৫ তারিখের মধ্যে)।',
+          },
+          { status: 403 }
+        );
+      }
     }
 
+    // 2. Regular Bazar Constraint: Allowed directly ONLY IF member's duty roster is active today (or Admin)
+    if (type === 'regular' && !isManagerOrAdmin) {
+      const activeSlotForUser = store.bazarSlots.find((s) => {
+        if (s.cycleId !== cycleId) return false;
+        if (!s.assignedUserIds.includes(userId)) return false;
+        return todayStr >= s.startDate && todayStr <= s.endDate;
+      });
+
+      // If duty slots exist in this cycle and user is NOT on duty today
+      const anySlotsInCycle = store.bazarSlots.some((s) => s.cycleId === cycleId);
+      if (anySlotsInCycle && !activeSlotForUser) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              'আপনার রেগুলার বাজারের শিডিউল আজ সক্রিয় নেই। রোস্টার অনুযায়ী আপনার নির্ধারিত ডিউটি চলাকালীন সময়েই কেবল সরাসরি রেগুলার বাজার তুলতে পারবেন। অন্যথায় মেস অ্যাডমিনের মাধ্যমে এন্ট্রি করতে হবে।',
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Direct addition for legitimate bazars (Approved directly as requested)
     const newEntry: BazarDoc = {
       _id: `baz_${Date.now()}`,
       userId,
       cycleId,
       messId: store.mess._id as string,
-      date: new Date().toISOString().split('T')[0],
+      date: todayStr,
       amount: Number(amount),
       description,
       type,
       splitType,
       customMemberIds,
-      status: 'pending',
+      status: 'approved',
       paidFromBigBazarFund,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -66,7 +109,11 @@ export async function POST(request: Request) {
       await db.collection('bazars').insertOne(newEntry as any);
     }
 
-    return NextResponse.json({ success: true, bazar: newEntry });
+    return NextResponse.json({
+      success: true,
+      bazar: newEntry,
+      message: 'বাজার সফলভাবে সরাসরি যুক্ত ও অনুমোদিত হয়েছে',
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

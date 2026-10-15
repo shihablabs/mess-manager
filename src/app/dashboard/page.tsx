@@ -398,6 +398,7 @@ export default function DashboardPage() {
 
       <NewBazarModal
         currentUser={currentUser}
+        members={members}
         isOpen={isNewBazarOpen}
         onClose={() => setIsNewBazarOpen(false)}
         onSuccess={() => {

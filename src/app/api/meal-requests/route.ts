@@ -14,11 +14,14 @@ export async function GET(request: Request) {
 
   const enriched = list.map((r) => {
     const user = store.users.find((u) => u._id === r.userId);
-    const slot = store.mess.mealSlots.find((s) => s.id === r.slotId);
+    let slotDisplay = 'উভয় মিল (সকাল ও রাত)';
+    if (r.slotId === 'morning') slotDisplay = 'সকালের মিল';
+    if (r.slotId === 'night') slotDisplay = 'রাতের মিল';
+
     return {
       ...r,
       userName: user ? user.name : 'সদস্য',
-      slotName: slot ? slot.name : r.slotId,
+      slotName: slotDisplay,
     };
   });
 
@@ -34,13 +37,20 @@ export async function POST(request: Request) {
       userId,
       cycleId = store.cycles[0]?._id as string || 'cycle_1',
       date,
-      slotId,
-      action = 'off',
+      startDate,
+      endDate,
+      slotId = 'both', // 'morning' | 'night' | 'both'
+      action = 'off', // 'off' | 'on'
       reason,
+      isAdminDirect = false,
+      adminUserId,
     } = body;
 
-    if (!date || !slotId) {
-      return NextResponse.json({ success: false, error: 'তারিখ ও স্লট আবশ্যক' }, { status: 400 });
+    const fromDate = startDate || date;
+    const toDate = endDate || fromDate;
+
+    if (!fromDate) {
+      return NextResponse.json({ success: false, error: 'তারিখ নির্বাচন আবশ্যক' }, { status: 400 });
     }
 
     let isLate = false;
@@ -53,25 +63,70 @@ export async function POST(request: Request) {
       isLate = true;
     }
 
-    const newReq: MealRequestDoc = {
+    const newReq: any = {
       _id: `mr_${Date.now()}`,
       userId,
       cycleId,
       messId: store.mess._id as string,
-      date,
+      date: fromDate,
+      startDate: fromDate,
+      endDate: toDate,
       slotId,
       action,
       isLate,
-      status: 'pending',
+      status: isAdminDirect ? 'approved' : 'pending',
       reason,
       createdAt: new Date(),
     };
 
     if (db) {
-      await db.collection('meal_requests').insertOne(newReq as any);
+      await db.collection('meal_requests').insertOne(newReq);
+
+      // If admin direct action, apply immediately to meals
+      if (isAdminDirect) {
+        const start = new Date(fromDate);
+        const end = new Date(toDate);
+        const slotsToUpdate = slotId === 'both' ? ['morning', 'night'] : [slotId];
+
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          for (const sId of slotsToUpdate) {
+            const weight = sId === 'morning' ? 0.5 : 1.0;
+            const consumed = action === 'off' ? 0 : 1;
+
+            await db.collection('meals').updateOne(
+              {
+                userId,
+                cycleId,
+                date: dateStr,
+                slotId: sId,
+              },
+              {
+                $set: {
+                  consumed,
+                  weight,
+                  updatedAt: new Date(),
+                },
+                $setOnInsert: {
+                  _id: `meal_${sId}_${userId}_${dateStr}`,
+                  messId: store.mess._id as string,
+                  createdAt: new Date(),
+                },
+              },
+              { upsert: true }
+            );
+          }
+        }
+      }
     }
 
-    return NextResponse.json({ success: true, request: newReq });
+    return NextResponse.json({
+      success: true,
+      request: newReq,
+      message: isAdminDirect
+        ? 'মিল সফলভাবে আপডেট করা হয়েছে'
+        : 'মিল পরিবর্তনের অনুরোধ অ্যাডমিনের অনুমোদনের জন্য পাঠানো হয়েছে',
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
@@ -84,7 +139,7 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { id, status, adminUserId, adminNote } = body;
 
-    const reqItem = store.mealRequests.find((r) => r._id === id);
+    const reqItem: any = store.mealRequests.find((r) => r._id === id);
     if (!reqItem) {
       return NextResponse.json({ success: false, error: 'অনুরোধ পাওয়া যায়নি' }, { status: 404 });
     }
@@ -98,37 +153,48 @@ export async function PATCH(request: Request) {
             adminNote,
             reviewedBy: adminUserId || 'admin',
             reviewedAt: new Date(),
+            updatedAt: new Date(),
           },
         }
       );
 
-      // If approved, update or insert into meals
+      // If approved, update meals in DB for all dates in range
       if (status === 'approved') {
-        const slotDef = store.mess.mealSlots.find((s) => s.id === reqItem.slotId);
-        const weight = slotDef ? slotDef.weight : reqItem.slotId === 'morning' ? 0.5 : 1.0;
-        const consumed = reqItem.action === 'off' ? 0 : 1;
+        const fromDate = reqItem.startDate || reqItem.date;
+        const toDate = reqItem.endDate || fromDate;
+        const start = new Date(fromDate);
+        const end = new Date(toDate);
+        const slotsToUpdate = reqItem.slotId === 'both' ? ['morning', 'night'] : [reqItem.slotId];
 
-        await db.collection('meals').updateOne(
-          {
-            userId: reqItem.userId,
-            cycleId: reqItem.cycleId,
-            date: reqItem.date,
-            slotId: reqItem.slotId,
-          },
-          {
-            $set: {
-              consumed,
-              weight,
-              updatedAt: new Date(),
-            },
-            $setOnInsert: {
-              _id: `meal_${Date.now()}`,
-              messId: store.mess._id as string,
-              createdAt: new Date(),
-            },
-          },
-          { upsert: true }
-        );
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          for (const sId of slotsToUpdate) {
+            const weight = sId === 'morning' ? 0.5 : 1.0;
+            const consumed = reqItem.action === 'off' ? 0 : 1;
+
+            await db.collection('meals').updateOne(
+              {
+                userId: reqItem.userId,
+                cycleId: reqItem.cycleId,
+                date: dateStr,
+                slotId: sId,
+              },
+              {
+                $set: {
+                  consumed,
+                  weight,
+                  updatedAt: new Date(),
+                },
+                $setOnInsert: {
+                  _id: `meal_${sId}_${reqItem.userId}_${dateStr}`,
+                  messId: store.mess._id as string,
+                  createdAt: new Date(),
+                },
+              },
+              { upsert: true }
+            );
+          }
+        }
       }
     }
 

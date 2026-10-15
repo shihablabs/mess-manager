@@ -435,17 +435,38 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                           </div>
                         </div>
 
-                        {reqOnDate && (
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                              reqOnDate.status === 'approved'
-                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
-                                : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                            }`}
-                          >
-                            রিকোয়েস্ট: {reqOnDate.slotName} {reqOnDate.action === 'off' ? 'অফ' : 'অন'}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {canEditMeals && (
+                            <button
+                              onClick={() => {
+                                const isOff = entry.morning === 0 && entry.night === 0;
+                                setDailyEntries((prev) => ({
+                                  ...prev,
+                                  [member.userId]: isOff ? { morning: 1, night: 1 } : { morning: 0, night: 0 },
+                                }));
+                              }}
+                              className={`text-[10px] px-2 py-0.5 rounded font-semibold transition-all cursor-pointer ${
+                                entry.morning === 0 && entry.night === 0
+                                  ? 'bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30'
+                                  : 'bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30'
+                              }`}
+                            >
+                              {entry.morning === 0 && entry.night === 0 ? 'মিল চালু (১)' : 'আজকের মিল অফ'}
+                            </button>
+                          )}
+
+                          {reqOnDate && (
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                                reqOnDate.status === 'approved'
+                                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                                  : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                              }`}
+                            >
+                              রিকোয়েস্ট: {reqOnDate.slotName} {reqOnDate.action === 'off' ? 'অফ' : 'অন'}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Counters */}
@@ -570,8 +591,17 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                         )}
                       </div>
                       <p className="text-xs text-slate-400">
-                        তারিখ: <strong className="text-slate-300">{req.date}</strong> | স্লট:{' '}
-                        <strong className="text-slate-300">{req.slotName}</strong>
+                        {req.startDate && req.endDate && req.startDate !== req.endDate ? (
+                          <span>
+                            মেয়াদ: <strong className="text-slate-300">{req.startDate}</strong> থেকে{' '}
+                            <strong className="text-slate-300">{req.endDate}</strong>
+                          </span>
+                        ) : (
+                          <span>
+                            তারিখ: <strong className="text-slate-300">{req.date}</strong>
+                          </span>
+                        )}{' '}
+                        | স্লট: <strong className="text-slate-300">{req.slotName}</strong>
                         {req.reason && <span> — &quot;{req.reason}&quot;</span>}
                       </p>
                     </div>
