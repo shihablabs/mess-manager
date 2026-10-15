@@ -51,18 +51,18 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 }) => {
   const pathname = usePathname();
 
-  // State for collapsible sub-items
-  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
-    dashboard: true,
-    meals: true,
-    bazar: true,
-    schedule: true,
-    bills: true,
-    users: true,
-  });
+  // Accordion state: only ONE menu section can be expanded at a time
+  const currentSectionId = pathname?.split('/')[2] || 'dashboard';
+  const [expandedSection, setExpandedSection] = useState<string | null>(currentSectionId);
+
+  // Auto-sync expanded section when navigating between routes
+  React.useEffect(() => {
+    const secId = pathname?.split('/')[2] || 'dashboard';
+    setExpandedSection(secId);
+  }, [pathname]);
 
   const toggleExpand = (menuId: string) => {
-    setExpandedMenus((prev) => ({ ...prev, [menuId]: !prev[menuId] }));
+    setExpandedSection((prev) => (prev === menuId ? null : menuId));
   };
 
   const isSuperAdmin = currentUser?.role === 'super_admin';
@@ -300,7 +300,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
           {menuSections.map((section) => {
             const Icon = section.icon;
-            const isExpanded = expandedMenus[section.id];
+            const isExpanded = expandedSection === section.id;
             const isSectionActive = section.isActive;
 
             return (

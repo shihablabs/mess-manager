@@ -7,6 +7,7 @@ export interface MemberInput {
   name: string;
   roomRent: number;
   isActive: boolean;
+  isUtilityExempt?: boolean; // When true, utility bills are waived (e.g. absent whole month)
   leftDate?: string | null;
   openingCarryCredit?: number; // credit from previous cycle carry-over
 }
@@ -82,6 +83,7 @@ export interface MemberBillingResult {
   userId: string;
   name: string;
   isActive: boolean;
+  isUtilityExempt?: boolean;
   mealUnits: number;
   regularMealCost: number;
   fixedShare: number;

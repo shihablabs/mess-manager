@@ -12,6 +12,7 @@ export default function BazarExpensesPage() {
     currentUser,
     bazars,
     fixedEvents,
+    members,
     refreshData,
     openNewBazar,
     openFixedEvent,
@@ -36,6 +37,7 @@ export default function BazarExpensesPage() {
           currentUser={currentUser}
           bazars={bazars}
           fixedEvents={fixedEvents}
+          members={members}
           onRefresh={refreshData}
           onOpenNewBazarModal={openNewBazar}
           onOpenFixedEventModal={openFixedEvent}

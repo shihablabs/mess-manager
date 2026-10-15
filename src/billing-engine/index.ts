@@ -58,9 +58,9 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
     }
   }
 
-  // Add extra meal weight from attended fixed events (SRS Section 4.3 / 5.1: default 0.5)
+  // Add extra meal weight from attended fixed events (default 0 unless explicitly specified)
   for (const event of fixedEvents) {
-    const extraWeight = event.extraMealWeight ?? 0.5;
+    const extraWeight = event.extraMealWeight || 0;
     for (const attendeeId of event.attendeeUserIds) {
       if (memberMealUnitsMap.has(attendeeId)) {
         const current = memberMealUnitsMap.get(attendeeId) || 0;
@@ -79,9 +79,13 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
   const rawMealRate = totalMealUnits > 0 ? mealPoolTotal / totalMealUnits : 0;
   const mealRate = Math.round(rawMealRate * 100) / 100; // 2 decimal places
 
-  // 4. Utility bills
+  // 4. Utility bills (distributed among active members who are NOT exempt)
   const totalUtility = utilityBills.reduce((sum, u) => sum + u.amount, 0);
-  const utilitySharePerActiveMember = totalUtility / activeCount;
+  const nonExemptActiveMembers = activeMembers.filter((m) => !m.isUtilityExempt);
+  const nonExemptCount = nonExemptActiveMembers.length || 1;
+  const utilitySharePerActiveMember = nonExemptActiveMembers.length > 0
+    ? totalUtility / nonExemptCount
+    : 0;
 
   // 5. Fixed Bazar shares
   const memberFixedShareMap = new Map<string, number>();
@@ -164,7 +168,7 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
     const units = memberMealUnitsMap.get(member.userId) || 0;
     const rawMealCost = units * mealRate;
     const fixedShare = memberFixedShareMap.get(member.userId) || 0;
-    const utilShare = member.isActive ? utilitySharePerActiveMember : 0;
+    const utilShare = (member.isActive && !member.isUtilityExempt) ? utilitySharePerActiveMember : 0;
     const extraNonPool = memberExtraNonPoolMap.get(member.userId) || 0;
     const rent = member.roomRent || 0;
 
@@ -195,6 +199,7 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
       userId: member.userId,
       name: member.name,
       isActive: member.isActive,
+      isUtilityExempt: member.isUtilityExempt ?? false,
       mealUnits: units,
       regularMealCost: finalMealCost,
       fixedShare: finalFixedShare,

@@ -22,6 +22,7 @@ export async function POST(request: Request) {
       type,
       amount,
       splitMethod = 'equal',
+      paidByUserId,
     } = body;
 
     if (!type || !amount || amount <= 0) {
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
           $set: {
             amount: Number(amount),
             splitMethod,
+            paidByUserId: paidByUserId && paidByUserId !== 'mess_fund' ? paidByUserId : null,
             updatedAt: new Date(),
           },
           $setOnInsert: {
@@ -45,6 +47,24 @@ export async function POST(request: Request) {
         },
         { upsert: true }
       );
+
+      // If paid by a specific member out of pocket, automatically credit them with a deposit
+      if (paidByUserId && paidByUserId !== 'mess_fund') {
+        const payerUser = store.users.find((u) => u._id === paidByUserId);
+        await db.collection('deposits').insertOne({
+          _id: `dep_${Date.now()}`,
+          userId: paidByUserId,
+          cycleId,
+          messId: store.mess._id as string,
+          amount: Number(amount),
+          date: new Date().toISOString().split('T')[0],
+          type: 'general',
+          isPaid: true,
+          paidAt: new Date(),
+          notes: `${type} বিল নিজ পকেট থেকে পরিশোধ (${payerUser?.name || 'সদস্য'})`,
+          createdAt: new Date(),
+        } as any);
+      }
     }
 
     return NextResponse.json({ success: true, message: 'বিল সংরক্ষণ করা হয়েছে' });

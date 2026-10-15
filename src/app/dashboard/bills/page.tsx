@@ -11,6 +11,7 @@ export default function BillsUtilitiesPage() {
   const {
     currentUser,
     summaryData,
+    members,
     deposits,
     refreshData,
     openDeposit,
@@ -33,6 +34,7 @@ export default function BillsUtilitiesPage() {
       <MasterErrorBoundary fallbackTitle="ইউটিলিটি বিল ও বড় বাজার ফান্ড লোড করতে সমস্যা হয়েছে">
         <UtilitiesTab
           currentUser={currentUser}
+          members={members}
           bills={summaryData?.bills || []}
           deposits={deposits}
           cycle={summaryData?.cycle}

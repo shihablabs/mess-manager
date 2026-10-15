@@ -160,6 +160,31 @@ export const MembersTab: React.FC<MembersTabProps> = ({
     }
   };
 
+  // Toggle Utility Bill Exemption (সদস্য পুরো মাস অনুপস্থিত থাকলে ইউটিলিটি মওকুফ করা)
+  const handleToggleUtilityExempt = async (userId: string, isUtilityExempt: boolean) => {
+    try {
+      const res = await fetch('/api/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'toggle_utility_exempt',
+          userId,
+          isUtilityExempt,
+          cycleId: cycle?._id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'ইউটিলিটি ছাড় স্ট্যাটাস আপডেট হয়েছে!');
+        onRefresh();
+      } else {
+        toast.error(data.error || 'আপডেট ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
+    }
+  };
+
   // 4. Save Cycle & Big Bazar Settings
   const handleSaveCycleSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -674,6 +699,36 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* Utility Exemption Row (সদস্য পুরো মাস বাইরে থাকলে ইউটিলিটি মওকুফ) */}
+                <div className="flex items-center justify-between text-xs py-1 border-t border-slate-800/60">
+                  <span className="text-slate-400">ইউটিলিটি বিল:</span>
+                  <div className="flex items-center gap-1.5">
+                    {mem.isUtilityExempt ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        🎁 মওকুফ (Free)
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-300">
+                        সাধারণ
+                      </span>
+                    )}
+
+                    {isManagerOrSuperAdmin && (
+                      <button
+                        onClick={() => handleToggleUtilityExempt(mem.userId, !mem.isUtilityExempt)}
+                        className={`text-[10px] px-2 py-0.5 rounded font-semibold transition-colors cursor-pointer ${
+                          mem.isUtilityExempt
+                            ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                            : 'bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30'
+                        }`}
+                        title={mem.isUtilityExempt ? 'ইউটিলিটি বিল পুনরায় চালু করুন' : 'সদস্য পুরো মাস অনুপস্থিত থাকলে ইউটিলিটি মওকুফ করুন'}
+                      >
+                        {mem.isUtilityExempt ? 'চালু করুন' : 'মওকুফ'}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between text-xs border-t border-slate-800/60 pt-1">

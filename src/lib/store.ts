@@ -113,6 +113,7 @@ export class MessStore {
         roomRent: mc ? mc.roomRent : 0,
         isActive: mc ? mc.isActive : true,
         leftDate: mc?.leftDate,
+        isUtilityExempt: (mc as any)?.isUtilityExempt ?? false,
       };
     });
 

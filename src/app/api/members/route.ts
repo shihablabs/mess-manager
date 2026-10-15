@@ -25,6 +25,7 @@ export async function GET(request: Request) {
       status: mem?.status || 'active',
       roomRent: mc ? mc.roomRent : 0,
       isActiveInCycle: mc ? mc.isActive : true,
+      isUtilityExempt: Boolean((mc as any)?.isUtilityExempt),
       leftDate: mc?.leftDate,
     };
   });
@@ -202,6 +203,39 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json({ success: true, message: 'রুম ভাড়া সফলভাবে আপডেট করা হয়েছে' });
+    }
+
+    // Toggle utility exemption (সদস্য পুরো মাস অনুপস্থিত থাকলে ইউটিলিটি মওকুফ করা)
+    if (action === 'toggle_utility_exempt') {
+      if (!userId) {
+        return NextResponse.json({ success: false, error: 'ইউজার আইডি আবশ্যক' }, { status: 400 });
+      }
+
+      const isUtilityExempt = Boolean(body.isUtilityExempt);
+
+      if (db) {
+        await db.collection('member_cycles').updateOne(
+          { userId: userId.toString(), cycleId },
+          {
+            $set: { isUtilityExempt, updatedAt: new Date() },
+            $setOnInsert: {
+              _id: `mc_${userId}_${cycleId}`,
+              messId: store.mess._id as string,
+              isActive: true,
+              roomRent: 3000,
+              createdAt: new Date(),
+            },
+          },
+          { upsert: true }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: isUtilityExempt
+          ? 'এই সদস্যের ইউটিলিটি বিল সম্পূর্ণ মওকুফ করা হয়েছে'
+          : 'ইউটিলিটি বিল পুনরায় কার্যকর করা হয়েছে',
+      });
     }
 
     // Member requests settlement (মেম্বার নিজে হিসাব নিষ্পত্তির আবেদন করবে)
