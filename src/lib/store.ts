@@ -24,8 +24,8 @@ import { SUPER_ADMIN_EMAIL } from '@/lib/session';
 export class MessStore {
   mess: MessDoc = {
     _id: 'mess_1',
-    name: 'শান্তিনীড় মেস',
-    code: 'SHANTI-01',
+    name: 'Developer Zone',
+    code: 'DEV-ZONE-01',
     currencySymbol: '৳',
     mealSlots: [
       { id: 'morning', name: 'সকাল', weight: 0.5, cutoffTime: '22:00' },

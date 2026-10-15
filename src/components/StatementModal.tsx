@@ -63,7 +63,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           {/* Header Info */}
           <div className="flex justify-between items-start border-b border-slate-800 pb-4">
             <div>
-              <h2 className="text-xl font-bold text-white print:text-black">শান্তিনীড় মেস</h2>
+              <h2 className="text-xl font-bold text-white print:text-black">Developer Zone</h2>
               <p className="text-xs text-slate-400 print:text-gray-600">হিসাব চক্র: {cycleName}</p>
               <p className="text-xs text-slate-400 print:text-gray-600">
                 প্রস্তুতকরণের তারিখ: {formattedDate || '—'}

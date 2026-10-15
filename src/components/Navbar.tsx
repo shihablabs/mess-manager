@@ -45,10 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="font-bold text-base sm:text-lg text-white tracking-wide">শান্তিনীড় মেস</span>
-                <span className="text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.2 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  ERP v1.0
-                </span>
+                <span className="font-bold text-base sm:text-lg text-white tracking-wide">Developer Zone</span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">
                 হিসাব চক্র: <span className="text-slate-200">{cycleName}</span>
