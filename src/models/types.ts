@@ -190,14 +190,17 @@ export interface BazarSlotDoc {
 // 12. SlotRequests
 export interface SlotRequestDoc {
   _id?: ObjectId | string;
-  userId: string;
+  userId: string; // requester userId
+  fromUserId?: string;
+  toUserId?: string; // target member for peer-to-peer swap
   cycleId: string;
   messId: string;
   fromSlotIndex: number;
   toSlotIndex: number;
-  status: RequestStatus;
+  status: RequestStatus | 'accepted' | 'rejected' | 'pending';
   reason?: string;
   createdAt: Date;
+  updatedAt?: Date;
 }
 
 // 13. Deposits

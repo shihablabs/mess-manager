@@ -72,30 +72,66 @@ export class MessStore {
   auditLogs: AuditLogDoc[] = [];
 
   // Duty roster slot generator
-  public generateSlots(numMembers: number, daysPerSlot = 3) {
-    this.bazarSlots = [];
-    const activeMemberCycles = this.memberCycles.filter((mc) => mc.isActive);
-    const memberIds = activeMemberCycles.map((mc) => mc.userId);
+  public generateSlots(
+    cycleId = 'cycle_1',
+    daysPerSlot = 5,
+    shiftOffset = 0,
+    isReverse = false
+  ) {
+    const cycle = this.cycles.find((c) => c._id === cycleId) || this.cycles[0];
+    const cycleStart = cycle?.startDate || '2026-10-01';
+    const cycleEnd = cycle?.endDate || '2026-10-31';
+
+    // Parse cycle dates
+    const startYearMonth = cycleStart.substring(0, 7); // e.g. "2026-10"
+    const startDayNum = parseInt(cycleStart.substring(8, 10), 10) || 1;
+    const endDayNum = parseInt(cycleEnd.substring(8, 10), 10) || 30;
+
+    // Get active dining members (excluding super admin)
+    const diningUsers = this.users.filter((u) => u.role !== 'super_admin');
+    let memberIds = diningUsers.map((u) => u._id as string);
     if (memberIds.length === 0) return;
 
-    let startDay = 1;
-    for (let i = 0; i < Math.min(numMembers, memberIds.length); i++) {
-      const from = `2026-10-${String(startDay).padStart(2, '0')}`;
-      const toDay = startDay + daysPerSlot - 1;
-      const to = `2026-10-${String(toDay).padStart(2, '0')}`;
-      startDay = toDay + 1;
+    // Apply reverse or shift rotation
+    if (isReverse) {
+      memberIds = [...memberIds].reverse();
+    }
+    if (shiftOffset > 0 && memberIds.length > 0) {
+      const normalizedOffset = shiftOffset % memberIds.length;
+      memberIds = memberIds.slice(normalizedOffset).concat(memberIds.slice(0, normalizedOffset));
+    }
+
+    // Filter out previous slots for this cycle
+    this.bazarSlots = this.bazarSlots.filter((s) => s.cycleId !== cycleId);
+
+    let currentStart = startDayNum;
+    let slotIndex = 1;
+
+    while (currentStart <= endDayNum) {
+      let currentEnd = currentStart + daysPerSlot - 1;
+      // If remaining days are fewer than daysPerSlot, merge into final slot
+      if (currentEnd >= endDayNum || (endDayNum - currentEnd < 3)) {
+        currentEnd = endDayNum;
+      }
+
+      const fromStr = `${startYearMonth}-${String(currentStart).padStart(2, '0')}`;
+      const toStr = `${startYearMonth}-${String(currentEnd).padStart(2, '0')}`;
+      const assignedUserId = memberIds[(slotIndex - 1) % memberIds.length];
 
       this.bazarSlots.push({
-        _id: `slot_${i + 1}`,
-        cycleId: this.cycles[0]?._id as string || 'cycle_1',
+        _id: `slot_${cycleId}_${slotIndex}`,
+        cycleId,
         messId: this.mess._id as string,
-        slotIndex: i + 1,
-        startDate: from,
-        endDate: to,
+        slotIndex,
+        startDate: fromStr,
+        endDate: toStr,
         capacity: 1,
-        assignedUserIds: [memberIds[i % memberIds.length]],
+        assignedUserIds: [assignedUserId],
         createdAt: new Date(),
       });
+
+      currentStart = currentEnd + 1;
+      slotIndex++;
     }
   }
 

@@ -35,8 +35,15 @@ import {
   Moon,
   Sun,
   Coffee,
+  ArrowRightLeft,
+  AlertCircle,
+  ExternalLink,
+  Check,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
+import Swal from 'sweetalert2';
 
 function ProfileContent() {
   const router = useRouter();
@@ -79,6 +86,36 @@ function ProfileContent() {
   const [depSearchQuery, setDepSearchQuery] = useState('');
   const [depTypeFilter, setDepTypeFilter] = useState<'all' | 'general' | 'utility' | 'big_bazar'>('all');
 
+  // Slots & Duty Roster states
+  const [slots, setSlots] = useState<any[]>([]);
+  const [slotRequests, setSlotRequests] = useState<any[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [isPeerSwapModalOpen, setIsPeerSwapModalOpen] = useState(false);
+  const [selectedToSlotIndex, setSelectedToSlotIndex] = useState<number | null>(null);
+  const [swapReason, setSwapReason] = useState('');
+  const [isSubmittingSwap, setIsSubmittingSwap] = useState(false);
+  const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null);
+
+  const fetchSlots = async () => {
+    try {
+      setIsLoadingSlots(true);
+      const res = await fetch('/api/slots');
+      const data = await res.json();
+      if (data.success) {
+        setSlots(data.slots || []);
+        setSlotRequests(data.requests || []);
+      }
+    } catch (e) {
+      console.error('Error fetching slots:', e);
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSlots();
+  }, []);
+
   const isSuperAdmin = currentUser?.role === 'super_admin';
   const isManager = currentUser?.role === 'admin';
   const isViewingSelf = currentUser?.id === effectiveUserId;
@@ -120,6 +157,126 @@ function ProfileContent() {
   const memberFixedEvents = useMemo(() => {
     return fixedEvents.filter((e) => e.attendeeUserIds?.includes(effectiveUserId));
   }, [fixedEvents, effectiveUserId]);
+
+  // Current user duty slot
+  const userSlot = useMemo(() => {
+    return slots.find(
+      (s) =>
+        s.assignedUsers?.some((u: any) => u.id === effectiveUserId) ||
+        s.assignedUserIds?.includes(effectiveUserId)
+    );
+  }, [slots, effectiveUserId]);
+
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  const isDutyActiveToday = useMemo(() => {
+    if (!userSlot) return false;
+    return todayStr >= userSlot.startDate && todayStr <= userSlot.endDate;
+  }, [userSlot, todayStr]);
+
+  const isDutyPast = useMemo(() => {
+    if (!userSlot) return false;
+    return todayStr > userSlot.endDate;
+  }, [userSlot, todayStr]);
+
+  const incomingSwapRequests = useMemo(() => {
+    return slotRequests.filter(
+      (r) => r.toUserId === effectiveUserId && r.status === 'pending'
+    );
+  }, [slotRequests, effectiveUserId]);
+
+  // Send peer-to-peer swap request
+  const handleSendPeerSwap = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userSlot) {
+      toast.error('আপনার কোনো সক্রিয় বাজার স্লট নেই');
+      return;
+    }
+    if (!selectedToSlotIndex) {
+      toast.error('যে সদস্যের স্লটের সাথে অদলবদল করতে চান তা নির্বাচন করুন');
+      return;
+    }
+
+    const targetSlot = slots.find((s) => s.slotIndex === selectedToSlotIndex);
+    const targetUserId = targetSlot?.assignedUsers?.[0]?.id;
+
+    if (!targetUserId) {
+      toast.error('টার্গেট সদস্য পাওয়া যায়নি');
+      return;
+    }
+
+    try {
+      setIsSubmittingSwap(true);
+      const res = await fetch('/api/slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'request_peer_swap',
+          userId: effectiveUserId,
+          toUserId: targetUserId,
+          fromSlotIndex: userSlot.slotIndex,
+          toSlotIndex: selectedToSlotIndex,
+          reason: swapReason,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsPeerSwapModalOpen(false);
+        setSwapReason('');
+        setSelectedToSlotIndex(null);
+        fetchSlots();
+        Swal.fire({
+          title: 'সোয়াপ অনুরোধ পাঠানো হয়েছে!',
+          text: 'উক্ত সদস্য সম্মতি (Accept) দিলে স্বয়ংক্রিয়ভাবে স্লট অদলবদল হবে। সুপার অ্যাডমিনের অনুমোদনের প্রয়োজন নেই।',
+          icon: 'success',
+          confirmButtonColor: '#4f46e5',
+          background: '#0f172a',
+          color: '#f8fafc',
+        });
+      } else {
+        toast.error(data.error || 'অনুরোধ পাঠাতে ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
+    } finally {
+      setIsSubmittingSwap(false);
+    }
+  };
+
+  // Respond to swap request (Accept / Reject) - Direct P2P!
+  const handleRespondPeerSwap = async (requestId: string, decision: 'accept' | 'reject') => {
+    try {
+      setRespondingRequestId(requestId);
+      const res = await fetch('/api/slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'respond_peer_swap',
+          requestId,
+          decision,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchSlots();
+        refreshData();
+        Swal.fire({
+          title: decision === 'accept' ? 'বাজার ডিউটি সোয়াপ সফল!' : 'অনুরোধ বাতিল হয়েছে',
+          text: data.message,
+          icon: decision === 'accept' ? 'success' : 'info',
+          confirmButtonColor: '#4f46e5',
+          background: '#0f172a',
+          color: '#f8fafc',
+        });
+      } else {
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
+    } finally {
+      setRespondingRequestId(null);
+    }
+  };
 
   // Fetch daily meal history for this user
   useEffect(() => {
@@ -411,6 +568,148 @@ function ProfileContent() {
               <Plus className="w-4 h-4" />
               টাকা জমা দিন
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Incoming Peer Swap Requests Alert (if viewing self and any pending requests) */}
+      {isViewingSelf && incomingSwapRequests.length > 0 && (
+        <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-amber-500/40 bg-amber-950/20 space-y-3 animate-in fade-in">
+          <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>আপনার জন্য বাজার ডিউটি অদলবদল (Swap) এর অনুরোধ এসেছে ({incomingSwapRequests.length}টি)</span>
+          </div>
+          <div className="space-y-2">
+            {incomingSwapRequests.map((req) => (
+              <div
+                key={req._id}
+                className="p-3.5 rounded-xl bg-slate-900/90 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <img
+                    src={req.fromUser?.image || `https://api.dicebear.com/7.x/bottts/svg?seed=${req.fromUserId}`}
+                    alt={req.fromUser?.name || 'সদস্য'}
+                    className="w-10 h-10 rounded-xl object-cover border border-amber-500/40 shrink-0"
+                  />
+                  <div>
+                    <span className="font-bold text-white text-sm block">
+                      {req.fromUser?.name || req.userName}
+                    </span>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      তাঁর নির্ধারিত স্লট: <strong className="text-amber-300">{req.fromSlotDates}</strong> ⮂ আপনার স্লট:{' '}
+                      <strong className="text-emerald-300">{req.toSlotDates}</strong>
+                    </p>
+                    {req.reason && (
+                      <p className="text-[10px] text-slate-400 italic mt-0.5">
+                        কারণ: &ldquo;{req.reason}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  <button
+                    onClick={() => handleRespondPeerSwap(req._id, 'reject')}
+                    disabled={respondingRequestId === req._id}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                  >
+                    প্রত্যাখ্যান
+                  </button>
+                  <button
+                    onClick={() => handleRespondPeerSwap(req._id, 'accept')}
+                    disabled={respondingRequestId === req._id}
+                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/30 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>সম্মত (Accept)</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Monthly Bazar Duty & 5-Day Slot Schedule Card */}
+      <div
+        className={`glass-panel rounded-3xl p-5 border relative overflow-hidden transition-all ${
+          isDutyActiveToday
+            ? 'border-emerald-500/50 bg-gradient-to-b from-emerald-950/30 to-slate-950/80 shadow-lg shadow-emerald-500/10'
+            : 'border-slate-800 bg-slate-900/60'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-indigo-400 flex items-center gap-1.5 uppercase tracking-wider">
+                <Calendar className="w-4 h-4 text-indigo-400" />
+                চলতি মাসের বাজার ডিউটি (৫ দিনের স্লট)
+              </span>
+
+              {userSlot ? (
+                isDutyActiveToday ? (
+                  <span className="text-[10px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1.5 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    আজ আপনার বাজার ডিউটি সক্রিয়
+                  </span>
+                ) : isDutyPast ? (
+                  <span className="text-[10px] bg-slate-800 text-slate-400 px-2.5 py-0.5 rounded-full font-medium">
+                    ডিউটি সম্পন্ন হয়েছে
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full font-medium">
+                    আসন্ন বাজার ডিউটি
+                  </span>
+                )
+              ) : (
+                <span className="text-[10px] bg-slate-800 text-slate-400 px-2.5 py-0.5 rounded-full">
+                  স্লট নির্ধারিত নেই
+                </span>
+              )}
+            </div>
+
+            {userSlot ? (
+              <div>
+                <h4 className="text-base sm:text-lg font-black text-white flex items-center gap-2 flex-wrap">
+                  <span>স্লট #{userSlot.slotIndex}:</span>
+                  <span className="text-indigo-300 font-mono font-semibold">
+                    {userSlot.startDate} হতে {userSlot.endDate}
+                  </span>
+                  <span className="text-xs font-normal text-slate-400 hidden sm:inline">(৫ দিন মেয়াদী)</span>
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  এই নির্ধারিত ৫ দিন সময়ের মধ্যে মেসের দৈনিক রেগুলার বাজার সরাসরি ক্রয় ও তোলার দায়িত্ব আপনার।
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">
+                চলতি মাসের রোস্টারে আপনার নামে কোনো সক্রিয় ৫-দিনের বাজার স্লট নির্ধারিত নেই।
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end flex-wrap">
+            {isViewingSelf && userSlot && (
+              <button
+                onClick={() => {
+                  setIsPeerSwapModalOpen(true);
+                  const other = slots.find((s) => s.slotIndex !== userSlot.slotIndex);
+                  if (other) setSelectedToSlotIndex(other.slotIndex);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 text-xs font-semibold transition-all cursor-pointer shadow-sm"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span>বাজার ডিউটি সোয়াপ করুন</span>
+              </button>
+            )}
+
+            <Link
+              href="/dashboard/schedule"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+            >
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <span>সম্পূর্ণ রোস্টার দেখুন</span>
+            </Link>
           </div>
         </div>
       </div>
@@ -1169,6 +1468,95 @@ function ProfileContent() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* MODAL: MEMBER TO MEMBER PEER SWAP MODAL */}
+      {isPeerSwapModalOpen && userSlot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
+                  <ArrowRightLeft className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-white text-sm">বাজার ডিউটি সোয়াপের আবেদন</h3>
+              </div>
+              <button
+                onClick={() => setIsPeerSwapModalOpen(false)}
+                className="text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendPeerSwap} className="p-5 space-y-4 text-xs">
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">
+                  আপনার বর্তমান দায়িত্ব
+                </span>
+                <p className="text-slate-200 font-bold text-xs">
+                  স্লট #{userSlot.slotIndex}: {userSlot.startDate} হতে {userSlot.endDate} (৫ দিন)
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-medium">
+                  কার স্লটের সাথে অদলবদল (Swap) করতে চান?
+                </label>
+                <select
+                  value={selectedToSlotIndex || ''}
+                  onChange={(e) => setSelectedToSlotIndex(Number(e.target.value))}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-indigo-500 cursor-pointer"
+                  required
+                >
+                  <option value="">সদস্য ও স্লট নির্বাচন করুন...</option>
+                  {slots
+                    .filter((s) => s.slotIndex !== userSlot.slotIndex)
+                    .map((s) => {
+                      const user = s.assignedUsers?.[0];
+                      return (
+                        <option key={s.slotIndex} value={s.slotIndex}>
+                          {user ? user.name : 'সদস্য'} — স্লট #{s.slotIndex} ({s.startDate} হতে {s.endDate})
+                        </option>
+                      );
+                    })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-medium">সোয়াপের কারণ (ঐচ্ছিক)</label>
+                <input
+                  type="text"
+                  placeholder="যেমন: ঐ সময়ে পরীক্ষা / জরুরি ব্যক্তিগত কাজ আছে"
+                  value={swapReason}
+                  onChange={(e) => setSwapReason(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] leading-relaxed">
+                💡 <strong>নীতিমালা:</strong> এই আবেদন পাঠানোর পর উক্ত সদস্য যদি সম্মতি (Accept) দেন, তবে স্বয়ংক্রিয়ভাবে স্লট দুটি পরস্পর বদল হয়ে যাবে। এর জন্য সুপার অ্যাডমিনের হস্তক্ষেপের প্রয়োজন নেই।
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsPeerSwapModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-400 hover:text-slate-200 cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingSwap}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/25 transition-all cursor-pointer"
+                >
+                  {isSubmittingSwap ? 'পাঠানো হচ্ছে...' : 'সোয়াপ অনুরোধ পাঠান'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
