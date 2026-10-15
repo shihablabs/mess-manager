@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { MealRequestDoc, MealDoc } from '@/models/types';
+import { isMealRequestLate } from '@/billing-engine';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -55,28 +56,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'তারিখ নির্বাচন আবশ্যক' }, { status: 400 });
     }
 
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    const currentHour = now.getHours();
+    // Read dynamic meal slots cutoff deadlines from mess configuration (SRS 4.5 & Task 8)
+    const mealSlots = store.mess?.mealSlots || [
+      { id: 'morning', name: 'সকাল', weight: 0.5, cutoffTime: '22:00' },
+      { id: 'night', name: 'রাত', weight: 1.0, cutoffTime: '16:00' },
+    ];
 
     let isLate = explicitIsLate || false;
-    if (fromDate < todayStr) {
-      isLate = true;
-    } else if (fromDate === todayStr) {
-      if (slotId === 'morning' || slotId === 'both' || slotId === 'all') {
-        isLate = true; // morning cutoff was previous night 10 PM
-      } else if (slotId === 'lunch' && currentHour >= 9) {
-        isLate = true; // lunch cutoff is 9 AM
-      } else if (slotId === 'night' && currentHour >= 16) {
-        isLate = true; // night cutoff is 4 PM
-      }
-    } else if (fromDate === tomorrowStr) {
-      if ((slotId === 'morning' || slotId === 'both' || slotId === 'all') && currentHour >= 22) {
-        isLate = true; // previous night 10 PM
-      }
+    if (!isLate) {
+      isLate = isMealRequestLate(fromDate, slotId, mealSlots, new Date());
     }
 
     const newReq: any = {

@@ -477,4 +477,7 @@ export function calculateProRataAmount(
 export { calculateSlotDistribution, generateBazarSlotRanges } from './slots';
 export type { SlotDateRange } from './slots';
 
+export { isMealRequestLate, getMealSlotCutoffDateTime } from './meal-cutoff';
+export type { MealSlotCutoffConfig } from './meal-cutoff';
+
 
