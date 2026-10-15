@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { FixedEventDoc } from '@/models/types';
+import { calculateFixedEventPerPerson } from '@/billing-engine';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -21,8 +22,7 @@ export async function GET(request: Request) {
     return {
       ...e,
       attendees,
-      perPersonCost:
-        e.attendeeUserIds.length > 0 ? Math.round(e.cost / e.attendeeUserIds.length) : 0,
+      perPersonCost: calculateFixedEventPerPerson(e.cost, e.attendeeUserIds.length),
     };
   });
 
@@ -40,13 +40,19 @@ export async function POST(request: Request) {
       cost,
       mealTime = 'lunch',
       attendeeUserIds = [],
-      extraMealWeight = 0,
+      extraMealWeight,
       cycleId = store.cycles[0]?._id as string || 'cycle_1',
     } = body;
 
     if (!title || !cost || cost <= 0) {
       return NextResponse.json({ success: false, error: 'শিরোনাম ও খরচের পরিমাণ আবশ্যক' }, { status: 400 });
     }
+
+    const defaultWeight = store.mess?.fixedExtraWeightDefault ?? 0.5;
+    const finalExtraWeight =
+      extraMealWeight !== undefined && extraMealWeight !== null
+        ? Number(extraMealWeight)
+        : defaultWeight;
 
     const newEvent: FixedEventDoc = {
       _id: `fix_${Date.now()}`,
@@ -56,7 +62,7 @@ export async function POST(request: Request) {
       title,
       mealTime,
       cost: Number(cost),
-      extraMealWeight: Number(extraMealWeight),
+      extraMealWeight: finalExtraWeight,
       attendeeUserIds,
       createdAt: new Date(),
       updatedAt: new Date(),

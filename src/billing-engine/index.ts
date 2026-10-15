@@ -58,13 +58,18 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
     }
   }
 
-  // Add extra meal weight from attended fixed events (default 0 unless explicitly specified)
+  // Add extra meal weight from attended fixed events (default 0.5 unless explicitly specified)
   for (const event of fixedEvents) {
-    const extraWeight = event.extraMealWeight || 0;
-    for (const attendeeId of event.attendeeUserIds) {
-      if (memberMealUnitsMap.has(attendeeId)) {
-        const current = memberMealUnitsMap.get(attendeeId) || 0;
-        memberMealUnitsMap.set(attendeeId, current + extraWeight);
+    const extraWeight =
+      event.extraMealWeight !== undefined && event.extraMealWeight !== null
+        ? event.extraMealWeight
+        : 0.5;
+    if (extraWeight > 0) {
+      for (const attendeeId of event.attendeeUserIds) {
+        if (memberMealUnitsMap.has(attendeeId)) {
+          const current = memberMealUnitsMap.get(attendeeId) || 0;
+          memberMealUnitsMap.set(attendeeId, current + extraWeight);
+        }
       }
     }
   }
@@ -255,3 +260,13 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
     },
   };
 }
+
+/**
+ * Calculates per person cost for a fixed event (Pure Engine function)
+ * Avoids ad-hoc UI or API division and arbitrary Math.round
+ */
+export function calculateFixedEventPerPerson(cost: number, attendeeCount: number): number {
+  if (!cost || cost <= 0 || !attendeeCount || attendeeCount <= 0) return 0;
+  return Math.round((cost / attendeeCount) * 100) / 100;
+}
+

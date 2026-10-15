@@ -286,6 +286,7 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
 
       <NewFixedEventModal
         members={members}
+        fixedExtraWeightDefault={summaryData?.mess?.fixedExtraWeightDefault ?? 0.5}
         isOpen={isFixedEventOpen}
         onClose={closeFixedEvent}
         onSuccess={() => {

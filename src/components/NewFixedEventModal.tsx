@@ -3,9 +3,11 @@
 import React, { useState } from 'react';
 import { Sparkles, X, RotateCw } from '@/components/icons';
 import { toast } from 'sonner';
+import { calculateFixedEventPerPerson } from '@/billing-engine';
 
 interface NewFixedEventModalProps {
   members: any[];
+  fixedExtraWeightDefault?: number;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -13,6 +15,7 @@ interface NewFixedEventModalProps {
 
 export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
   members,
+  fixedExtraWeightDefault = 0.5,
   isOpen,
   onClose,
   onSuccess,
@@ -62,7 +65,7 @@ export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
           cost: Number(cost),
           mealTime,
           attendeeUserIds: attendeeIds,
-          extraMealWeight: 0,
+          extraMealWeight: fixedExtraWeightDefault ?? 0.5,
         }),
       });
       const data = await res.json();
@@ -80,7 +83,7 @@ export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
     }
   };
 
-  const perPerson = attendeeIds.length > 0 ? Math.round(Number(cost || 0) / attendeeIds.length) : 0;
+  const perPerson = calculateFixedEventPerPerson(Number(cost || 0), attendeeIds.length);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">

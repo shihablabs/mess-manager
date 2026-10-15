@@ -171,4 +171,67 @@ describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
     expect(res.memberResults['u1'].totalDues).toBe(3000);
     expect(res.memberResults['u1'].netBalance).toBe(-3000);
   });
+
+  it('correctly adjusts meal units and meal rate with and without fixed event extraMealWeight', () => {
+    const baseMembers = [
+      { userId: 'u1', name: 'User 1', roomRent: 2000, isActive: true },
+      { userId: 'u2', name: 'User 2', roomRent: 2000, isActive: true },
+    ];
+    const baseMeals = [
+      { userId: 'u1', date: '2026-10-01', slotId: 'night', weight: 20, consumed: true },
+      { userId: 'u2', date: '2026-10-01', slotId: 'night', weight: 20, consumed: true },
+    ];
+    const baseBazar = [
+      { id: 'b1', userId: 'u1', amount: 4000, type: 'regular' as const, isApproved: true },
+    ];
+
+    // Scenario 1: Without fixed event
+    const resWithout = calculateBilling({
+      members: baseMembers,
+      mealRecords: baseMeals,
+      fixedEvents: [],
+      bazarItems: baseBazar,
+      deposits: [],
+      utilityBills: [],
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+    });
+
+    expect(resWithout.totalMealUnits).toBe(40);
+    expect(resWithout.mealRate).toBe(100);
+    expect(resWithout.memberResults['u1'].mealUnits).toBe(20);
+    expect(resWithout.memberResults['u2'].mealUnits).toBe(20);
+    expect(resWithout.memberResults['u1'].fixedShare).toBe(0);
+
+    // Scenario 2: With fixed event (default extraMealWeight 0.5 for each attendee, cost 600)
+    const resWith = calculateBilling({
+      members: baseMembers,
+      mealRecords: baseMeals,
+      fixedEvents: [
+        {
+          id: 'fe1',
+          date: '2026-10-05',
+          mealTime: 'lunch',
+          cost: 600,
+          extraMealWeight: 0.5,
+          attendeeUserIds: ['u1', 'u2'],
+        },
+      ],
+      bazarItems: baseBazar,
+      deposits: [],
+      utilityBills: [],
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+    });
+
+    // 20 + 0.5 = 20.5 for each member -> Total meal units = 41
+    expect(resWith.totalMealUnits).toBe(41);
+    expect(resWith.memberResults['u1'].mealUnits).toBe(20.5);
+    expect(resWith.memberResults['u2'].mealUnits).toBe(20.5);
+
+    // Meal rate: 4000 / 41 = 97.56
+    expect(resWith.mealRate).toBe(97.56);
+
+    // Fixed event cost: 600 / 2 = 300 per attendee
+    expect(resWith.memberResults['u1'].fixedShare).toBe(300);
+    expect(resWith.memberResults['u2'].fixedShare).toBe(300);
+  });
 });
