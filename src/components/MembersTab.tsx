@@ -22,6 +22,7 @@ import {
   MessageCircle,
   MapPin,
   Trash2,
+  RotateCw,
 } from '@/components/icons';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
@@ -62,6 +63,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   // Inline Room Rent Editing
   const [editingRentUserId, setEditingRentUserId] = useState<string | null>(null);
   const [tempRentValue, setTempRentValue] = useState<string>('');
+  const [rentProcessingId, setRentProcessingId] = useState<string | null>(null);
 
   // Pending approval rent inputs
   const [pendingRentMap, setPendingRentMap] = useState<Record<string, string>>({});
@@ -230,6 +232,72 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       }
     } catch (e: any) {
       toast.error(e.message || 'ত্রুটি ঘটেছে');
+    }
+  };
+
+  // 1-Click Mark Rent Paid from Members Tab
+  const handleMarkRentPaid = async (userId: string, roomRent: number, memberName: string) => {
+    try {
+      setRentProcessingId(userId);
+      const res = await fetch('/api/rent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'mark_rent_paid',
+          userId,
+          cycleId: cycle?._id,
+          amount: roomRent,
+          paymentMethod: 'cash',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || `${memberName} এর বাসা ভাড়া আদায় সম্পন্ন হয়েছে!`);
+        onRefresh();
+      } else {
+        toast.error(data.error || 'ভাড়া পরিশোধ রেকর্ড করতে ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
+    } finally {
+      setRentProcessingId(null);
+    }
+  };
+
+  // Revert Rent Paid to Unpaid
+  const handleRevertRentPaid = async (userId: string, memberName: string) => {
+    const isConfirmed = await confirmAction({
+      title: 'ভাড়া বকেয়া করতে চান?',
+      text: `${memberName} এর পেইড মার্কিং তুলে নিয়ে বকেয়া হিসেবে সেট করা হবে।`,
+      icon: 'warning',
+      confirmText: 'হ্যাঁ, বকেয়া করুন',
+      cancelText: 'বাতিল',
+      confirmColor: '#e11d48',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      setRentProcessingId(userId);
+      const res = await fetch('/api/rent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'revert_rent_paid',
+          userId,
+          cycleId: cycle?._id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'বাসা ভাড়া বকেয়া হিসেবে রিভার্স করা হয়েছে');
+        onRefresh();
+      } else {
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
+    } finally {
+      setRentProcessingId(null);
     }
   };
 
@@ -875,6 +943,56 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* House Rent Status & 1-Click Action */}
+                <div className="flex items-center justify-between text-xs py-1 border-t border-slate-800/60">
+                  <span className="text-slate-400">ভাড়া স্ট্যাটাস:</span>
+                  <div className="flex items-center gap-1.5">
+                    {mem.rentPaid ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        <CheckCircle className="w-2.5 h-2.5" />
+                        পরিশোধিত
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                        <Clock className="w-2.5 h-2.5" />
+                        বকেয়া
+                      </span>
+                    )}
+
+                    {isManagerOrSuperAdmin && (
+                      mem.rentPaid ? (
+                        <button
+                          onClick={() => handleRevertRentPaid(mem.userId, mem.name)}
+                          disabled={rentProcessingId === mem.userId}
+                          className="text-[9px] text-slate-400 hover:text-rose-400 px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 transition cursor-pointer disabled:opacity-50"
+                          title="ভাড়া বকেয়া করুন"
+                        >
+                          {rentProcessingId === mem.userId ? '...' : 'আনপেইড'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleMarkRentPaid(mem.userId, mem.roomRent, mem.name)}
+                          disabled={rentProcessingId === mem.userId}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-2 py-0.5 rounded-md shadow transition cursor-pointer disabled:opacity-50"
+                          title="১-ক্লিকে বাসা ভাড়া আদায় করুন"
+                        >
+                          {rentProcessingId === mem.userId ? (
+                            <>
+                              <RotateCw className="w-2.5 h-2.5 animate-spin" />
+                              <span>আদায়...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-2.5 h-2.5" />
+                              <span>ভাড়া আদায়</span>
+                            </>
+                          )}
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
 
                 {/* Utility Exemption Row (সদস্য পুরো মাস বাইরে থাকলে ইউটিলিটি মওকুফ) */}
