@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Utensils, X, Clock, AlertTriangle, Calendar } from 'lucide-react';
+import { Utensils, X, Clock, AlertTriangle, Calendar } from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';

@@ -48,7 +48,7 @@ import {
   Briefcase,
   Copy,
   Save,
-} from 'lucide-react';
+} from '@/components/icons';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';

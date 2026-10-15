@@ -15,7 +15,7 @@ import {
   CheckCircle,
   AlertCircle,
   ExternalLink,
-} from 'lucide-react';
+} from '@/components/icons';
 import Link from 'next/link';
 
 interface DashboardTabProps {

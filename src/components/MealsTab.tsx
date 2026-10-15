@@ -30,10 +30,11 @@ import {
   Edit2,
   Trash2,
   X,
-} from 'lucide-react';
+} from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import { formatTaka, formatMealUnits } from '@/lib/money';
 import { toast } from 'sonner';
+import { confirmAction } from '@/lib/alerts';
 
 interface MealsTabProps {
   currentUser: AppUser;
@@ -135,9 +136,14 @@ export const MealsTab: React.FC<MealsTabProps> = ({
   };
 
   const handleDeleteMealLog = async (date: string, userId: string, memberName: string) => {
-    if (!confirm(`আপনি কি নিশ্চিত যে ${memberName} এর ${date} তারিখের মিল ০/বাতিল করতে চান?`)) {
-      return;
-    }
+    const isConfirmed = await confirmAction({
+      title: 'মিল রেকর্ড বাতিলকরণ',
+      text: `আপনি কি নিশ্চিত যে ${memberName}-এর ${date} তারিখের মিল ০/বাতিল করতে চান?`,
+      confirmText: 'হ্যাঁ, বাতিল করুন',
+      confirmColor: '#e11d48',
+      icon: 'warning',
+    });
+    if (!isConfirmed) return;
     try {
       const res = await fetch(`/api/meals?date=${date}&userId=${userId}&cycleId=${cycle?._id || 'cycle_1'}`, {
         method: 'DELETE',

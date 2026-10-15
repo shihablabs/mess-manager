@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Sparkles, X } from 'lucide-react';
+import { Sparkles, X } from '@/components/icons';
 import { toast } from 'sonner';
 
 interface NewFixedEventModalProps {

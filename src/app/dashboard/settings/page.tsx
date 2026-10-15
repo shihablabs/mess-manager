@@ -21,7 +21,7 @@ import {
   User,
   Info,
   Layers,
-} from 'lucide-react';
+} from '@/components/icons';
 import { formatTaka } from '@/lib/money';
 import { toast } from 'sonner';
 

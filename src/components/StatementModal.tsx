@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import { MemberBillingResult, BillingEngineOutput } from '@/billing-engine/types';
 import { formatTaka, formatMealUnits } from '@/lib/money';
-import { Printer, X, CheckCircle, FileText, UserMinus, Clock, AlertTriangle } from 'lucide-react';
+import { Printer, X, CheckCircle, FileText, UserMinus, Clock, AlertTriangle } from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
+import { confirmAction } from '@/lib/alerts';
 
 interface StatementModalProps {
   member: MemberBillingResult | null;
@@ -41,8 +42,14 @@ export const StatementModal: React.FC<StatementModalProps> = ({
 
   // Handle member requesting settlement
   const handleRequestSettlement = async () => {
-    const confirmReq = confirm('আপনি কি মেস ছাড়ার জন্য চূড়ান্ত হিসাব নিষ্পত্তির আবেদন পাঠাতে চান?');
-    if (!confirmReq) return;
+    const isConfirmed = await confirmAction({
+      title: 'চূড়ান্ত হিসাব নিষ্পত্তির আবেদন',
+      text: 'আপনি কি মেস ছাড়ার জন্য বর্তমান চলতি চক্রে আপনার হিসাব চূড়ান্ত নিষ্পত্তির আবেদন পাঠাতে চান?',
+      confirmText: 'হ্যাঁ, আবেদন পাঠান',
+      confirmColor: '#4f46e5',
+      icon: 'question',
+    });
+    if (!isConfirmed) return;
     try {
       setIsSubmitting(true);
       const res = await fetch('/api/members', {
@@ -70,10 +77,14 @@ export const StatementModal: React.FC<StatementModalProps> = ({
 
   // Handle admin finalizing settlement
   const handleConfirmSettlement = async () => {
-    const confirmSettle = confirm(
-      `আপনি কি নিশ্চিত যে ${member.name}-এর চূড়ান্ত হিসাব নিষ্পত্তি করতে চান? এর পর এই চক্রে তার হিসাব অপরিবর্তনীয় থাকবে।`
-    );
-    if (!confirmSettle) return;
+    const isConfirmed = await confirmAction({
+      title: 'সদস্যের চূড়ান্ত হিসাব নিষ্পত্তি (Settle)',
+      text: `আপনি কি নিশ্চিত যে ${member.name}-এর অবশিষ্ট দেনা/পাওনা চূড়ান্ত নিষ্পত্তি করতে চান? এর পর এই চক্রে তাঁর হিসাব অপরিবর্তনীয় থাকবে।`,
+      confirmText: 'হ্যাঁ, চূড়ান্ত নিষ্পত্তি সম্পন্ন করুন',
+      confirmColor: '#10b981',
+      icon: 'warning',
+    });
+    if (!isConfirmed) return;
     try {
       setIsSubmitting(true);
       const res = await fetch('/api/members', {

@@ -22,11 +22,12 @@ import {
   MessageCircle,
   MapPin,
   Trash2,
-} from 'lucide-react';
+} from '@/components/icons';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { confirmAction } from '@/lib/alerts';
 
 interface MembersTabProps {
   currentUser: AppUser;
@@ -107,8 +108,14 @@ export const MembersTab: React.FC<MembersTabProps> = ({
 
   // 2. Reject pending member
   const handleReject = async (userId: string) => {
-    const confirmReject = confirm('আপনি কি নিশ্চিত যে এই ইউজারের রেজিস্ট্রেশনের আবেদন বাতিল (Reject) করতে চান?');
-    if (!confirmReject) return;
+    const isConfirmed = await confirmAction({
+      title: 'রেজিস্ট্রেশন বাতিলকরণ',
+      text: 'আপনি কি নিশ্চিত যে এই ইউজারের যোগদানের আবেদনটি বাতিল (Reject) করতে চান?',
+      confirmText: 'হ্যাঁ, বাতিল করুন',
+      confirmColor: '#e11d48',
+      icon: 'warning',
+    });
+    if (!isConfirmed) return;
     try {
       setIsSubmitting(true);
       const res = await fetch('/api/members', {
@@ -135,8 +142,14 @@ export const MembersTab: React.FC<MembersTabProps> = ({
 
   // 2.1 Permanently delete member (Super Admin)
   const handleDeleteMember = async (userId: string) => {
-    const confirmDelete = confirm('আপনি কি নিশ্চিত যে এই ইউজারের সমস্ত ডাটা স্থায়ীভাবে মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না!');
-    if (!confirmDelete) return;
+    const isConfirmed = await confirmAction({
+      title: 'সদস্যের ডাটা চিরতরে মুছে ফেলা',
+      text: 'আপনি কি নিশ্চিত যে এই ইউজারের সমস্ত ডাটা ডাটাবেজ থেকে স্থায়ীভাবে মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না!',
+      confirmText: 'হ্যাঁ, স্থায়ীভাবে মুছুন',
+      confirmColor: '#e11d48',
+      icon: 'error',
+    });
+    if (!isConfirmed) return;
     try {
       setIsSubmitting(true);
       const res = await fetch('/api/members', {
@@ -290,8 +303,14 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   // 6. Role Delegation (Super Admin only)
   const handleRoleChange = async (userId: string, newRole: 'admin' | 'member') => {
     const actionText = newRole === 'admin' ? 'মেস ম্যানেজার' : 'সাধারণ সদস্য';
-    const confirmChange = confirm(`আপনি কি এই সদস্যকে ${actionText} করতে চান?`);
-    if (!confirmChange) return;
+    const isConfirmed = await confirmAction({
+      title: 'সদস্যের ভূমিকা পরিবর্তন',
+      text: `আপনি কি এই সদস্যকে "${actionText}" হিসেবে দায়িত্ব অর্পণ করতে চান?`,
+      confirmText: 'হ্যাঁ, পরিবর্তন করুন',
+      confirmColor: '#4f46e5',
+      icon: 'question',
+    });
+    if (!isConfirmed) return;
 
     try {
       const res = await fetch('/api/members', {
@@ -317,10 +336,14 @@ export const MembersTab: React.FC<MembersTabProps> = ({
 
   // 7. Cycle Close
   const handleCloseCycle = async () => {
-    const confirmClose = confirm(
-      'আপনি কি নিশ্চিত যে বর্তমান হিসাব চক্রটি বন্ধ করে স্ন্যাপশট সংরক্ষণ করতে চান?'
-    );
-    if (!confirmClose) return;
+    const isConfirmed = await confirmAction({
+      title: 'হিসাব চক্র সমাপ্তকরণ (Cycle Close)',
+      text: 'আপনি কি নিশ্চিত যে বর্তমান হিসাব চক্রটি বন্ধ করে স্ন্যাপশট সংরক্ষণ করতে চান? চক্র বন্ধের পর ডেটা অপরিবর্তনীয় হয়ে যাবে।',
+      confirmText: 'হ্যাঁ, চক্র বন্ধ করুন',
+      confirmColor: '#e11d48',
+      icon: 'warning',
+    });
+    if (!isConfirmed) return;
 
     try {
       const res = await fetch('/api/cycles', {

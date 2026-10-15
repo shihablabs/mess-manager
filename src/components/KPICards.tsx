@@ -3,7 +3,7 @@
 import React from 'react';
 import { BillingEngineOutput, MemberBillingResult } from '@/billing-engine/types';
 import { formatTaka } from '@/lib/money';
-import { Utensils, Wallet, ShoppingBag, Clock, Crown, ShieldCheck } from 'lucide-react';
+import { Utensils, Wallet, ShoppingBag, Clock, Crown, ShieldCheck } from '@/components/icons';
 import { AppUser } from '@/lib/session';
 
 interface KPICardsProps {

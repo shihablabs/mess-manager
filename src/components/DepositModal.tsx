@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Wallet, X, Info } from 'lucide-react';
+import { Wallet, X, Info } from '@/components/icons';
 import { toast } from 'sonner';
 
 interface DepositModalProps {

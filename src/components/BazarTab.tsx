@@ -24,11 +24,12 @@ import {
   ExternalLink,
   Receipt,
   CheckCircle,
-} from 'lucide-react';
+} from '@/components/icons';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
+import { confirmAction } from '@/lib/alerts';
 import Link from 'next/link';
 
 interface BazarTabProps {
@@ -236,20 +237,16 @@ export const BazarTab: React.FC<BazarTabProps> = ({
 
   // Delete bazar entry
   const handleDeleteBazar = async (id: string, desc: string) => {
-    const result = await Swal.fire({
+    const isConfirmed = await confirmAction({
       title: 'বাজার এন্ট্রিটি মুছে ফেলতে চান?',
       text: `"${desc || 'এই বাজার'}" তালিকা থেকে সম্পূর্ণ মুছে ফেলা হবে।`,
       icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'হ্যাঁ, মুছে ফেলুন',
-      cancelButtonText: 'বাতিল',
-      confirmButtonColor: '#e11d48',
-      cancelButtonColor: '#334155',
-      background: '#0f172a',
-      color: '#f8fafc',
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      confirmColor: '#e11d48',
     });
 
-    if (!result.isConfirmed) return;
+    if (!isConfirmed) return;
 
     try {
       const res = await fetch(`/api/bazars?id=${id}`, { method: 'DELETE' });

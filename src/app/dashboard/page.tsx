@@ -5,7 +5,7 @@ import { useDashboard } from '@/context/DashboardContext';
 import { KPICards } from '@/components/KPICards';
 import { DashboardTab } from '@/components/DashboardTab';
 import { GlobalLoader } from '@/components/GlobalLoader';
-import { Sparkles, Crown, Shield, ArrowRight, Utensils, ShoppingBag } from 'lucide-react';
+import { Sparkles, Crown, Shield, ArrowRight, Utensils, ShoppingBag } from '@/components/icons';
 import Link from 'next/link';
 import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
 import { getMemberBillingResultSafe } from '@/lib/safe-utils';

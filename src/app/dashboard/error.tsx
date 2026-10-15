@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { ShieldAlert, RefreshCw, Home, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, RefreshCw, Home, ArrowLeft } from '@/components/icons';
 import Link from 'next/link';
 
 export default function DashboardError({

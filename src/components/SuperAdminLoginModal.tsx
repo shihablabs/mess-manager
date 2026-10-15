@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Crown, Lock, User, X, ArrowRight, ShieldCheck, KeyRound } from 'lucide-react';
+import { Crown, Lock, User, X, ArrowRight, ShieldCheck, KeyRound } from '@/components/icons';
 import { signIn } from 'next-auth/react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';

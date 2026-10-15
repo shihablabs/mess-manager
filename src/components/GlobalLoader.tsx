@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Building2, Sparkles } from 'lucide-react';
+import { Building2, Sparkles } from '@/components/icons';
 
 interface GlobalLoaderProps {
   message?: string;

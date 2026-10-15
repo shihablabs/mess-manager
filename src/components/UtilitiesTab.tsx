@@ -20,10 +20,11 @@ import {
   Database,
   Archive,
   FileJson,
-} from 'lucide-react';
+} from '@/components/icons';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
+import { confirmAction } from '@/lib/alerts';
 
 interface UtilitiesTabProps {
   currentUser: AppUser;
@@ -101,6 +102,16 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
 
   const handleConfirmImport = async () => {
     if (!pendingImportData) return;
+
+    const confirmed = await confirmAction({
+      title: 'ডাটাবেজ রিস্টোর নিশ্চিতকরণ',
+      text: 'নির্বাচিত JSON ব্যাকআপ ফাইল থেকে সম্পূর্ণ ডাটা রিস্টোর করা হবে। আপনি কি নিশ্চিত?',
+      icon: 'warning',
+      confirmText: 'হ্যাঁ, রিস্টোর সম্পন্ন করুন',
+      confirmColor: '#e11d48',
+    });
+    if (!confirmed) return;
+
     try {
       setIsImporting(true);
       const res = await fetch('/api/backup', {

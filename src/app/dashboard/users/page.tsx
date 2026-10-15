@@ -8,7 +8,7 @@ import { GlobalLoader } from '@/components/GlobalLoader';
 import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
 import { getMemberBillingResultSafe } from '@/lib/safe-utils';
 
-import { ShieldAlert, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, ArrowLeft } from '@/components/icons';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 

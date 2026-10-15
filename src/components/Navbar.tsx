@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { AppUser } from '@/lib/session';
-import { Shield, RefreshCw, Building2, LogOut, Crown, LayoutDashboard, BookOpen } from 'lucide-react';
+import { Shield, RefreshCw, Building2, LogOut, Crown, LayoutDashboard, BookOpen } from '@/components/icons';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';

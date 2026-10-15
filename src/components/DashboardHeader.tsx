@@ -17,7 +17,7 @@ import {
   Sparkles,
   Zap,
   Calendar,
-} from 'lucide-react';
+} from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import { signOut } from 'next-auth/react';
 import Link from 'next/link';

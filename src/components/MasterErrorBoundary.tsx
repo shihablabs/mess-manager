@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle, RefreshCw, Home, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Home, ShieldAlert } from '@/components/icons';
 import Link from 'next/link';
 
 interface Props {

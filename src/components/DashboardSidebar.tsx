@@ -22,7 +22,7 @@ import {
   UserCheck,
   User,
   Settings,
-} from 'lucide-react';
+} from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';

@@ -18,7 +18,7 @@ import {
   Edit2,
   Sparkles,
   Info,
-} from 'lucide-react';
+} from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import { formatTaka } from '@/lib/money';
 import { toast } from 'sonner';

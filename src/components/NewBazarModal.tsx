@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShoppingBag, X, Info, Plus, Trash2, Calendar, ListPlus, Calculator, Check } from 'lucide-react';
+import { ShoppingBag, X, Info, Plus, Trash2, Calendar, ListPlus, Calculator, Check } from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import { formatTaka } from '@/lib/money';
 import { toast } from 'sonner';

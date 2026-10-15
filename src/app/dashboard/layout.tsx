@@ -13,9 +13,10 @@ import { MealRequestModal } from '@/components/MealRequestModal';
 import { DepositModal } from '@/components/DepositModal';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
-import { ShieldAlert, Clock, XCircle } from 'lucide-react';
+import { ShieldAlert, Clock, XCircle } from '@/components/icons';
 import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
 import { getMemberBillingResultSafe } from '@/lib/safe-utils';
+import { showInfoAlert } from '@/lib/alerts';
 
 function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
   const { status, data: session } = useSession();
@@ -236,7 +237,11 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
               openStatement(myStatementResult);
             } else if (currentUser?.role === 'super_admin') {
               // Super admin has no dining statement
-              alert('সুপার অ্যাডমিন হিসেবে আপনি কেবল সিস্টেম ম্যানেজ করবেন, আপনার কোনো মেস মিল বা বাজার হিসাব নেই।');
+              showInfoAlert({
+                title: 'সুপার অ্যাডমিন ওভারভিউ',
+                text: 'সুপার অ্যাডমিন হিসেবে আপনি কেবল সিস্টেম ম্যানেজ করবেন, আপনার কোনো মেস মিল বা বাজার হিসাব নেই। অন্যান্য সদস্যদের স্টেটমেন্ট দেখতে সদস্য তালিকা বা প্রোফাইল পেজে যান।',
+                icon: 'info',
+              });
             }
           }}
           onOpenMealRequest={openMealRequest}
