@@ -67,7 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline sm:inline">গাইড ও নিয়ম</span>
+              <span className="hidden xs:inline sm:inline">ফিচারসমূহ</span>
             </Link>
 
             {/* Only show Dashboard button if user is authenticated */}

@@ -8,32 +8,39 @@ import {
   Utensils,
   ShoppingBag,
   Calendar,
-  Lightbulb,
   Users,
   Shield,
   Crown,
   CheckCircle2,
   ArrowRight,
   Calculator,
-  HelpCircle,
-  FileSpreadsheet,
-  Layers,
   Sparkles,
   ChevronRight,
   TrendingUp,
   Receipt,
-  Scale,
+  ArrowRightLeft,
+  Package,
+  FileText,
+  Database,
+  Printer,
+  Clock,
+  Zap,
+  Check,
+  Coffee,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { formatTaka } from '@/lib/money';
 import { useSession, signIn } from 'next-auth/react';
 
 export default function HomePage() {
   const { data: session, status } = useSession();
+
   // Interactive Live Calculator state
-  const [calcBazar, setCalcBazar] = useState<number>(12000);
-  const [calcMeals, setCalcMeals] = useState<number>(200);
-  const [calcUserMeals, setCalcUserMeals] = useState<number>(35);
-  const [calcDeposit, setCalcDeposit] = useState<number>(2500);
+  const [calcBazar, setCalcBazar] = useState<number>(15000);
+  const [calcMeals, setCalcMeals] = useState<number>(250);
+  const [calcUserMeals, setCalcUserMeals] = useState<number>(40);
+  const [calcDeposit, setCalcDeposit] = useState<number>(3000);
 
   // Derived calculations
   const liveMealRate = calcMeals > 0 ? calcBazar / calcMeals : 0;
@@ -45,42 +52,47 @@ export default function HomePage() {
       {/* Top Navbar */}
       <Navbar />
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden pt-10 pb-16 sm:pt-16 sm:pb-24 border-b border-slate-800/80">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-b from-indigo-500/10 via-purple-500/5 to-transparent blur-3xl pointer-events-none" />
+      {/* 1. HERO SECTION */}
+      <section className="relative overflow-hidden pt-12 pb-20 sm:pt-20 sm:pb-28 border-b border-slate-800/80 bg-gradient-to-b from-slate-950 via-slate-900/60 to-slate-950">
+        {/* Glowing gradient ambient background */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[450px] bg-gradient-to-b from-indigo-500/15 via-purple-500/10 to-transparent blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold mb-6 shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>আধুনিক, শতভাগ স্বচ্ছ ও স্বয়ংক্রিয় মেস ম্যানেজমেন্ট সিস্টেম</span>
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-indigo-500/15 to-purple-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-bold mb-6 shadow-lg shadow-indigo-500/10 animate-in fade-in">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-spin" style={{ animationDuration: '6s' }} />
+            <span>স্মার্ট মেস ম্যানেজমেন্ট সিস্টেম — ভার্সন ১.০</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-tight max-w-4xl mx-auto">
-            মেস হিসাবের সকল জটিলতা শেষ,{' '}
+          {/* Heading */}
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.15] max-w-4xl mx-auto">
+            মেসের খাতা-কলমের হিসাবের দিন শেষ,{' '}
             <span className="bg-gradient-to-r from-indigo-400 via-purple-300 to-emerald-400 bg-clip-text text-transparent">
-              এবার স্মার্ট ও নির্ভুল সমাধান
+              এবার সবকিছু ১০০% নির্ভুল ও স্বচ্ছ
             </span>
           </h1>
 
+          {/* Subtitle */}
           <p className="mt-5 text-sm sm:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
-            লাইভ মিল রেট গণনা, রেগুলার ও ফিক্সড বাজার, বড় বাজার ক্যারি ফরওয়ার্ড, রোস্টার বণ্টন এবং
-            সদস্যদের রিয়েল-টাইম দেনা-পাওনা বিবরণী — সবই এক প্ল্যাটফর্মে।
+            ৫ দিনের স্বয়ংক্রিয় বাজার রোস্টার, সদস্য-থেকে-সদস্য ইনস্ট্যান্ট সোয়াপ, লাইভ মিল রেট এবং এক ক্লিকে পূর্ণাঙ্গ দেনা-পাওনা লেজার।
           </p>
 
+          {/* Action CTAs */}
           <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3.5 sm:gap-4">
             {status === 'authenticated' ? (
               <Link
                 href="/dashboard"
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm sm:text-base shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.02]"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-emerald-500 hover:from-indigo-500 hover:to-emerald-400 text-white font-bold text-sm sm:text-base shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.02] cursor-pointer"
               >
-                <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5" />
+                <LayoutDashboard className="w-5 h-5" />
                 <span>মেস ড্যাশবোর্ডে প্রবেশ করুন</span>
                 <ArrowRight className="w-4 h-4 ml-1" />
               </Link>
             ) : (
               <button
                 onClick={() => signIn('google')}
-                className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm sm:text-base shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.02] cursor-pointer"
+                className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm sm:text-base shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.02] cursor-pointer"
               >
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                   <path
@@ -100,166 +112,216 @@ export default function HomePage() {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span>গুগল দিয়ে লগইন করে ড্যাশবোর্ডে যান</span>
+                <span>গুগল অ্যাকাউন্ট দিয়ে লগইন করুন</span>
                 <ArrowRight className="w-4 h-4 ml-1" />
               </button>
             )}
 
             <a
-              href="#calculation-guide"
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 font-semibold text-sm sm:text-base transition-colors"
+              href="#features-showcase"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-semibold text-sm sm:text-base transition-colors"
             >
-              <Calculator className="w-4 h-4 text-emerald-400" />
-              <span>হিসাবের নিয়ম ও গাইড দেখুন</span>
+              <Zap className="w-4 h-4 text-amber-400" />
+              <span>নতুন ফিচারসমূহ দেখুন</span>
             </a>
           </div>
 
-          {/* Quick Stats Highlights */}
-          <div className="mt-12 sm:mt-16 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto text-left">
-            <div className="glass-card p-4 rounded-2xl border border-slate-800">
-              <span className="text-indigo-400 text-xs font-semibold block mb-1">রিয়েল-টাইম</span>
-              <span className="text-xl sm:text-2xl font-bold text-white block">লাইভ রেট</span>
-              <span className="text-[11px] text-slate-400 mt-1 block">বাজার ও মিলের তাৎক্ষণিক অনুপাত</span>
+          {/* Quick Metrics Badges */}
+          <div className="mt-14 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto text-left">
+            <div className="glass-panel p-4 rounded-2xl border border-slate-800 bg-slate-900/70 hover:border-indigo-500/30 transition-all">
+              <span className="text-indigo-400 text-xs font-semibold block mb-1 flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" /> ৫ দিনের রোস্টার
+              </span>
+              <span className="text-lg sm:text-xl font-bold text-white block">স্লট বণ্টন ও রোটেশন</span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">মাসে ৫ দিন করে দায়িত্ব চক্র</span>
             </div>
-            <div className="glass-card p-4 rounded-2xl border border-slate-800">
-              <span className="text-emerald-400 text-xs font-semibold block mb-1">স্বচ্ছতা</span>
-              <span className="text-xl sm:text-2xl font-bold text-white block">৪ স্তরের বাজার</span>
-              <span className="text-[11px] text-slate-400 mt-1 block">রেগুলার, ফিক্সড, এক্সট্রা ও বড় বাজার</span>
+
+            <div className="glass-panel p-4 rounded-2xl border border-slate-800 bg-slate-900/70 hover:border-emerald-500/30 transition-all">
+              <span className="text-emerald-400 text-xs font-semibold block mb-1 flex items-center gap-1">
+                <ArrowRightLeft className="w-3.5 h-3.5" /> ইনস্ট্যান্ট সোয়াপ
+              </span>
+              <span className="text-lg sm:text-xl font-bold text-white block">ডিউটি অদলবদল</span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">সদস্য সম্মতিতেই সোয়াপ কার্যকর</span>
             </div>
-            <div className="glass-card p-4 rounded-2xl border border-slate-800">
-              <span className="text-amber-400 text-xs font-semibold block mb-1">দায়িত্ব বণ্টন</span>
-              <span className="text-xl sm:text-2xl font-bold text-white block">ডিউটি রোস্টার</span>
-              <span className="text-[11px] text-slate-400 mt-1 block">স্বয়ংক্রিয় বাজার স্লট ও অদলবদল</span>
+
+            <div className="glass-panel p-4 rounded-2xl border border-slate-800 bg-slate-900/70 hover:border-amber-500/30 transition-all">
+              <span className="text-amber-400 text-xs font-semibold block mb-1 flex items-center gap-1">
+                <ShoppingBag className="w-3.5 h-3.5" /> সরাসরি বাজার
+              </span>
+              <span className="text-lg sm:text-xl font-bold text-white block">আইটেম রসিদ ফর্দ</span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">অনুমোদন ঝামেলামুক্ত এন্ট্রি</span>
             </div>
-            <div className="glass-card p-4 rounded-2xl border border-slate-800">
-              <span className="text-purple-400 text-xs font-semibold block mb-1">নিরাপত্তা</span>
-              <span className="text-xl sm:text-2xl font-bold text-white block">স্ন্যাপশট</span>
-              <span className="text-[11px] text-slate-400 mt-1 block">মাস শেষে অপরিবর্তনীয় হিসাব সংরক্ষণ</span>
+
+            <div className="glass-panel p-4 rounded-2xl border border-slate-800 bg-slate-900/70 hover:border-purple-500/30 transition-all">
+              <span className="text-purple-400 text-xs font-semibold block mb-1 flex items-center gap-1">
+                <FileText className="w-3.5 h-3.5" /> দৈনিক মিল খাতা
+              </span>
+              <span className="text-lg sm:text-xl font-bold text-white block">১ লাইনে ৩ বেলার মিল</span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">সকাল, দুপুর ও রাতের সুবিন্যস্ত হিসাব</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Feature Showcase Grid */}
-      <section className="py-16 sm:py-24 border-b border-slate-800/80">
+      {/* 2. CORE FEATURES SHOWCASE */}
+      <section id="features-showcase" className="py-16 sm:py-24 border-b border-slate-800/80 bg-slate-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-              মেস পরিচালনার প্রতিটি স্তরে পূর্ণ নিয়ন্ত্রণ
+          <div className="text-center max-w-3xl mx-auto mb-14">
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
+              আধুনিক ও স্বয়ংক্রিয় সুবিধা
+            </span>
+            <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight mt-3">
+              মেস পরিচালনার প্রতিটি পদক্ষেপে স্মার্ট ফিচার
             </h2>
-            <p className="mt-3 text-xs sm:text-sm text-slate-400">
-              কাগজে কলমে বা এক্সেল শিটের ভুলের দিন শেষ। সব হিসাব অ্যালগরিদম দ্বারা নির্ভুলভাবে পরিচালিত হয়।
+            <p className="mt-2 text-xs sm:text-sm text-slate-400">
+              কাগজে-কলমে বা এক্সেল শিটের ভুলের দিন শেষ। সব হিসাব লাইভ অ্যালগরিদমে নির্ভুলভাবে সম্পন্ন হয়।
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Feature 1 */}
-            <div className="glass-card p-6 rounded-2xl border border-slate-800 hover:border-indigo-500/40 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Utensils className="w-6 h-6" />
+            {/* Feature 1: 5-Day Duty Roster & Monthly Rotation */}
+            <div className="glass-panel p-6 rounded-3xl border border-slate-800 hover:border-indigo-500/50 transition-all duration-300 group bg-slate-900/60 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                  <Calendar className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-white">৫ দিনের বাজার রোস্টার ও রোটেশন</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  মাসের মোট দিনকে সক্রিয় সদস্যদের মাঝে ৫ দিন মেয়াদী স্লটে সমানভাবে বণ্টন করা হয়। পরবর্তী মাসে সদস্যের ক্রম স্বয়ংক্রিয়ভাবে ১ ধাপ ডানে শিফট হয়ে যায়, যাতে কাউকে প্রতি মাসে একই সময়ে বাজার করতে না হয়।
+                </p>
               </div>
-              <h3 className="text-base font-bold text-white mb-2">স্বয়ংক্রিয় মিল রেট ক্যালকুলেশন</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                প্রতিটি বাজার এন্ট্রি অনুমোদিত হওয়ার সাথে সাথেই লাইভ মিল রেট স্বয়ংক্রিয়ভাবে আপডেট হয়। মিল পুল এবং সদস্যদের মোট মিল ইউনিটের নির্ভুল ভাগ।
-              </p>
+              <div className="pt-4 border-t border-slate-800/80 mt-4 text-[11px] text-indigo-300 font-semibold flex items-center gap-1">
+                <span>স্বয়ংক্রিয় শিফট ও রিভার্স রোটেশন</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
             </div>
 
-            {/* Feature 2 */}
-            <div className="glass-card p-6 rounded-2xl border border-slate-800 hover:border-emerald-500/40 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <ShoppingBag className="w-6 h-6" />
+            {/* Feature 2: P2P Duty Swap */}
+            <div className="glass-panel p-6 rounded-3xl border border-slate-800 hover:border-emerald-500/50 transition-all duration-300 group bg-slate-900/60 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                  <ArrowRightLeft className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-white">পারস্পরিক ইনস্ট্যান্ট ডিউটি সোয়াপ</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  পরীক্ষা বা জরুরি কাজ থাকলে সদস্যরা নিজেদের প্রোফাইল থেকে অন্য সদস্যকে ডিউটি সোয়াপের অনুরোধ পাঠাতে পারেন। উক্ত সদস্য &ldquo;সম্মত (Accept)&rdquo; করলেই স্বয়ংক্রিয়ভাবে স্লট অদলবদল কার্যকর হয়ে যায় (অ্যাডমিনের অনুমতি ছাড়াই)।
+                </p>
               </div>
-              <h3 className="text-base font-bold text-white mb-2">৪ ধরনের বাজার ব্যবস্থাপনা</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                নিত্যদিনের রেগুলার বাজার, শুক্রবারের স্পেশাল ফিক্সড আয়োজন, তেল-মসলার বড় বাজার এবং নির্দিষ্ট সদস্যদের আলাদা এক্সট্রা খরচ।
-              </p>
+              <div className="pt-4 border-t border-slate-800/80 mt-4 text-[11px] text-emerald-300 font-semibold flex items-center gap-1">
+                <span>সুপার অ্যাডমিন ডিরেক্ট সোয়াপ সমর্থন</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
             </div>
 
-            {/* Feature 3 */}
-            <div className="glass-card p-6 rounded-2xl border border-slate-800 hover:border-amber-500/40 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Calendar className="w-6 h-6" />
+            {/* Feature 3: Direct Bazar Entry with Itemized Receipt */}
+            <div className="glass-panel p-6 rounded-3xl border border-slate-800 hover:border-amber-500/50 transition-all duration-300 group bg-slate-900/60 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                  <ShoppingBag className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-white">সরাসরি বাজার এন্ট্রি ও আইটেম ফর্দ</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  অনুমোদনের জটিলতা ছাড়াই বাজার খরচ সরাসরি তালিকায় যুক্ত হয়। একসাথে একাধিক আইটেমের পরিমাণ ও মূল্য লিখে ডিজিটাল রসিদ ফর্দ তৈরি করা যায় এবং ক্রেতার চলতি মাসের মোট খরচ দেখা যায়।
+                </p>
               </div>
-              <h3 className="text-base font-bold text-white mb-2">ডিউটি রোস্টার ও অদলবদল</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                মাসের মোট দিনকে সক্রিয় সদস্যদের মধ্যে সমান স্লটে ভাগ করে দেয়া হয়। কোনো সদস্যের সমস্যা হলে অন্য সদস্যের সাথে স্লট পরিবর্তনের রিকোয়েস্ট পাঠাতে পারেন।
-              </p>
+              <div className="pt-4 border-t border-slate-800/80 mt-4 text-[11px] text-amber-300 font-semibold flex items-center gap-1">
+                <span>এক ক্লিকে রসিদ প্রিন্ট সুবিধা</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
             </div>
 
-            {/* Feature 4 */}
-            <div className="glass-card p-6 rounded-2xl border border-slate-800 hover:border-purple-500/40 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Lightbulb className="w-6 h-6" />
+            {/* Feature 4: Daily Meal Sheet (1 Row Per Date) */}
+            <div className="glass-panel p-6 rounded-3xl border border-slate-800 hover:border-purple-500/50 transition-all duration-300 group bg-slate-900/60 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                  <Utensils className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-white">১ লাইনে দৈনিক মিল খাতা</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  প্রতিদিনের সকাল (০.৫), দুপুর (১.০) ও রাতের (১.০) মিল একই সারিতে পরিচ্ছন্নভাবে প্রদর্শিত হয়। স্বয়ংক্রিয় ফিল্টারিং এবং সার্চের মাধ্যমে পুরো মাসের মিল হিস্ট্রি এক পলকে যাচাই করা যায়।
+                </p>
               </div>
-              <h3 className="text-base font-bold text-white mb-2">ইউটিলিটি বিল ও রুম ভাড়া</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                পানি, গ্যাস, বিদ্যুৎ এবং খালা বিল সক্রিয় সদস্যদের মাঝে সমান ভাগ হয়। প্রতিটি সদস্যের জন্য নির্ধারিত রুম ভাড়া আলাদাভাবে সমন্বয় করা যায়।
-              </p>
+              <div className="pt-4 border-t border-slate-800/80 mt-4 text-[11px] text-purple-300 font-semibold flex items-center gap-1">
+                <span>লাইভ মিল রেট ও ইউনিট অটোমেশন</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
             </div>
 
-            {/* Feature 5 */}
-            <div className="glass-card p-6 rounded-2xl border border-slate-800 hover:border-rose-500/40 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Scale className="w-6 h-6" />
+            {/* Feature 5: Friday Fixed Feasts & Cost Sharing */}
+            <div className="glass-panel p-6 rounded-3xl border border-slate-800 hover:border-rose-500/50 transition-all duration-300 group bg-slate-900/60 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-white">শুক্রবার ভোজ ও বিশেষ মিল সমবণ্টন</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  শুক্রবার বা ছুটির দিনের স্পেশাল ভোজের খরচ সাধারণ মিল পুলে পড়ে না। শুধুমাত্র যে যে সদস্য ওই ভোজে উপস্থিত ছিলেন, তাঁদের মধ্যেই সম্পূর্ণ খরচ সমানভাবে ভাগ হয়ে যায়।
+                </p>
               </div>
-              <h3 className="text-base font-bold text-white mb-2">স্বচ্ছ রিয়েল-টাইম ব্যালেন্স শিট</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                মোট দেনা ও মোট ক্রেডিটের পার্থক্যে তাৎক্ষণিক ব্যালেন্স দেখা যায়। কে টাকা ফেরত পাবেন আর কার কত পরিশোধ করতে হবে তা সবসময় পরিষ্কার।
-              </p>
+              <div className="pt-4 border-t border-slate-800/80 mt-4 text-[11px] text-rose-300 font-semibold flex items-center gap-1">
+                <span>অনুপস্থিত সদস্যদের কোনো চার্জ নেই</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
             </div>
 
-            {/* Feature 6 */}
-            <div className="glass-card p-6 rounded-2xl border border-slate-800 hover:border-cyan-500/40 transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Layers className="w-6 h-6" />
+            {/* Feature 6: Utility & Khala Bill Exemption */}
+            <div className="glass-panel p-6 rounded-3xl border border-slate-800 hover:border-cyan-500/50 transition-all duration-300 group bg-slate-900/60 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                  <Receipt className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-white">খালা বিল ও ইউটিলিটি মওকুফ</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  বিদ্যুৎ, পানি, গ্যাস, ওয়াইফাই ও খালা বিল সক্রিয় সদস্যদের মাঝে সমবণ্টন। কোনো সদস্য পুরো মাস মেসে না থাকলে বা বিশেষ পরিস্থিতিতে সুপার অ্যাডমিন তাঁকে ইউটিলিটি চার্জ থেকে সম্পূর্ণ ফ্রি মওকুফ করতে পারেন।
+                </p>
               </div>
-              <h3 className="text-base font-bold text-white mb-2">রোল ভিত্তিক এক্সেস ও অডিট ট্রেইল</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                সুপার এডমিন, মেস ম্যানেজার ও সাধারণ সদস্যের আলাদা পারমিশন। কে কখন বাজার এন্ট্রি দিয়েছে বা অনুমোদন করেছে তার সম্পূর্ণ রেকর্ড সংরক্ষিত থাকে।
-              </p>
+              <div className="pt-4 border-t border-slate-800/80 mt-4 text-[11px] text-cyan-300 font-semibold flex items-center gap-1">
+                <span>পকেট থেকে অগ্রিম বিল পেমেন্ট ট্র্যাকিং</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Interactive Live Mini-Calculator Section */}
-      <section className="py-16 sm:py-20 bg-slate-900/40 border-b border-slate-800/80">
+      {/* 3. INTERACTIVE SIMULATOR (লাইভ মিল রেট ও ব্যালেন্স সিমুলেটর) */}
+      <section className="py-16 sm:py-20 bg-slate-900/40 border-b border-slate-800/80 relative overflow-hidden">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-10">
-            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              লাইভ টেস্ট করুন
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              লাইভ সিমুলেটর
             </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-3">
-              ইন্টারেক্টিভ মিল রেট ও ব্যালেন্স সিমুলেটর
+            <h2 className="text-2xl sm:text-3xl font-black text-white mt-3">
+              ইন্টারেক্টিভ মিল রেট ও ব্যালেন্স পরীক্ষা করুন
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              ইনপুট পরিবর্তন করে দেখুন কিভাবে মিল রেট এবং আপনার দেনা-পাওনা তাৎক্ষণিক পরিবর্তিত হয়।
+              স্লাইডার টেনে ইনপুট পরিবর্তন করে দেখুন তাৎক্ষণিক মিল রেট ও পাওনা/দেনা কিভাবে নির্ণীত হয়।
             </p>
           </div>
 
-          <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+          <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center bg-slate-950/80 shadow-2xl">
             {/* Sliders / Inputs */}
             <div className="space-y-5">
               <div>
                 <div className="flex justify-between text-xs font-semibold mb-1.5">
                   <span className="text-slate-300">মেসের মোট বাজার খরচ:</span>
-                  <span className="text-indigo-400 font-mono font-bold">{formatTaka(calcBazar)}</span>
+                  <span className="text-indigo-400 font-mono font-bold text-sm">{formatTaka(calcBazar)}</span>
                 </div>
                 <input
                   type="range"
                   min="2000"
-                  max="50000"
+                  max="60000"
                   step="500"
                   value={calcBazar}
                   onChange={(e) => setCalcBazar(Number(e.target.value))}
-                  className="w-full accent-indigo-500 cursor-pointer"
+                  className="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
                 />
               </div>
 
               <div>
                 <div className="flex justify-between text-xs font-semibold mb-1.5">
-                  <span className="text-slate-300">মেসের সর্বমোট মিল ইউনিট:</span>
-                  <span className="text-indigo-400 font-mono font-bold">{calcMeals} ইউনিট</span>
+                  <span className="text-slate-300">মেসের মোট মিল ইউনিট:</span>
+                  <span className="text-indigo-400 font-mono font-bold text-sm">{calcMeals} ইউনিট</span>
                 </div>
                 <input
                   type="range"
@@ -268,14 +330,14 @@ export default function HomePage() {
                   step="5"
                   value={calcMeals}
                   onChange={(e) => setCalcMeals(Number(e.target.value))}
-                  className="w-full accent-indigo-500 cursor-pointer"
+                  className="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
                 />
               </div>
 
               <div>
                 <div className="flex justify-between text-xs font-semibold mb-1.5">
-                  <span className="text-slate-300">আপনার খাওয়া মিল:</span>
-                  <span className="text-emerald-400 font-mono font-bold">{calcUserMeals} ইউনিট</span>
+                  <span className="text-slate-300">আপনার মোট মিল:</span>
+                  <span className="text-emerald-400 font-mono font-bold text-sm">{calcUserMeals} ইউনিট</span>
                 </div>
                 <input
                   type="range"
@@ -284,69 +346,71 @@ export default function HomePage() {
                   step="1"
                   value={calcUserMeals}
                   onChange={(e) => setCalcUserMeals(Number(e.target.value))}
-                  className="w-full accent-emerald-500 cursor-pointer"
+                  className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
                 />
               </div>
 
               <div>
                 <div className="flex justify-between text-xs font-semibold mb-1.5">
-                  <span className="text-slate-300">আপনার মেস একাউন্টে জমা:</span>
-                  <span className="text-emerald-400 font-mono font-bold">{formatTaka(calcDeposit)}</span>
+                  <span className="text-slate-300">আপনার মেস একাউন্টে মোট জমা:</span>
+                  <span className="text-emerald-400 font-mono font-bold text-sm">{formatTaka(calcDeposit)}</span>
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max="10000"
+                  max="15000"
                   step="200"
                   value={calcDeposit}
                   onChange={(e) => setCalcDeposit(Number(e.target.value))}
-                  className="w-full accent-emerald-500 cursor-pointer"
+                  className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
                 />
               </div>
             </div>
 
             {/* Live Output Card */}
-            <div className="bg-slate-900/90 rounded-2xl p-6 border border-slate-800 space-y-4">
+            <div className="bg-slate-900/90 rounded-3xl p-6 border border-slate-800 space-y-4 shadow-xl">
               <div className="text-center pb-4 border-b border-slate-800">
-                <span className="text-xs text-slate-400 font-medium">হিসাবকৃত মিল রেট</span>
-                <div className="text-3xl sm:text-4xl font-extrabold text-white mt-1">
+                <span className="text-xs text-slate-400 font-medium">হিসাবকৃত বর্তমান মিল রেট</span>
+                <div className="text-3xl sm:text-4xl font-black text-white mt-1 font-mono">
                   {formatTaka(liveMealRate, { decimals: 2 })}
-                  <span className="text-xs text-slate-400 font-normal ml-1">/ মিল</span>
+                  <span className="text-xs text-slate-400 font-normal ml-1 font-sans">/ মিল</span>
                 </div>
-                <span className="text-[11px] text-slate-500 block mt-1">
+                <span className="text-[11px] text-slate-500 block mt-1 font-mono">
                   (৳{calcBazar.toLocaleString()} ÷ {calcMeals} মিল)
                 </span>
               </div>
 
               <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-slate-800/80">
-                  <span className="text-slate-400">আপনার মিল খরচ:</span>
-                  <span className="font-mono text-slate-200">{formatTaka(userMealCost)}</span>
+                <div className="flex justify-between py-1.5 border-b border-slate-800/80 font-mono">
+                  <span className="text-slate-400 font-sans">আপনার মিল খরচ:</span>
+                  <span className="text-slate-200 font-bold">{formatTaka(userMealCost)}</span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-slate-800/80">
-                  <span className="text-slate-400">আপনার মোট জমা:</span>
-                  <span className="font-mono text-emerald-300 font-semibold">{formatTaka(calcDeposit)}</span>
+                <div className="flex justify-between py-1.5 border-b border-slate-800/80 font-mono">
+                  <span className="text-slate-400 font-sans">আপনার মোট জমা:</span>
+                  <span className="text-emerald-300 font-bold">{formatTaka(calcDeposit)}</span>
                 </div>
                 <div className="flex justify-between py-2 items-center">
-                  <span className="text-slate-300 font-bold">আপনার বর্তমান ব্যালেন্স:</span>
+                  <span className="text-slate-200 font-bold">বর্তমান নিট ব্যালেন্স:</span>
                   <span
-                    className={`font-mono font-extrabold text-sm px-2.5 py-1 rounded-lg ${
+                    className={`font-mono font-black text-sm px-3 py-1 rounded-xl ${
                       userBalance >= 0
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                     }`}
                   >
-                    {formatTaka(userBalance, { showSign: true })}{' '}
-                    {userBalance >= 0 ? '(ফেরত পাবেন)' : '(দেনা বাকি)'}
+                    {userBalance >= 0 ? `+${formatTaka(userBalance)}` : formatTaka(userBalance)}{' '}
+                    <span className="text-[10px] font-sans font-normal">
+                      {userBalance >= 0 ? '(পাওনা)' : '(দেনা)'}
+                    </span>
                   </span>
                 </div>
               </div>
 
               <Link
                 href="/dashboard"
-                className="w-full mt-4 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow"
+                className="w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-600/20 cursor-pointer"
               >
-                <span>ড্যাশবোর্ডে আসল ডাটা দেখুন</span>
+                <span>মেস ড্যাশবোর্ডে আসল হিসাব দেখুন</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -354,199 +418,147 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Comprehensive Calculation Guide & Documentation */}
-      <section id="calculation-guide" className="py-16 sm:py-24 border-b border-slate-800/80">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-          <div className="text-center max-w-3xl mx-auto">
+      {/* 4. HOW IT WORKS (সহজ ৩ ধাপে মেস পরিচালনা) */}
+      <section className="py-16 sm:py-24 border-b border-slate-800/80 bg-slate-950">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
             <span className="text-xs font-bold px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
-              অফিশিয়াল হিসাব পদ্ধতি ও নিয়মাবলী
+              সহজ ৩টি ধাপ
             </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white mt-3">
-              ক্যালকুলেশন ডিরেক্টরি — কোন হিসাব কিভাবে হয়?
+            <h2 className="text-2xl sm:text-3xl font-black text-white mt-3">
+              যেভাবে মেস ম্যানেজার কাজ করে
             </h2>
-            <p className="mt-2 text-xs sm:text-sm text-slate-400">
-              সফটওয়্যারটির আর্কিটেকচার প্রতিটি পয়সার হিসাব স্বয়ংক্রিয় ও গাণিতিকভাবে প্রমাণের মাধ্যমে সম্পন্ন করে।
+            <p className="text-xs text-slate-400 mt-1">
+              কোনো জটিল প্রশিক্ষণ ছাড়াই যে কেউ মেসের দৈনন্দিন হিসাব পরিচালনা করতে পারেন।
             </p>
           </div>
 
-          <div className="space-y-6">
-            {/* Rule 1 */}
-            <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-3">
-              <div className="flex items-center gap-2.5 text-indigo-400 font-bold text-base">
-                <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-xs">
-                  ১
-                </div>
-                <h3>লাইভ মিল রেট নির্ণয়ের সূত্র (Meal Rate Formula)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+            {/* Step 1 */}
+            <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-3 bg-slate-900/60 relative">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white font-black flex items-center justify-center text-sm shadow-md shadow-indigo-600/30">
+                ০১
               </div>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                মেসের মোট অনুমোদিত মিল পুলের খরচকে সকল সদস্যের মোট খাওয়া মিল ইউনিট দিয়ে ভাগ করে মিল রেট বের করা হয়:
-              </p>
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 font-mono text-xs sm:text-sm text-indigo-300 overflow-x-auto">
-                মিল রেট = (অনুমোদিত রেগুলার বাজার + মিল পুল এক্সট্রা বাজার + বড় বাজারের খরচ বাদ ক্যারি) ÷ মোট মিল ইউনিট
-              </div>
-              <p className="text-[11px] text-slate-400">
-                • সকালের মিলকে সাধারণ ওয়েট <strong>০.৫</strong> এবং রাতের মিলকে সাধারণ ওয়েট <strong>১.০</strong> ধরা হয় (মেস সেটিংসে পরিবর্তনযোগ্য)।
+              <h3 className="text-base font-bold text-white">গুগল দিয়ে লগইন ও মিল নির্ধারণ</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                পাসওয়ার্ড মনে রাখার ঝামেলা নেই। গুগল দিয়ে সরাসরি লগইন করে সকাল, দুপুর ও রাতের মিল সহজেই অন/অফ করতে পারবেন।
               </p>
             </div>
 
-            {/* Rule 2 */}
-            <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-3">
-              <div className="flex items-center gap-2.5 text-emerald-400 font-bold text-base">
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xs">
-                  ২
-                </div>
-                <h3>বড় বাজার ও উদ্বৃত্ত ক্যারি ফরওয়ার্ড (Big Bazar & Carry)</h3>
+            {/* Step 2 */}
+            <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-3 bg-slate-900/60 relative">
+              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white font-black flex items-center justify-center text-sm shadow-md shadow-purple-600/30">
+                ০২
               </div>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                মাসের শুরুতে তেল, মসলা, চাল ইত্যাদির জন্য প্রতিটি সদস্য নির্দিষ্ট কন্ট্রিবিউশন জমা দেন (যেমন: ৳১,৪০০)।
-              </p>
-              <ul className="text-xs text-slate-400 space-y-1.5 list-disc list-inside">
-                <li>বড় বাজারের টাকা সাধারণ মিল ফান্ড থেকে আলাদা থাকে।</li>
-                <li>মাস শেষে কেনা মালামাল থেকে যদি কিছু উদ্বৃত্ত অবশিষ্ট থাকে, তবে তার আনুমানিক মূল্য (L_carry) পরবর্তী মাসের চক্রে ক্রেডিট হিসেবে স্থানান্তর করা হয়।</li>
-              </ul>
-            </div>
-
-            {/* Rule 3 */}
-            <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-3">
-              <div className="flex items-center gap-2.5 text-amber-400 font-bold text-base">
-                <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-xs">
-                  ৩
-                </div>
-                <h3>ফিক্সড আয়োজন শেয়ার (Fixed Events / Feast)</h3>
-              </div>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                শুক্রবার বা ছুটির দিনে বিশেষ ভুরিভোজের (যেমন বিরিয়ানি বা খিচুড়ি) খরচ সাধারণ মিল পুলে যুক্ত হয় না।
-              </p>
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 font-mono text-xs sm:text-sm text-amber-300 overflow-x-auto">
-                মাথাপিছু ফিক্সড খরচ = আয়োজনের মোট খরচ ÷ উক্ত আয়োজনে অংশগ্রহণকারী সদস্য সংখ্যা
-              </div>
-              <p className="text-[11px] text-slate-400">
-                • যে সকল সদস্য ওই আয়োজনে উপস্থিত ছিলেন না, তাদের উপর কোনো অতিরিক্ত দেনা ধার্য করা হয় না।
+              <h3 className="text-base font-bold text-white">৫ দিনের বাজার রোস্টার ও এন্ট্রি</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                আপনার নির্ধারিত ৫ দিনে বাজার করে সরাসরি আইটেম ফর্দ এন্ট্রি দিন। কোনো সমস্যা হলে অন্য সদস্যের সাথে তৎক্ষণাৎ ডিউটি সোয়াপ করুন।
               </p>
             </div>
 
-            {/* Rule 4 */}
-            <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-3">
-              <div className="flex items-center gap-2.5 text-purple-400 font-bold text-base">
-                <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-xs">
-                  ৪
-                </div>
-                <h3>ইউটিলিটি বিল ও রুম ভাড়া বণ্টন</h3>
+            {/* Step 3 */}
+            <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-3 bg-slate-900/60 relative">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center text-sm shadow-md shadow-emerald-600/30">
+                ০৩
               </div>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                মেসের চলতি মাসের পানি, বিদ্যুৎ, গ্যাস, ওয়াইফাই এবং খালা বিলের মোট পরিমাণকে সকল সক্রিয় সদস্যের মাঝে সমানভাবে ভাগ করা হয়। এছাড়া যার যার রুম ভাড়া তার মোট দেনায় ব্যক্তিগতভাবে যোগ হয়।
-              </p>
-            </div>
-
-            {/* Rule 5 */}
-            <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-3">
-              <div className="flex items-center gap-2.5 text-rose-400 font-bold text-base">
-                <div className="w-7 h-7 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-xs">
-                  ৫
-                </div>
-                <h3>মোট দেনা, ক্রেডিট ও চূড়ান্ত ব্যালেন্সের সমীকরণ</h3>
-              </div>
-              <div className="space-y-2 text-xs sm:text-sm">
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 font-mono text-rose-300 overflow-x-auto">
-                  মোট দেনা = মিল খরচ + ফিক্সড শেয়ার + ইউটিলিটি শেয়ার + রুম ভাড়া + নন-পুল এক্সট্রা শেয়ার
-                </div>
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 font-mono text-emerald-300 overflow-x-auto">
-                  মোট ক্রেডিট = সাধারণ জমা + বড় বাজার ফান্ড জমা + নিজস্ব পকেট থেকে করা অনুমোদিত বাজার খরচ
-                </div>
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 font-mono text-indigo-300 overflow-x-auto font-bold">
-                  চূড়ান্ত ব্যালেন্স = মোট ক্রেডিট - মোট দেনা
-                </div>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                • ব্যালেন্স <strong>পজিটিভ (+)</strong> হলে মেস থেকে ওই টাকা ফেরত পাবেন।
-                <br />• ব্যালেন্স <strong>নেগেটিভ (-)</strong> হলে মেসের ফান্ডে ওই পরিমাণ টাকা পরিশোধ করতে হবে।
+              <h3 className="text-base font-bold text-white">স্বয়ংক্রিয় ব্যালেন্স ও প্রিন্ট স্টেটমেন্ট</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                মাস শেষে প্লাস-মাইনাস হিসাব স্বয়ংক্রিয়ভাবে তৈরি হয়ে যায়। এক ক্লিকে পূর্ণাঙ্গ একক পাতার পিডিএফ ও প্রিন্ট স্টেটমেন্ট সংগ্রহ করুন।
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Role & Permissions Directory */}
+      {/* 5. USER ROLES (সুপার অ্যাডমিন, মেস ম্যানেজার ও সাধারণ সদস্য) */}
       <section className="py-16 sm:py-24 border-b border-slate-800/80 bg-slate-900/30">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
+            <h2 className="text-2xl sm:text-3xl font-black text-white">
               ব্যবহারকারী ভূমিকা ও নিয়ন্ত্রণ ক্ষমতা
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              সফটওয়্যারটিতে ৩ স্তরের ভূমিকা নির্ধারণ করা রয়েছে:
+              মেস সিস্টেমে ৩ স্তরের ভূমিকা ও স্বচ্ছ অধিকার বণ্টন রয়েছে:
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Super Admin */}
-            <div className="glass-panel p-6 rounded-2xl border border-purple-500/30 bg-purple-950/10 space-y-3">
+            <div className="glass-panel p-6 rounded-3xl border border-purple-500/30 bg-purple-950/10 space-y-3">
               <div className="flex items-center gap-2 text-purple-400 font-bold text-sm">
-                <Crown className="w-5 h-5" />
-                <span>👑 সুপার এডমিন (Super Admin)</span>
+                <Crown className="w-5 h-5 text-purple-400" />
+                <span>👑 সুপার অ্যাডমিন (Super Admin)</span>
               </div>
-              <p className="text-xs text-slate-300">
-                মুহাম্মদ শিহাব উদ্দিন (স্থায়ী মালিক)। কেউ তাকে পদচ্যুত করতে পারবে না।
+              <p className="text-xs text-slate-300 leading-relaxed">
+                মেসের স্থায়ী প্রধান। কোনো ব্যক্তিগত মিল হিসাব ছাড়াই পুরো মেসের সার্বিক নিয়ন্ত্রণ ও তদারকি করেন।
               </p>
               <ul className="text-xs text-slate-400 space-y-1.5 list-disc list-inside">
-                <li>যেকোনো সদস্যকে মেস ম্যানেজার নিযুক্ত করা ও পদ থেকে সরানো।</li>
-                <li>মেসের নিয়ম ও সেটিংস পরিবর্তন করা।</li>
-                <li>মাসিক হিসাব চক্র স্থায়ীভাবে বন্ধ বা পুনরায় খোলা।</li>
+                <li>যেকোনো সদস্যকে মেস ম্যানেজার নিযুক্ত করা।</li>
+                <li>৫ দিনের বাজার রোস্টার তৈরি ও পরবর্তী মাসে রোটেশন।</li>
+                <li>জরুরি প্রয়োজনে যেকোনো দুই সদস্যের সরাসরি সোয়াপ।</li>
+                <li>মেস ইউটিলিটি চার্জ থেকে সদস্যদের ফ্রি মওকুফ সুবিধা।</li>
               </ul>
             </div>
 
             {/* Mess Manager */}
-            <div className="glass-panel p-6 rounded-2xl border border-amber-500/30 bg-amber-950/10 space-y-3">
+            <div className="glass-panel p-6 rounded-3xl border border-amber-500/30 bg-amber-950/10 space-y-3">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-                <Shield className="w-5 h-5" />
-                <span>🛡️ মেস ম্যানেজার (Manager)</span>
+                <Shield className="w-5 h-5 text-amber-400" />
+                <span>🛡️ মেস ম্যানেজার (Mess Manager)</span>
               </div>
-              <p className="text-xs text-slate-300">
-                সুপার এডমিন কর্তৃক মনোনীত সদস্য যিনি চলতি মাসের মেস দেখাশোনা করবেন।
+              <p className="text-xs text-slate-300 leading-relaxed">
+                চলতি মাসের পরিচালনা ও তদারকির দায়িত্বে থাকা মনোনীত সদস্য।
               </p>
               <ul className="text-xs text-slate-400 space-y-1.5 list-disc list-inside">
-                <li>সদস্যদের বাজার খরচ যাচাই ও অনুমোদন/বাতিল।</li>
-                <li>দেরিতে আসা বা অন-টাইম মিল অফ/অন রিকোয়েস্টে সিদ্ধান্ত।</li>
-                <li>ডিউটি রোস্টার বণ্টন এবং ইউটিলিটি বিলের হিসাব এন্ট্রি।</li>
+                <li>বড় বাজার পরিচালনা এবং শুক্রবারের বিশেষ ভোজ শিডিউল।</li>
+                <li>দেরিতে আসা মিল অন/অফ রিকোয়েস্ট পর্যালোচনা।</li>
+                <li>নগদ জমা গ্রহণ এবং মেস ইউটিলিটি বিলের হিসাব এন্ট্রি।</li>
               </ul>
             </div>
 
             {/* Member */}
-            <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-3">
+            <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-3 bg-slate-900/60">
               <div className="flex items-center gap-2 text-slate-200 font-bold text-sm">
                 <Users className="w-5 h-5 text-indigo-400" />
-                <span>👤 মেস সদস্য (Member)</span>
+                <span>👤 মেস সদস্য (Border / Member)</span>
               </div>
-              <p className="text-xs text-slate-300">
-                গুগল দিয়ে লগইন করা বা মেসে থাকা যেকোনো সাধারণ সদস্য।
+              <p className="text-xs text-slate-300 leading-relaxed">
+                মেসে থাকা যেকোনো সাধারণ সদস্য যিনি গুগল একাউন্ট দিয়ে যুক্ত।
               </p>
               <ul className="text-xs text-slate-400 space-y-1.5 list-disc list-inside">
-                <li>নিজের প্রতিদিনের মিল বুকিং বা মিল বন্ধের রিকোয়েস্ট।</li>
-                <li>বাজারের ভাউচার ও রসিদের এন্ট্রি পাঠানো।</li>
-                <li>ব্যক্তিগত বিস্তারিত স্টেটমেন্ট দেখা ও রোস্টার বদলানো।</li>
+                <li>দৈনিক সকাল, দুপুর ও রাতের মিল বুকিং বা মিল বন্ধ।</li>
+                <li>নিজের ৫ দিনের রোস্টার ডিউটি দেখা ও সহপাঠীর সাথে সোয়াপ।</li>
+                <li>বাজারের আইটেম ফর্দ সরাসরি এন্ট্রি দেওয়া।</li>
+                <li>নিজের প্লাস/মাইনাস হিসাব ও পিডিএফ স্টেটমেন্ট প্রিন্ট।</li>
               </ul>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CTA Final Banner */}
-      <section className="py-16 sm:py-20 text-center relative overflow-hidden">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl sm:text-4xl font-extrabold text-white">
-            প্রস্তুত আপনার মেসকে স্মার্টভাবে পরিচালনা করতে?
+      {/* 6. FINAL CTA BANNER */}
+      <section className="py-16 sm:py-24 text-center relative overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900/80 to-slate-950">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          <div className="w-16 h-16 mx-auto rounded-3xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-xl shadow-indigo-500/10">
+            <Sparkles className="w-8 h-8" />
+          </div>
+
+          <h2 className="text-2xl sm:text-4xl font-black text-white">
+            প্রস্তুত আপনার মেসকে আধুনিক ও স্বয়ংক্রিয় করতে?
           </h2>
-          <p className="mt-3 text-xs sm:text-sm text-slate-400 max-w-xl mx-auto">
-            এখনই লগইন করে আপনার মেসের লাইভ হিসাব ও বাজার শিট পরীক্ষা করুন।
+
+          <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
+            এখনই লগইন করে আপনার মেসের লাইভ মিল রেট, বাজার তালিকা ও ব্যক্তিগত ব্যালেন্স পরীক্ষা করুন।
           </p>
-          <div className="mt-8 flex justify-center">
+
+          <div className="pt-2 flex justify-center">
             {status === 'authenticated' ? (
               <Link
                 href="/dashboard"
                 className="flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-emerald-500 hover:from-indigo-500 hover:to-emerald-400 text-white font-bold text-sm sm:text-base shadow-xl shadow-indigo-500/25 transition-all hover:scale-105"
               >
                 <LayoutDashboard className="w-5 h-5" />
-                <span>সরাসরি ড্যাশবোর্ডে যান</span>
+                <span>সরাসরি ড্যাশবোর্ডে প্রবেশ করুন</span>
                 <ArrowRight className="w-4 h-4 ml-1" />
               </Link>
             ) : (
@@ -572,7 +584,7 @@ export default function HomePage() {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span>গুগল দিয়ে লগইন করুন (মেম্বার)</span>
+                <span>গুগল দিয়ে এখনই লগইন করুন</span>
                 <ArrowRight className="w-4 h-4 ml-1" />
               </button>
             )}
@@ -580,8 +592,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-800/80 py-8 text-center text-xs text-slate-500 space-y-2">
+      {/* 7. FOOTER */}
+      <footer className="border-t border-slate-800/80 py-8 text-center text-xs text-slate-500 space-y-2 bg-slate-950">
         <p>
           মেস ম্যানেজমেন্ট সিস্টেম — তৈরি করেছেন <strong>শিহাব ল্যাবস</strong> | Next.js (App Router), TypeScript &amp; MongoDB Atlas
         </p>
