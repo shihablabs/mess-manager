@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShoppingBag, X, Info, Plus, Trash2, Calendar, ListPlus, Calculator, Check } from '@/components/icons';
+import { ShoppingBag, X, Info, Plus, Trash2, Calendar, ListPlus, Calculator, Check, RotateCw } from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import { formatTaka } from '@/lib/money';
 import { toast } from 'sonner';
@@ -413,9 +413,16 @@ export const NewBazarModal: React.FC<NewBazarModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting || (entryMode === 'multi' && totalItemAmount <= 0)}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold shadow-lg shadow-amber-600/25 transition-all cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold shadow-lg shadow-amber-600/25 transition-all cursor-pointer disabled:opacity-50"
               >
-                {isSubmitting ? 'সংরক্ষণ হচ্ছে...' : 'বাজার যুক্ত করুন'}
+                {isSubmitting ? (
+                  <>
+                    <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>সংরক্ষণ হচ্ছে...</span>
+                  </>
+                ) : (
+                  <span>বাজার যুক্ত করুন</span>
+                )}
               </button>
             </div>
           </div>

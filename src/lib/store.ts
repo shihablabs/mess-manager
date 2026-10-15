@@ -150,7 +150,7 @@ export class MessStore {
       const mc = this.memberCycles.find((m) => m.userId === u._id && m.cycleId === cycleId);
       return {
         userId: u._id as string,
-        name: u.name,
+        name: (u as any).displayName || (u as any).userDetails?.displayName || u.name,
         roomRent: mc ? mc.roomRent : 0,
         isActive: mc ? mc.isActive : false,
         leftDate: mc?.leftDate,

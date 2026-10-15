@@ -15,25 +15,43 @@ export async function GET(request: Request) {
     .map((u) => {
     const mem = store.memberships.find((m) => m.userId === u._id);
     const mc = store.memberCycles.find((m) => m.userId === u._id && m.cycleId === cycleId);
+    const userDetails = (u as any).userDetails || {};
+    const effectiveName = u.displayName || userDetails.displayName || u.name || 'সদস্য';
     return {
       userId: u._id,
-      name: u.name,
+      name: effectiveName,
+      displayName: effectiveName,
       email: u.email,
-      phone: u.phone || '',
-      whatsapp: u.whatsapp || '',
-      dob: u.dob || '',
-      address: u.address || '',
-      bio: u.bio || '',
-      bloodGroup: u.bloodGroup || '',
-      emergencyContact: u.emergencyContact || '',
-      occupation: u.occupation || '',
+      phone: u.phone || userDetails.phone || '',
+      whatsapp: u.whatsapp || userDetails.whatsapp || '',
+      dob: u.dob || userDetails.dob || '',
+      address: u.address || userDetails.address || '',
+      bio: u.bio || userDetails.bio || userDetails.about || '',
+      bloodGroup: u.bloodGroup || userDetails.bloodGroup || '',
+      emergencyContact: u.emergencyContact || userDetails.emergencyContact || '',
+      occupation: u.occupation || userDetails.occupation || '',
       image: u.image,
       role: (u.role || mem?.role || 'member') as UserRole,
       status: (mem?.status || 'pending') as any,
       roomRent: mc ? mc.roomRent : 0,
+      rentPaid: Boolean((mc as any)?.rentPaid),
+      rentPaidAt: (mc as any)?.rentPaidAt || null,
+      rentDepositId: (mc as any)?.rentDepositId || null,
+      rentPaidMethod: (mc as any)?.rentPaidMethod || 'cash',
       isActiveInCycle: mc ? Boolean(mc.isActive) : false,
       isUtilityExempt: Boolean((mc as any)?.isUtilityExempt),
       leftDate: mc?.leftDate,
+      userDetails: {
+        displayName: effectiveName,
+        phone: u.phone || userDetails.phone || '',
+        whatsapp: u.whatsapp || userDetails.whatsapp || '',
+        dob: u.dob || userDetails.dob || '',
+        address: u.address || userDetails.address || '',
+        bio: u.bio || userDetails.bio || userDetails.about || '',
+        bloodGroup: u.bloodGroup || userDetails.bloodGroup || '',
+        emergencyContact: u.emergencyContact || userDetails.emergencyContact || '',
+        occupation: u.occupation || userDetails.occupation || '',
+      },
     };
   });
 

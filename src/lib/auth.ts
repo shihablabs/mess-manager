@@ -79,11 +79,33 @@ export const authOptions: NextAuthOptions = {
             let userId: string;
 
             if (!dbUser) {
+              const defaultName = user.name || 'সদস্য';
               const insertResult = await db.collection('users').insertOne({
-                name: user.name || 'সদস্য',
+                name: defaultName,
+                displayName: defaultName,
                 email: user.email,
                 image: user.image || '',
                 role: 'member', // Google login is ALWAYS member by default
+                phone: '',
+                whatsapp: '',
+                dob: '',
+                address: '',
+                bio: '',
+                bloodGroup: '',
+                emergencyContact: '',
+                occupation: '',
+                userDetails: {
+                  displayName: defaultName,
+                  phone: '',
+                  whatsapp: '',
+                  dob: '',
+                  address: '',
+                  bio: '',
+                  about: '',
+                  bloodGroup: '',
+                  emergencyContact: '',
+                  occupation: '',
+                },
                 createdAt: new Date(),
                 updatedAt: new Date(),
               });
@@ -97,6 +119,29 @@ export const authOptions: NextAuthOptions = {
                   { $set: { role: 'member', updatedAt: new Date() } }
                 );
               }
+              // Backfill userDetails if missing
+              if (!dbUser.userDetails) {
+                await db.collection('users').updateOne(
+                  { _id: dbUser._id },
+                  {
+                    $set: {
+                      displayName: dbUser.displayName || dbUser.name,
+                      userDetails: {
+                        displayName: dbUser.displayName || dbUser.name,
+                        phone: dbUser.phone || '',
+                        whatsapp: dbUser.whatsapp || '',
+                        dob: dbUser.dob || '',
+                        address: dbUser.address || '',
+                        bio: dbUser.bio || '',
+                        about: dbUser.bio || '',
+                        bloodGroup: dbUser.bloodGroup || '',
+                        emergencyContact: dbUser.emergencyContact || '',
+                        occupation: dbUser.occupation || '',
+                      },
+                    },
+                  }
+                );
+              }
             }
 
             // Ensure resident membership exists for Google user
@@ -104,9 +149,10 @@ export const authOptions: NextAuthOptions = {
               $or: [{ userId }, { userId: dbUser?._id }],
             });
 
+            const mess = await db.collection('messes').findOne();
+            const messId = mess ? mess._id.toString() : 'mess_1';
+
             if (!existingMembership) {
-              const mess = await db.collection('messes').findOne();
-              const messId = mess ? mess._id.toString() : 'mess_1';
               await db.collection('memberships').insertOne({
                 userId,
                 messId,
@@ -116,6 +162,29 @@ export const authOptions: NextAuthOptions = {
                 createdAt: new Date(),
                 updatedAt: new Date(),
               });
+            }
+
+            // Ensure member_cycles record exists for active/open cycle
+            const activeCycle = await db.collection('cycles').findOne({ status: 'open' });
+            if (activeCycle) {
+              const cycleId = activeCycle._id.toString();
+              const existingMemberCycle = await db.collection('member_cycles').findOne({
+                userId,
+                cycleId,
+              });
+              if (!existingMemberCycle) {
+                await db.collection('member_cycles').insertOne({
+                  userId,
+                  cycleId,
+                  messId,
+                  roomRent: 3000,
+                  isActive: false, // Inactive until approved by admin
+                  rentPaid: false,
+                  rentPaidAt: null,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                });
+              }
             }
           }
         } catch (err) {

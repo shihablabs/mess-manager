@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Utensils, X, Clock, AlertTriangle, Calendar } from '@/components/icons';
+import { Utensils, X, Clock, AlertTriangle, Calendar, RotateCw } from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
@@ -288,9 +288,16 @@ export const MealRequestModal: React.FC<MealRequestModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/25 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/25 transition-all cursor-pointer disabled:opacity-50"
             >
-              {isSubmitting ? 'পাঠানো হচ্ছে...' : 'অনুরোধ পাঠান'}
+              {isSubmitting ? (
+                <>
+                  <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>পাঠানো হচ্ছে...</span>
+                </>
+              ) : (
+                <span>অনুরোধ পাঠান</span>
+              )}
             </button>
           </div>
         </form>

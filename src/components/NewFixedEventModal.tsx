@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Sparkles, X } from '@/components/icons';
+import { Sparkles, X, RotateCw } from '@/components/icons';
 import { toast } from 'sonner';
 
 interface NewFixedEventModalProps {
@@ -193,9 +193,16 @@ export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-lg shadow-amber-600/20 transition-all"
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-lg shadow-amber-600/20 transition-all cursor-pointer disabled:opacity-50"
             >
-              ভোজ যুক্ত করুন
+              {isSubmitting ? (
+                <>
+                  <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>যুক্ত হচ্ছে...</span>
+                </>
+              ) : (
+                <span>ভোজ যুক্ত করুন</span>
+              )}
             </button>
           </div>
         </form>

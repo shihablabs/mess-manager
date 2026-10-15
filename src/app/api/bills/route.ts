@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { BillDoc } from '@/models/types';
+import { ObjectId } from 'mongodb';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -68,6 +69,25 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, message: 'বিল সংরক্ষণ করা হয়েছে' });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'বিল আইডি প্রয়োজন' }, { status: 400 });
+    }
+    const db = await getDb();
+    if (db) {
+      await db.collection('bills').deleteOne({
+        $or: [{ _id: id as any }, { _id: new ObjectId(id) as any }],
+      });
+    }
+    return NextResponse.json({ success: true, message: 'বিল সফলভাবে মুছে ফেলা হয়েছে' });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

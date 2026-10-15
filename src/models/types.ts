@@ -6,7 +6,21 @@ export type CycleStatus = 'open' | 'closed';
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
 export type BazarType = 'regular' | 'fixed' | 'extra' | 'big';
 export type ExtraBazarSplit = 'meal_pool' | 'all_equal' | 'custom_members';
-export type DepositType = 'general' | 'big_bazar';
+export type DepositType = 'general' | 'big_bazar' | 'rent' | 'utility';
+
+// User personal and contact details model
+export interface UserDetails {
+  displayName?: string;
+  phone?: string;
+  whatsapp?: string;
+  dob?: string; // Date of birth: YYYY-MM-DD
+  address?: string; // Location / Address
+  bio?: string;
+  about?: string;
+  bloodGroup?: string;
+  emergencyContact?: string;
+  occupation?: string;
+}
 
 // 1. Messes
 export interface MealSlotDefinition {
@@ -34,6 +48,7 @@ export interface MessDoc {
 export interface UserDoc {
   _id?: ObjectId | string;
   name: string; // Editable display name
+  displayName?: string; // Dedicated display name
   email: string;
   role?: UserRole;
   image?: string;
@@ -45,6 +60,7 @@ export interface UserDoc {
   bloodGroup?: string; // e.g. 'A+', 'B+', 'O+', etc.
   emergencyContact?: string; // Emergency phone number / person
   occupation?: string; // Profession / Student / Job
+  userDetails?: UserDetails; // Embedded user details object
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,7 +103,13 @@ export interface MemberCycleDoc {
   cycleId: string;
   messId: string;
   roomRent: number;
+  rentPaid?: boolean;
+  rentPaidAt?: Date | string | null;
+  rentDepositId?: string | null;
+  rentPaidMethod?: 'cash' | 'bkash' | 'nagad' | 'bank' | 'other';
+  rentAmount?: number;
   isActive: boolean;
+  isUtilityExempt?: boolean;
   leftDate?: string | null;
   individualSettled?: boolean;
   settledAt?: Date | null;

@@ -55,7 +55,7 @@ export interface BigBazarConfigInput {
 export interface DepositInput {
   userId: string;
   amount: number;
-  type: 'general' | 'big_bazar';
+  type: 'general' | 'big_bazar' | 'rent' | 'utility';
   isPaid: boolean;
 }
 

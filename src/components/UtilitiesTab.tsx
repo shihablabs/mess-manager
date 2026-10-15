@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Lightbulb,
   Package,
@@ -17,13 +17,23 @@ import {
   UserCheck,
   Download,
   Upload,
+  Building2,
   Database,
   Archive,
   FileJson,
+  CheckCircle,
+  Clock,
+  RotateCw,
+  RotateCcw,
+  Sparkles,
+  Save,
+  Phone,
+  WhatsApp,
 } from '@/components/icons';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
+import Swal from 'sweetalert2';
 import { confirmAction } from '@/lib/alerts';
 
 interface UtilitiesTabProps {
@@ -60,6 +70,153 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
   const totalUtility = bills.reduce((sum, b) => sum + b.amount, 0);
   const isSuperAdmin = currentUser.role === 'super_admin';
   const isManager = currentUser.role === 'admin' || isSuperAdmin;
+
+  // House Rent State & Handlers
+  const [rentData, setRentData] = useState<any[]>([]);
+  const [rentSummary, setRentSummary] = useState<any>({
+    totalRentDue: 0,
+    totalRentCollected: 0,
+    totalRentPending: 0,
+    paidCount: 0,
+    pendingCount: 0,
+    totalMembers: 0,
+  });
+  const [isLoadingRent, setIsLoadingRent] = useState(false);
+  const [rentProcessingUserId, setRentProcessingUserId] = useState<string | null>(null);
+  const [editingRentUserId, setEditingRentUserId] = useState<string | null>(null);
+  const [editingRentAmount, setEditingRentAmount] = useState<string>('');
+
+  const fetchRentData = async () => {
+    try {
+      setIsLoadingRent(true);
+      const cycleIdParam = cycle?._id ? `?cycleId=${cycle._id}` : '';
+      const res = await fetch(`/api/rent${cycleIdParam}`);
+      const data = await res.json();
+      if (data.success) {
+        setRentData(data.members || []);
+        if (data.summary) setRentSummary(data.summary);
+      }
+    } catch (e) {
+      console.error('Error fetching rent data:', e);
+    } finally {
+      setIsLoadingRent(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRentData();
+  }, [cycle?._id]);
+
+  // 1-Click Mark Rent Paid
+  const handleMarkRentPaid = async (member: any) => {
+    try {
+      setRentProcessingUserId(member.userId);
+      const res = await fetch('/api/rent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'mark_rent_paid',
+          userId: member.userId,
+          cycleId: cycle?._id,
+          amount: member.roomRent,
+          paymentMethod: 'cash',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await Promise.all([fetchRentData(), onRefresh()]);
+        Swal.fire({
+          title: 'ভাড়া আদায় সম্পন্ন!',
+          text: `${member.name} এর বাসা ভাড়া ৳${Number(member.roomRent).toLocaleString('bn-BD')} সফলভাবে আদায় ও জমা হিসেবে রেকর্ড হয়েছে।`,
+          icon: 'success',
+          confirmButtonColor: '#10b981',
+          background: '#0f172a',
+          color: '#f8fafc',
+          customClass: {
+            popup: 'border border-slate-700/80 rounded-3xl shadow-2xl backdrop-blur-xl',
+          },
+        });
+      } else {
+        toast.error(data.error || 'ভাড়া পরিশোধ রেকর্ড করতে ব্যর্থ হয়েছে');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'নেটওয়ার্ক ত্রুটি ঘটেছে');
+    } finally {
+      setRentProcessingUserId(null);
+    }
+  };
+
+  // Revert Rent Paid to Unpaid
+  const handleRevertRentPaid = async (member: any) => {
+    const isConfirmed = await confirmAction({
+      title: 'ভাড়া বকেয়া করতে চান?',
+      text: `${member.name} এর পেইড মার্কিং তুলে নিয়ে বকেয়া হিসেবে সেট করা হবে এবং সংশ্লিষ্ট জমা এন্ট্রি বাতিল হবে।`,
+      icon: 'warning',
+      confirmText: 'হ্যাঁ, বকেয়া করুন',
+      cancelText: 'বাতিল',
+      confirmColor: '#e11d48',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      setRentProcessingUserId(member.userId);
+      const res = await fetch('/api/rent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'revert_rent_paid',
+          userId: member.userId,
+          cycleId: cycle?._id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'বাসা ভাড়া বকেয়া হিসেবে রিভার্স করা হয়েছে');
+        await Promise.all([fetchRentData(), onRefresh()]);
+      } else {
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'নেটওয়ার্ক ত্রুটি ঘটেছে');
+    } finally {
+      setRentProcessingUserId(null);
+    }
+  };
+
+  // Update Member Room Rent
+  const handleSaveRoomRent = async (userId: string) => {
+    const amountNum = Number(editingRentAmount);
+    if (isNaN(amountNum) || amountNum < 0) {
+      toast.warning('সঠিক টাকার অঙ্ক লিখুন');
+      return;
+    }
+
+    try {
+      setRentProcessingUserId(userId);
+      const res = await fetch('/api/rent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_room_rent',
+          userId,
+          cycleId: cycle?._id,
+          roomRent: amountNum,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('বাসা ভাড়া সফলভাবে আপডেট হয়েছে');
+        setEditingRentUserId(null);
+        await Promise.all([fetchRentData(), onRefresh()]);
+      } else {
+        toast.error(data.error || 'আপডেট ব্যর্থ');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setRentProcessingUserId(null);
+    }
+  };
 
   // 6-Month Backup & Restore State
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -265,6 +422,288 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
             নতুন জমা (Deposit) এন্ট্রি করুন
           </button>
         )}
+      </div>
+
+      {/* 0. HOUSE RENT & ROOM RENT COLLECTION HUB (1-CLICK COLLECTION) */}
+      <div className="glass-panel rounded-3xl p-5 sm:p-6 border border-indigo-500/30 bg-gradient-to-b from-indigo-950/25 via-slate-900/60 to-slate-950/90 shadow-2xl space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-lg shadow-indigo-500/10">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                <span>বাসা ভাড়া ও রুম রেন্ট আদায় হাব</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  {cycle?.name || 'চলতি মাস'}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                সুপার অ্যাডমিন ও মেস ম্যানেজার মাত্র ১-ক্লিকে সদস্যদের বাসা ভাড়া পরিশোধ ও জমা হিসেবে রেকর্ড করতে পারবেন।
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={() => {
+                fetchRentData();
+                onRefresh();
+              }}
+              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-750 text-slate-300 hover:text-white border border-slate-700/60 transition cursor-pointer"
+              title="রিফ্রেশ করুন"
+            >
+              <RotateCw className={`w-4 h-4 ${isLoadingRent ? 'animate-spin text-indigo-400' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Summary Stat Mini-Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="glass-panel p-3.5 sm:p-4 rounded-2xl border border-slate-800 bg-slate-900/40">
+            <span className="text-[11px] font-medium text-slate-400 block">মোট ধার্যকৃত ভাড়া</span>
+            <div className="text-base sm:text-lg font-black text-white font-mono mt-1">
+              {formatTaka(rentSummary.totalRentDue || 0)}
+            </div>
+            <span className="text-[10px] text-slate-500 mt-0.5 block">
+              {rentSummary.totalMembers || rentData.length} জন সক্রিয় সদস্য
+            </span>
+          </div>
+
+          <div className="glass-panel p-3.5 sm:p-4 rounded-2xl border border-emerald-500/30 bg-emerald-950/20">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-emerald-300 block">আদায়কৃত ভাড়া</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+                {rentSummary.totalRentDue > 0
+                  ? `${Math.round(((rentSummary.totalRentCollected || 0) / rentSummary.totalRentDue) * 100)}%`
+                  : '০%'}
+              </span>
+            </div>
+            <div className="text-base sm:text-lg font-black text-emerald-400 font-mono mt-1">
+              {formatTaka(rentSummary.totalRentCollected || 0)}
+            </div>
+            <span className="text-[10px] text-emerald-300/70 mt-0.5 block">
+              {rentSummary.paidCount || 0} জন পরিশোধ করেছেন
+            </span>
+          </div>
+
+          <div className="glass-panel p-3.5 sm:p-4 rounded-2xl border border-rose-500/30 bg-rose-950/20">
+            <span className="text-[11px] font-medium text-rose-300 block">বকেয়া ভাড়া</span>
+            <div className="text-base sm:text-lg font-black text-rose-400 font-mono mt-1">
+              {formatTaka(rentSummary.totalRentPending || 0)}
+            </div>
+            <span className="text-[10px] text-rose-300/70 mt-0.5 block">
+              {rentSummary.pendingCount || 0} জনের বকেয়া রয়েছে
+            </span>
+          </div>
+
+          <div className="glass-panel p-3.5 sm:p-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/20">
+            <span className="text-[11px] font-medium text-indigo-300 block">আদায় অবস্থা</span>
+            <div className="text-base sm:text-lg font-black text-indigo-300 font-mono mt-1">
+              {rentSummary.paidCount}/{rentSummary.totalMembers || rentData.length}
+            </div>
+            <span className="text-[10px] text-indigo-300/70 mt-0.5 block">
+              {rentSummary.pendingCount === 0 && (rentSummary.totalMembers || rentData.length) > 0
+                ? '🎉 ১০০% আদায় সম্পন্ন!'
+                : 'চলতি মাসে আদায় চলমান'}
+            </span>
+          </div>
+        </div>
+
+        {/* Member Rent List Table / Grid */}
+        <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/50">
+          <table className="w-full text-left text-xs text-slate-300">
+            <thead className="bg-slate-950/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+              <tr>
+                <th className="px-4 py-3">সদস্য</th>
+                <th className="px-4 py-3">ধার্যকৃত ভাড়া</th>
+                <th className="px-4 py-3">পরিশোধ স্ট্যাটাস</th>
+                <th className="px-4 py-3 text-right">১-ক্লিক অ্যাকশন</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {rentData.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-slate-500 text-xs">
+                    {isLoadingRent ? 'ভাড়ার তথ্য লোড হচ্ছে...' : 'কোনো সক্রিয় সদস্য পাওয়া যায়নি'}
+                  </td>
+                </tr>
+              ) : (
+                rentData.map((member) => {
+                  const isProcessing = rentProcessingUserId === member.userId;
+                  const isEditingThisRent = editingRentUserId === member.userId;
+                  const isThisUserSelf = member.userId === currentUser.id;
+
+                  return (
+                    <tr
+                      key={member.userId}
+                      className={`hover:bg-slate-800/40 transition-colors ${
+                        isThisUserSelf ? 'bg-indigo-950/15' : ''
+                      }`}
+                    >
+                      {/* Member Info */}
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-3">
+                          {member.image ? (
+                            <img
+                              src={member.image}
+                              alt={member.name}
+                              className="w-9 h-9 rounded-full object-cover border border-slate-700 shadow"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-bold flex items-center justify-center text-xs shadow">
+                              {member.name.charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-bold text-white text-xs sm:text-sm flex items-center gap-1.5">
+                              <span>{member.name}</span>
+                              {isThisUserSelf && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                  আপনি
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">
+                              <span>{member.phone || member.email}</span>
+                              {member.whatsapp && (
+                                <a
+                                  href={`https://wa.me/${member.whatsapp.replace(/[^0-9]/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-emerald-400 hover:text-emerald-300"
+                                  title="হোয়াটসঅ্যাপে চ্যাট করুন"
+                                >
+                                  <WhatsApp className="w-3 h-3 inline" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Room Rent Amount */}
+                      <td className="px-4 py-3.5">
+                        {isEditingThisRent ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              value={editingRentAmount}
+                              onChange={(e) => setEditingRentAmount(e.target.value)}
+                              className="w-20 px-2 py-1 rounded bg-slate-950 border border-indigo-500 text-xs text-white font-mono"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSaveRoomRent(member.userId)}
+                              disabled={isProcessing}
+                              className="p-1 rounded bg-emerald-600 text-white hover:bg-emerald-500 cursor-pointer"
+                              title="সংরক্ষণ"
+                            >
+                              <Save className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => setEditingRentUserId(null)}
+                              className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                              title="বাতিল"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-slate-100 text-xs sm:text-sm">
+                              {formatTaka(member.roomRent)}
+                            </span>
+                            {isManager && (
+                              <button
+                                onClick={() => {
+                                  setEditingRentUserId(member.userId);
+                                  setEditingRentAmount(String(member.roomRent));
+                                }}
+                                className="text-slate-500 hover:text-indigo-400 p-0.5 transition cursor-pointer"
+                                title="ভাড়া পরিবর্তন করুন"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Payment Status */}
+                      <td className="px-4 py-3.5">
+                        {member.rentPaid ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>পরিশোধিত</span>
+                            {member.rentPaidAt && (
+                              <span className="text-[10px] text-emerald-300/70 font-mono hidden sm:inline">
+                                ({new Date(member.rentPaidAt).toLocaleDateString('bn-BD', { month: 'short', day: 'numeric' })})
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-bold">
+                            <Clock className="w-3.5 h-3.5 text-rose-400" />
+                            <span>বকেয়া রয়েছে</span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 1-Click Action */}
+                      <td className="px-4 py-3.5 text-right">
+                        {isManager ? (
+                          member.rentPaid ? (
+                            <button
+                              onClick={() => handleRevertRentPaid(member)}
+                              disabled={isProcessing}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-500/30 text-xs transition cursor-pointer disabled:opacity-50"
+                              title="ভুলবশত ক্লিক হয়ে থাকলে বকেয়া হিসেবে রিভার্স করুন"
+                            >
+                              {isProcessing ? (
+                                <>
+                                  <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>প্রসেসিং...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  <span>আনপেইড করুন</span>
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleMarkRentPaid(member)}
+                              disabled={isProcessing}
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer disabled:opacity-50"
+                            >
+                              {isProcessing ? (
+                                <>
+                                  <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>আদায় হচ্ছে...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  <span>ভাড়া আদায় করুন</span>
+                                </>
+                              )}
+                            </button>
+                          )
+                        ) : (
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {member.rentPaid ? 'পরিশোধ সম্পন্ন' : 'ম্যানেজার কর্তৃক আদায়যোগ্য'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Utilities Breakdown & Big Bazar Cards */}

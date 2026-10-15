@@ -48,6 +48,7 @@ import {
   Briefcase,
   Copy,
   Save,
+  RotateCw,
 } from '@/components/icons';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -1988,10 +1989,19 @@ function ProfileContent() {
                 <button
                   type="submit"
                   disabled={isSavingProfile}
-                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer disabled:opacity-60"
                 >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>{isSavingProfile ? 'সংরক্ষণ হচ্ছে...' : 'তথ্য সংরক্ষণ করুন'}</span>
+                  {isSavingProfile ? (
+                    <>
+                      <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>সংরক্ষণ হচ্ছে...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>তথ্য সংরক্ষণ করুন</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

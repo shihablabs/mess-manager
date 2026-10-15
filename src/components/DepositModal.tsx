@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Wallet, X, Info } from '@/components/icons';
+import { Wallet, X, Info, RotateCw } from '@/components/icons';
 import { toast } from 'sonner';
 
 interface DepositModalProps {
@@ -19,7 +19,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 }) => {
   const [selectedUser, setSelectedUser] = useState('');
   const [amount, setAmount] = useState('');
-  const [type, setType] = useState<'general' | 'big_bazar' | 'utility'>('general');
+  const [type, setType] = useState<'general' | 'big_bazar' | 'utility' | 'rent'>('general');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -138,6 +138,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-emerald-500 cursor-pointer"
             >
               <option value="general">সাধারণ মেস জমা (General Deposit)</option>
+              <option value="rent">বাসা ভাড়া / রুম রেন্ট (House Rent)</option>
               <option value="utility">ইউটিলিটি ও খালা বিল পরিশোধ (Utility / Khala Bill)</option>
               <option value="big_bazar">বড় বাজারের কন্ট্রিবিউশন (Big Bazar Fund)</option>
             </select>
@@ -178,9 +179,16 @@ export const DepositModal: React.FC<DepositModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50"
             >
-              {isSubmitting ? 'সংরক্ষণ হচ্ছে...' : 'জমা নিশ্চিত করুন'}
+              {isSubmitting ? (
+                <>
+                  <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>সংরক্ষণ হচ্ছে...</span>
+                </>
+              ) : (
+                <span>জমা নিশ্চিত করুন</span>
+              )}
             </button>
           </div>
         </form>

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { ObjectId } from 'mongodb';
 import { UserDoc } from '@/models/types';
+import { getStore } from '@/lib/store';
 
 export async function GET(request: Request) {
   try {
@@ -36,12 +37,40 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: 'ইউজার পাওয়া যায়নি' }, { status: 404 });
     }
 
+    const userDetails = (user as any).userDetails || {};
+    const normalizedName = user.displayName || userDetails.displayName || user.name || 'সদস্য';
+
+    const normalizedUser = {
+      ...user,
+      _id: user._id.toString(),
+      name: normalizedName,
+      displayName: normalizedName,
+      phone: user.phone || userDetails.phone || '',
+      whatsapp: user.whatsapp || userDetails.whatsapp || '',
+      dob: user.dob || userDetails.dob || '',
+      address: user.address || userDetails.address || '',
+      bio: user.bio || userDetails.bio || userDetails.about || '',
+      about: (user as any).about || userDetails.about || user.bio || userDetails.bio || '',
+      bloodGroup: user.bloodGroup || userDetails.bloodGroup || '',
+      emergencyContact: user.emergencyContact || userDetails.emergencyContact || '',
+      occupation: user.occupation || userDetails.occupation || '',
+      userDetails: {
+        displayName: normalizedName,
+        phone: user.phone || userDetails.phone || '',
+        whatsapp: user.whatsapp || userDetails.whatsapp || '',
+        dob: user.dob || userDetails.dob || '',
+        address: user.address || userDetails.address || '',
+        bio: user.bio || userDetails.bio || userDetails.about || '',
+        about: (user as any).about || userDetails.about || user.bio || userDetails.bio || '',
+        bloodGroup: user.bloodGroup || userDetails.bloodGroup || '',
+        emergencyContact: user.emergencyContact || userDetails.emergencyContact || '',
+        occupation: user.occupation || userDetails.occupation || '',
+      },
+    };
+
     return NextResponse.json({
       success: true,
-      user: {
-        ...user,
-        _id: user._id.toString(),
-      },
+      user: normalizedUser,
     });
   } catch (err: any) {
     console.error('Error in GET /api/user/profile:', err);
@@ -72,19 +101,48 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'ডাটাবেজ সংযোগে সমস্যা' }, { status: 500 });
     }
 
-    const updateFields: Partial<UserDoc> = {
+    const displayName = (body.displayName || body.name || '').trim();
+    const phone = body.phone !== undefined ? String(body.phone).trim() : '';
+    const whatsapp = body.whatsapp !== undefined ? String(body.whatsapp).trim() : '';
+    const dob = body.dob !== undefined ? String(body.dob).trim() : '';
+    const address = body.address !== undefined ? String(body.address).trim() : '';
+    const bio = body.bio !== undefined ? String(body.bio).trim() : '';
+    const about = body.about !== undefined ? String(body.about).trim() : bio;
+    const bloodGroup = body.bloodGroup !== undefined ? String(body.bloodGroup).trim() : '';
+    const emergencyContact = body.emergencyContact !== undefined ? String(body.emergencyContact).trim() : '';
+    const occupation = body.occupation !== undefined ? String(body.occupation).trim() : '';
+
+    const updateFields: any = {
       updatedAt: new Date(),
     };
 
-    if (body.name && typeof body.name === 'string') updateFields.name = body.name.trim();
-    if (body.phone !== undefined) updateFields.phone = String(body.phone).trim();
-    if (body.whatsapp !== undefined) updateFields.whatsapp = String(body.whatsapp).trim();
-    if (body.dob !== undefined) updateFields.dob = String(body.dob).trim();
-    if (body.address !== undefined) updateFields.address = String(body.address).trim();
-    if (body.bio !== undefined) updateFields.bio = String(body.bio).trim();
-    if (body.bloodGroup !== undefined) updateFields.bloodGroup = String(body.bloodGroup).trim();
-    if (body.emergencyContact !== undefined) updateFields.emergencyContact = String(body.emergencyContact).trim();
-    if (body.occupation !== undefined) updateFields.occupation = String(body.occupation).trim();
+    if (displayName) {
+      updateFields.name = displayName;
+      updateFields.displayName = displayName;
+    }
+    if (body.phone !== undefined) updateFields.phone = phone;
+    if (body.whatsapp !== undefined) updateFields.whatsapp = whatsapp;
+    if (body.dob !== undefined) updateFields.dob = dob;
+    if (body.address !== undefined) updateFields.address = address;
+    if (body.bio !== undefined) updateFields.bio = bio;
+    if (body.about !== undefined) updateFields.about = about;
+    if (body.bloodGroup !== undefined) updateFields.bloodGroup = bloodGroup;
+    if (body.emergencyContact !== undefined) updateFields.emergencyContact = emergencyContact;
+    if (body.occupation !== undefined) updateFields.occupation = occupation;
+
+    // Embedded userDetails object
+    updateFields.userDetails = {
+      displayName: displayName || undefined,
+      phone,
+      whatsapp,
+      dob,
+      address,
+      bio,
+      about,
+      bloodGroup,
+      emergencyContact,
+      occupation,
+    };
 
     const filter = {
       $or: [
@@ -93,9 +151,27 @@ export async function POST(request: Request) {
       ],
     };
 
-    const updateResult = await db.collection('users').updateOne(filter, { $set: updateFields });
+    await db.collection('users').updateOne(filter, { $set: updateFields });
 
     const updatedUser = await db.collection('users').findOne(filter);
+
+    // Sync in-memory store
+    try {
+      const store = await getStore();
+      const existingUser = store.users.find((u) => u._id === targetUserId);
+      if (existingUser) {
+        if (displayName) {
+          existingUser.name = displayName;
+          existingUser.displayName = displayName;
+        }
+        if (phone) existingUser.phone = phone;
+        if (whatsapp) existingUser.whatsapp = whatsapp;
+        if (dob) existingUser.dob = dob;
+        existingUser.userDetails = updateFields.userDetails;
+      }
+    } catch (storeErr) {
+      // Non-fatal store sync
+    }
 
     return NextResponse.json({
       success: true,
