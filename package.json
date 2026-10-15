@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "create-super-admin": "node scripts/create-super-admin.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

@@ -9,7 +9,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
 
-  const members = store.users.map((u) => {
+  // Exclude super_admin from resident mess member list
+  const members = store.users
+    .filter((u) => u.role !== 'super_admin')
+    .map((u) => {
     const mem = store.memberships.find((m) => m.userId === u._id);
     const mc = store.memberCycles.find((m) => m.userId === u._id && m.cycleId === cycleId);
     return {
@@ -100,11 +103,18 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'ইউজার ও ভূমিকা উল্লেখ করুন' }, { status: 400 });
       }
 
+      if (role === 'super_admin') {
+        return NextResponse.json(
+          { success: false, error: 'সুপার এডমিন ভূমিকা UI থেকে দেওয়া সম্ভব নয়। এটি শুধুমাত্র ডাটাবেজ স্ক্রিপ্ট দিয়ে পরিচালিত হয়।' },
+          { status: 400 }
+        );
+      }
+
       if (db) {
         const query = ObjectId.isValid(userId) ? { _id: new ObjectId(userId) } : { _id: userId };
         const targetUser = await db.collection('users').findOne(query);
 
-        if (targetUser?.email === 'shihab.warfaze@gmail.com') {
+        if (targetUser?.role === 'super_admin') {
           return NextResponse.json(
             { success: false, error: 'সুপার এডমিনের ভূমিকা পরিবর্তন করা সম্ভব নয়' },
             { status: 400 }

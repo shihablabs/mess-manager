@@ -1,89 +1,168 @@
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
+import CredentialsProvider from 'next-auth/providers/credentials';
 import { getDb } from '@/lib/db';
+import crypto from 'crypto';
+
+export function verifyPassword(password: string, hash: string, salt: string) {
+  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return verifyHash === hash;
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    // 1. Google Provider - STRICTLY for resident members and mess managers
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     }),
-  ],
-  callbacks: {
-    async signIn({ user }) {
-      if (!user.email) return false;
-      try {
-        const db = await getDb();
-        if (db) {
-          const isSuperAdmin = user.email === 'shihab.warfaze@gmail.com';
-          let dbUser = await db.collection('users').findOne({ email: user.email });
-          let userId: string;
 
-          if (!dbUser) {
-            const insertResult = await db.collection('users').insertOne({
-              name: user.name || 'সদস্য',
-              email: user.email,
-              image: user.image || '',
-              role: isSuperAdmin ? 'super_admin' : 'member',
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            });
-            userId = insertResult.insertedId.toString();
-          } else {
-            userId = dbUser._id.toString();
-            if (isSuperAdmin && dbUser.role !== 'super_admin') {
-              await db.collection('users').updateOne(
-                { email: user.email },
-                { $set: { role: 'super_admin', updatedAt: new Date() } }
-              );
-            }
-          }
+    // 2. Credentials Provider - STRICTLY for System Super Admin (configured via script)
+    CredentialsProvider({
+      id: 'super-admin-credentials',
+      name: 'Super Admin Login',
+      credentials: {
+        username: { label: 'ইউজারনেম বা আইডি', type: 'text' },
+        password: { label: 'পাসওয়ার্ড', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.username || !credentials?.password) return null;
+        try {
+          const db = await getDb();
+          if (!db) return null;
 
-          // Check or create membership
-          const existingMembership = await db.collection('memberships').findOne({
-            $or: [{ userId }, { userId: dbUser?._id }],
+          const admin = await db.collection('super_admins').findOne({
+            username: credentials.username.trim().toLowerCase(),
           });
 
-          if (!existingMembership) {
-            const mess = await db.collection('messes').findOne();
-            const messId = mess ? mess._id.toString() : 'mess_1';
-            await db.collection('memberships').insertOne({
-              userId,
-              messId,
-              role: isSuperAdmin ? 'super_admin' : 'member',
-              status: isSuperAdmin ? 'active' : 'pending',
-              joinedDate: new Date().toISOString().split('T')[0],
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            });
+          if (!admin || !admin.passwordHash || !admin.salt) {
+            return null;
           }
+
+          const isValid = verifyPassword(credentials.password, admin.passwordHash, admin.salt);
+          if (!isValid) {
+            return null;
+          }
+
+          return {
+            id: admin._id.toString(),
+            name: admin.name || 'সুপার অ্যাডমিন',
+            email: admin.email || `${admin.username}@developerzone.local`,
+            image: 'https://api.dicebear.com/7.x/bottts/svg?seed=superadmin',
+            role: 'super_admin',
+            status: 'active',
+          } as any;
+        } catch (err) {
+          console.error('Error during super admin authorization:', err);
+          return null;
         }
-      } catch (err) {
-        console.error('Error recording user in MongoDB on signIn:', err);
+      },
+    }),
+  ],
+  session: {
+    strategy: 'jwt',
+  },
+  callbacks: {
+    async signIn({ user, account }) {
+      // Super Admin credentials login
+      if (account?.provider === 'super-admin-credentials') {
+        return true;
       }
-      return true;
-    },
-    async session({ session }) {
-      if (session.user?.email) {
+
+      // Google Sign-in: Strictly for standard resident members & managers
+      if (account?.provider === 'google') {
+        if (!user.email) return false;
         try {
           const db = await getDb();
           if (db) {
-            const dbUser = await db.collection('users').findOne({ email: session.user.email });
-            if (dbUser) {
-              const userId = dbUser._id.toString();
-              const membership = await db.collection('memberships').findOne({
-                $or: [{ userId }, { userId: dbUser._id }],
-              });
+            let dbUser = await db.collection('users').findOne({ email: user.email });
+            let userId: string;
 
-              (session.user as any).id = userId;
-              (session.user as any).role = dbUser.role || 'member';
-              (session.user as any).status =
-                membership?.status || (dbUser.role === 'super_admin' ? 'active' : 'pending');
+            if (!dbUser) {
+              const insertResult = await db.collection('users').insertOne({
+                name: user.name || 'সদস্য',
+                email: user.email,
+                image: user.image || '',
+                role: 'member', // Google login is ALWAYS member by default
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              });
+              userId = insertResult.insertedId.toString();
+            } else {
+              userId = dbUser._id.toString();
+              // Prevent Google user from holding super_admin role
+              if (dbUser.role === 'super_admin') {
+                await db.collection('users').updateOne(
+                  { email: user.email },
+                  { $set: { role: 'member', updatedAt: new Date() } }
+                );
+              }
+            }
+
+            // Ensure resident membership exists for Google user
+            const existingMembership = await db.collection('memberships').findOne({
+              $or: [{ userId }, { userId: dbUser?._id }],
+            });
+
+            if (!existingMembership) {
+              const mess = await db.collection('messes').findOne();
+              const messId = mess ? mess._id.toString() : 'mess_1';
+              await db.collection('memberships').insertOne({
+                userId,
+                messId,
+                role: 'member',
+                status: 'pending', // Requires admin approval
+                joinedDate: new Date().toISOString().split('T')[0],
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              });
             }
           }
         } catch (err) {
-          console.error('Error fetching user profile for session:', err);
+          console.error('Error recording Google user in MongoDB on signIn:', err);
         }
+        return true;
+      }
+
+      return false;
+    },
+    async jwt({ token, user, account }) {
+      if (user) {
+        token.id = user.id;
+        token.role = (user as any).role || 'member';
+        token.status = (user as any).status || 'pending';
+        token.isSuperAdmin = (user as any).role === 'super_admin';
+      }
+
+      // Sync latest role and membership status from DB for Google members
+      if (token.email && !token.isSuperAdmin) {
+        try {
+          const db = await getDb();
+          if (db) {
+            const dbUser = await db.collection('users').findOne({ email: token.email });
+            if (dbUser) {
+              token.id = dbUser._id.toString();
+              // Google users can only be 'member' or promoted to 'admin' (manager)
+              token.role = dbUser.role === 'super_admin' ? 'member' : (dbUser.role || 'member');
+              const membership = await db.collection('memberships').findOne({
+                $or: [{ userId: dbUser._id.toString() }, { userId: dbUser._id }],
+              });
+              token.status = membership?.status || 'pending';
+            }
+          }
+        } catch (err) {
+          console.error('Error syncing user token from MongoDB:', err);
+        }
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        (session.user as any).id = token.id;
+        (session.user as any).role = token.role || 'member';
+        (session.user as any).status =
+          token.status || (token.role === 'super_admin' ? 'active' : 'pending');
+        (session.user as any).isSuperAdmin = token.role === 'super_admin';
       }
       return session;
     },

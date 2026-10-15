@@ -27,6 +27,7 @@ import {
   ArrowRight,
   ShieldAlert,
   Clock,
+  Crown,
 } from 'lucide-react';
 import { MemberBillingResult } from '@/billing-engine/types';
 import { useSession, signIn } from 'next-auth/react';
@@ -34,6 +35,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { GlobalLoader } from '@/components/GlobalLoader';
 import { toast } from 'sonner';
+import { SuperAdminLoginModal } from '@/components/SuperAdminLoginModal';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -42,17 +44,18 @@ export default function DashboardPage() {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSuperAdminModalOpen, setIsSuperAdminModalOpen] = useState(false);
 
-  // Sync Google authenticated user strictly when session is active
+  // Sync authenticated user strictly when session is active
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
       const userEmail = session.user.email || '';
-      const isSuper = userEmail === 'shihab.warfaze@gmail.com';
+      const isSuper = (session.user as any).isSuperAdmin || (session.user as any).role === 'super_admin';
       const userRole = (session.user as any).role || (isSuper ? 'super_admin' : 'member');
       const userStatus = (session.user as any).status || (isSuper ? 'active' : 'pending');
       setCurrentUser({
         id: (session.user as any).id || userEmail || 'user',
-        name: session.user.name || 'সদস্য',
+        name: session.user.name || (isSuper ? 'সুপার অ্যাডমিন' : 'সদস্য'),
         email: userEmail,
         role: userRole,
         status: userStatus,
@@ -196,7 +199,7 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3.5 w-full pt-2">
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full pt-2">
             <button
               onClick={() => signIn('google')}
               className="w-full sm:flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm py-3.5 px-6 rounded-2xl shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.02] cursor-pointer"
@@ -219,17 +222,30 @@ export default function DashboardPage() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span>গুগল দিয়ে লগইন করুন</span>
+              <span>গুগল দিয়ে লগইন (মেম্বার)</span>
+            </button>
+
+            <button
+              onClick={() => setIsSuperAdminModalOpen(true)}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-200 font-semibold text-sm py-3.5 px-6 rounded-2xl transition-all cursor-pointer"
+            >
+              <Crown className="w-4 h-4 text-purple-400" />
+              <span>সুপার অ্যাডমিন</span>
             </button>
 
             <Link
               href="/"
-              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-sm py-3.5 px-6 rounded-2xl transition-all"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-sm py-3.5 px-5 rounded-2xl transition-all"
             >
-              হোম পেজে ফিরে যান
+              হোম পেজ
             </Link>
           </div>
         </div>
+
+        <SuperAdminLoginModal
+          isOpen={isSuperAdminModalOpen}
+          onClose={() => setIsSuperAdminModalOpen(false)}
+        />
       </div>
     );
   }
@@ -275,6 +291,7 @@ export default function DashboardPage() {
           calculation={summaryData?.calculation || null}
           userBalance={summaryData?.userBalance || null}
           pendingCounts={summaryData?.pendingCounts || { mealRequests: 0, bazars: 0 }}
+          currentUser={currentUser}
           onNavigateToTab={setActiveTab}
         />
 
@@ -435,6 +452,11 @@ export default function DashboardPage() {
           setIsDepositOpen(false);
           fetchData();
         }}
+      />
+
+      <SuperAdminLoginModal
+        isOpen={isSuperAdminModalOpen}
+        onClose={() => setIsSuperAdminModalOpen(false)}
       />
     </div>
   );

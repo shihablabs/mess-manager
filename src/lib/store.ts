@@ -19,7 +19,6 @@ import {
 import { calculateBilling } from '@/billing-engine';
 import { BillingEngineInput, BillingEngineOutput } from '@/billing-engine/types';
 import { getDb, isMongoConfigured } from '@/lib/db';
-import { SUPER_ADMIN_EMAIL } from '@/lib/session';
 
 export class MessStore {
   mess: MessDoc = {
@@ -39,31 +38,8 @@ export class MessStore {
     updatedAt: new Date(),
   };
 
-  users: UserDoc[] = [
-    {
-      _id: '6ad084c58790b3c278c86efa',
-      name: 'Shihab Uddin',
-      email: SUPER_ADMIN_EMAIL,
-      image: 'https://lh3.googleusercontent.com/a/ACg8ocJYyl_ytE7bX3w_IDsC1mzZRx63hG2MnjbhemMnBZ0rLUm47utI=s96-c',
-      role: 'super_admin',
-      phone: '',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  ];
-
-  memberships: MembershipDoc[] = [
-    {
-      _id: 'm_shihab',
-      userId: '6ad084c58790b3c278c86efa',
-      messId: 'mess_1',
-      role: 'super_admin',
-      status: 'active',
-      joinedDate: '2026-10-01',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  ];
+  users: UserDoc[] = [];
+  memberships: MembershipDoc[] = [];
 
   cycles: CycleDoc[] = [
     {
@@ -82,18 +58,7 @@ export class MessStore {
     },
   ];
 
-  memberCycles: MemberCycleDoc[] = [
-    {
-      _id: 'mc_shihab',
-      userId: '6ad084c58790b3c278c86efa',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      roomRent: 0,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  ];
+  memberCycles: MemberCycleDoc[] = [];
 
   bills: BillDoc[] = [];
   meals: MealDoc[] = [];
@@ -137,7 +102,10 @@ export class MessStore {
   // Real-time calculation helper
   public computeCurrentCycleBilling(cycleId = 'cycle_1'): BillingEngineOutput {
     const cycle = this.cycles.find((c) => c._id === cycleId);
-    const membersInput = this.users.map((u) => {
+    // Super admin is strictly an overseer/controller and never part of dining calculations
+    const membersInput = this.users
+      .filter((u) => u.role !== 'super_admin')
+      .map((u) => {
       const mc = this.memberCycles.find((m) => m.userId === u._id && m.cycleId === cycleId);
       return {
         userId: u._id as string,
