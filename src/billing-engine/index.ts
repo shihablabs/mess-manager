@@ -474,3 +474,7 @@ export function calculateProRataAmount(
   return roundToInteger ? Math.round(raw) : Number(raw.toFixed(2));
 }
 
+export { calculateSlotDistribution, generateBazarSlotRanges } from './slots';
+export type { SlotDateRange } from './slots';
+
+

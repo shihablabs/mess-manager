@@ -16,7 +16,7 @@ import {
   AuditLogDoc,
   UserRole,
 } from '@/models/types';
-import { calculateBilling } from '@/billing-engine';
+import { calculateBilling, generateBazarSlotRanges } from '@/billing-engine';
 import { BillingEngineInput, BillingEngineOutput } from '@/billing-engine/types';
 import { getDb, isMongoConfigured } from '@/lib/db';
 
@@ -71,21 +71,15 @@ export class MessStore {
   cycleSnapshots: CycleSnapshotDoc[] = [];
   auditLogs: AuditLogDoc[] = [];
 
-  // Duty roster slot generator
+  // Duty roster slot generator: total days ÷ buyer count (remainder to first slots)
   public generateSlots(
     cycleId = 'cycle_1',
-    daysPerSlot = 5,
     shiftOffset = 0,
     isReverse = false
   ) {
     const cycle = this.cycles.find((c) => c._id === cycleId) || this.cycles[0];
     const cycleStart = cycle?.startDate || '2026-10-01';
     const cycleEnd = cycle?.endDate || '2026-10-31';
-
-    // Parse cycle dates
-    const startYearMonth = cycleStart.substring(0, 7); // e.g. "2026-10"
-    const startDayNum = parseInt(cycleStart.substring(8, 10), 10) || 1;
-    const endDayNum = parseInt(cycleEnd.substring(8, 10), 10) || 30;
 
     // Get active dining members (excluding super admin)
     const diningUsers = this.users.filter((u) => u.role !== 'super_admin');
@@ -104,34 +98,23 @@ export class MessStore {
     // Filter out previous slots for this cycle
     this.bazarSlots = this.bazarSlots.filter((s) => s.cycleId !== cycleId);
 
-    let currentStart = startDayNum;
-    let slotIndex = 1;
+    const ranges = generateBazarSlotRanges(cycleStart, cycleEnd, memberIds.length);
 
-    while (currentStart <= endDayNum) {
-      let currentEnd = currentStart + daysPerSlot - 1;
-      // If remaining days are fewer than daysPerSlot, merge into final slot
-      if (currentEnd >= endDayNum || (endDayNum - currentEnd < 3)) {
-        currentEnd = endDayNum;
-      }
-
-      const fromStr = `${startYearMonth}-${String(currentStart).padStart(2, '0')}`;
-      const toStr = `${startYearMonth}-${String(currentEnd).padStart(2, '0')}`;
-      const assignedUserId = memberIds[(slotIndex - 1) % memberIds.length];
+    for (let i = 0; i < ranges.length; i++) {
+      const r = ranges[i];
+      const assignedUserId = memberIds[i % memberIds.length];
 
       this.bazarSlots.push({
-        _id: `slot_${cycleId}_${slotIndex}`,
+        _id: `slot_${cycleId}_${r.slotIndex}`,
         cycleId,
         messId: this.mess._id as string,
-        slotIndex,
-        startDate: fromStr,
-        endDate: toStr,
+        slotIndex: r.slotIndex,
+        startDate: r.startDate,
+        endDate: r.endDate,
         capacity: 1,
         assignedUserIds: [assignedUserId],
         createdAt: new Date(),
       });
-
-      currentStart = currentEnd + 1;
-      slotIndex++;
     }
   }
 

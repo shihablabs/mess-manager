@@ -10,10 +10,10 @@ export async function GET(request: Request) {
     const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
     const cycle = store.cycles.find((c) => c._id === cycleId) || store.cycles[0];
 
-    // Auto-initialize default 5-day slots if none exist for this cycle
+    // Auto-initialize slots based on cycle days / buyer count if none exist for this cycle
     let cycleSlots = store.bazarSlots.filter((s) => s.cycleId === cycleId);
     if (cycleSlots.length === 0) {
-      store.generateSlots(cycleId, 5, 0, false);
+      store.generateSlots(cycleId, 0, false);
       cycleSlots = store.bazarSlots.filter((s) => s.cycleId === cycleId);
       const db = await getDb();
       if (db && cycleSlots.length > 0) {
@@ -123,7 +123,6 @@ export async function POST(request: Request) {
       requestId,
       decision, // 'accept' | 'reject'
       reason,
-      daysPerSlot = 5,
       shiftOffset = 0,
       isReverse = false,
       slotIndex,
@@ -132,9 +131,9 @@ export async function POST(request: Request) {
       endDate,
     } = body;
 
-    // 1. Auto generate 5-day slots
+    // 1. Auto generate slots: total cycle days ÷ buyer count (remainder to first slots)
     if (action === 'auto_generate' || action === 'generate_slots') {
-      store.generateSlots(cycleId, Number(daysPerSlot) || 5, Number(shiftOffset) || 0, isReverse);
+      store.generateSlots(cycleId, Number(shiftOffset) || 0, isReverse);
       const generated = store.bazarSlots.filter((s) => s.cycleId === cycleId);
 
       if (db) {
@@ -146,7 +145,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        message: 'সফলভাবে ৫ দিন মেয়াদী মাসিক বাজার বণ্টন তৈরি করা হয়েছে!',
+        message: 'চক্রের মোট দিন ও সদস্য অনুপাতে মাসিক বাজার বণ্টন সফলভাবে তৈরি হয়েছে!',
         slots: generated,
       });
     }

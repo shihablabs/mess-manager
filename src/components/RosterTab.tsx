@@ -90,7 +90,6 @@ export const RosterTab: React.FC<RosterTabProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'auto_generate',
-          daysPerSlot: 5,
         }),
       });
       const data = await res.json();
@@ -98,7 +97,7 @@ export const RosterTab: React.FC<RosterTabProps> = ({
         onRefresh();
         Swal.fire({
           title: 'বণ্টন সম্পন্ন হয়েছে!',
-          text: data.message || 'সকল সক্রিয় সদস্যদের মাঝে ৫ দিন মেয়াদী বাজার রোস্টার সফলভাবে তৈরি করা হয়েছে।',
+          text: data.message || 'চক্রের দিন ও সদস্য অনুপাতে বাজার রোস্টার সফলভাবে তৈরি করা হয়েছে।',
           icon: 'success',
           confirmButtonColor: '#4f46e5',
           background: '#0f172a',
