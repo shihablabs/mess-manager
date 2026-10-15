@@ -62,8 +62,82 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           </div>
         </div>
 
-        {/* Responsive Table */}
-        <div className="overflow-x-auto">
+        {/* Mobile View: Cards (md:hidden) */}
+        <div className="md:hidden space-y-3">
+          {calculation.allMembersSummary.map((mem) => {
+            const isCurrent = mem.userId === currentUserId;
+            const isRefund = mem.netBalance >= 0;
+
+            return (
+              <div
+                key={mem.userId}
+                className={`p-4 rounded-xl border transition-all ${
+                  isCurrent
+                    ? 'bg-indigo-950/20 border-indigo-500/30'
+                    : 'bg-slate-900/60 border-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-200 text-sm">{mem.name}</span>
+                    {isCurrent && (
+                      <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.2 rounded font-semibold">
+                        আপনি
+                      </span>
+                    )}
+                    {!mem.isActive && (
+                      <span className="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.2 rounded">
+                        ছেড়েছেন
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => onOpenStatement(mem)}
+                    className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold px-2 py-1 rounded bg-indigo-500/10 border border-indigo-500/20"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    স্টেটমেন্ট
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs border-y border-slate-800/60 py-2.5 mb-2.5">
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">মোট মিল:</span>
+                    <span className="font-mono text-slate-200 font-bold">{mem.mealUnits} ইউনিট</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">মিল খরচ:</span>
+                    <span className="font-mono text-slate-200">{formatTaka(mem.regularMealCost)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">মোট দেনা:</span>
+                    <span className="font-mono text-rose-300 font-semibold">{formatTaka(mem.totalDues)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">মোট জমা:</span>
+                    <span className="font-mono text-emerald-300 font-semibold">{formatTaka(mem.totalCredits)}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-0.5">
+                  <span className="text-slate-400 font-medium">চূড়ান্ত ব্যালেন্স:</span>
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold font-mono ${
+                      isRefund
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                    }`}
+                  >
+                    {formatTaka(mem.netBalance, { showSign: true })} {isRefund ? '(ফেরত)' : '(বাকি)'}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop View: Full Master Table (hidden md:block) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-800 text-xs font-semibold text-slate-400">
@@ -143,7 +217,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                     <td className="py-3 px-2 text-center">
                       <button
                         onClick={() => onOpenStatement(mem)}
-                        className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors"
+                        className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors cursor-pointer"
                         title="পূর্ণ হিসাব বিবরণী দেখুন"
                       >
                         <FileText className="w-4 h-4" />
