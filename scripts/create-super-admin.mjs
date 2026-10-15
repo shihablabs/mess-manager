@@ -106,6 +106,49 @@ async function main() {
     { upsert: true }
   );
 
+  // 5. Ensure Primary Mess exists
+  const existingMess = await db.collection('messes').findOne();
+  if (!existingMess) {
+    await db.collection('messes').insertOne({
+      _id: 'mess_1',
+      name: 'শান্তিনীড় মেস',
+      code: 'SHANTI-01',
+      currencySymbol: '৳',
+      mealSlots: [
+        { id: 'morning', name: 'সকাল', weight: 0.5, cutoffTime: '22:00' },
+        { id: 'night', name: 'রাত', weight: 1.0, cutoffTime: '16:00' },
+      ],
+      fixedDayDefault: 'friday',
+      fixedMealTimeDefault: 'lunch',
+      fixedExtraWeightDefault: 0.5,
+      allowMembersViewOthersBalance: true,
+      createdBy: adminId.toString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    console.log(`🏠 Created primary mess: 'শান্তিনীড় মেস' (SHANTI-01)`);
+  }
+
+  // 6. Ensure Active Cycle exists
+  const existingCycle = await db.collection('cycles').findOne({ status: 'open' });
+  if (!existingCycle) {
+    await db.collection('cycles').insertOne({
+      _id: 'cycle_1',
+      messId: 'mess_1',
+      name: 'অক্টোবর ২০২৬',
+      month: '2026-10',
+      startDate: '2026-10-01',
+      endDate: '2026-10-31',
+      status: 'open',
+      isBigBazarEnabled: true,
+      bigBazarContributionPerMember: 1400,
+      bigBazarCarryToNext: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    console.log(`📅 Created initial open cycle: 'অক্টোবর ২০২৬'`);
+  }
+
   console.log(`\n========================================`);
   console.log(`🎉 SUPER ADMIN SETUP COMPLETE!`);
   console.log(`Credentials to Login:`);
