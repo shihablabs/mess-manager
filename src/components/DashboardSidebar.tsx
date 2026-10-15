@@ -21,6 +21,7 @@ import {
   CreditCard,
   UserCheck,
   User,
+  Settings,
 } from 'lucide-react';
 import { AppUser } from '@/lib/session';
 import Link from 'next/link';
@@ -239,6 +240,22 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           },
         ]
       : []),
+    {
+      id: 'settings',
+      label: 'সেটিংস',
+      href: '/dashboard/settings',
+      icon: Settings,
+      badge: null,
+      isActive: pathname.startsWith('/dashboard/settings'),
+      subItems: [
+        {
+          id: 'settings_main',
+          label: isSuperAdmin ? 'বড় বাজার ও মেস কনফিগারেশন' : 'ব্যক্তিগত পছন্দ ও সেটিংস',
+          href: '/dashboard/settings',
+          isActive: pathname === '/dashboard/settings',
+        },
+      ],
+    },
   ];
 
   return (

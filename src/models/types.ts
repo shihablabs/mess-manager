@@ -132,6 +132,12 @@ export interface MealRequestDoc {
   createdAt: Date;
 }
 
+export interface BazarItemDetail {
+  name: string;
+  qty?: string;
+  price: number;
+}
+
 // 9. Bazars
 export interface BazarDoc {
   _id?: ObjectId | string;
@@ -141,6 +147,7 @@ export interface BazarDoc {
   date: string; // YYYY-MM-DD
   amount: number;
   description: string;
+  items?: BazarItemDetail[]; // Itemized multi-item breakdown
   type: BazarType;
   splitType?: ExtraBazarSplit; // for extra
   customMemberIds?: string[]; // for extra with custom_members

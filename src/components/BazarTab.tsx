@@ -18,6 +18,7 @@ import {
   Trash2,
   Edit2,
   X,
+  FileText,
 } from 'lucide-react';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
@@ -48,6 +49,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
   const [activeTypeFilter, setActiveTypeFilter] = useState<'all' | 'regular' | 'big' | 'extra'>('all');
   const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'approved' | 'pending' | 'rejected'>('all');
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [viewingReceiptBazar, setViewingReceiptBazar] = useState<any | null>(null);
 
   const isAdminOrSuper = currentUser.role === 'admin' || currentUser.role === 'super_admin';
 
@@ -467,27 +469,43 @@ export const BazarTab: React.FC<BazarTabProps> = ({
 
                       {/* Description & Type */}
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-white">{b.description}</span>
-                          <span
-                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                              b.type === 'regular'
-                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-white">{b.description}</span>
+                            <span
+                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                b.type === 'regular'
+                                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                  : b.type === 'big'
+                                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              }`}
+                            >
+                              {b.type === 'regular'
+                                ? 'রেগুলার'
                                 : b.type === 'big'
-                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                            }`}
-                          >
-                            {b.type === 'regular'
-                              ? 'রেগুলার'
-                              : b.type === 'big'
-                              ? 'বড় বাজার'
-                              : 'এক্সট্রা'}
-                          </span>
-                          {b.paidFromBigBazarFund && (
-                            <span className="text-[10px] text-purple-400 font-medium bg-purple-950/40 px-1.5 py-0.5 rounded border border-purple-800/40">
-                              ফান্ড থেকে
+                                ? 'বড় বাজার'
+                                : 'এক্সট্রা'}
                             </span>
+                            {b.paidFromBigBazarFund && (
+                              <span className="text-[10px] text-purple-400 font-medium bg-purple-950/40 px-1.5 py-0.5 rounded border border-purple-800/40">
+                                ফান্ড থেকে
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Itemized receipt button if items exist or multiple items in description */}
+                          {((b.items && b.items.length > 0) || (b.description && b.description.includes(','))) && (
+                            <button
+                              type="button"
+                              onClick={() => setViewingReceiptBazar(b)}
+                              className="text-[10px] text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/20 transition-all cursor-pointer w-fit"
+                            >
+                              <FileText className="w-3 h-3" />
+                              {b.items && b.items.length > 0
+                                ? `📋 ${b.items.length}টি জিনিসের ফর্দ/রসিদ দেখুন`
+                                : '📋 বিস্তারিত ফর্দ দেখুন'}
+                            </button>
                           )}
                         </div>
                       </td>
@@ -599,6 +617,18 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                         <span>•</span>
                         <span className="font-mono">{b.date}</span>
                       </div>
+                      {((b.items && b.items.length > 0) || (b.description && b.description.includes(','))) && (
+                        <button
+                          type="button"
+                          onClick={() => setViewingReceiptBazar(b)}
+                          className="text-[10px] text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 transition-all cursor-pointer w-fit mt-1"
+                        >
+                          <FileText className="w-3 h-3" />
+                          {b.items && b.items.length > 0
+                            ? `📋 ${b.items.length}টি জিনিসের ফর্দ দেখুন`
+                            : '📋 ফর্দ দেখুন'}
+                        </button>
+                      )}
                     </div>
 
                     <div className="text-right">
@@ -738,6 +768,101 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Itemized Voucher Details Modal */}
+      {viewingReceiptBazar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">বাজারের আইটেম ফর্দ ও রসিদ</h4>
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    {viewingReceiptBazar.date} • {viewingReceiptBazar.userName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingReceiptBazar(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 text-xs max-h-[70vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                <span className="text-slate-400">বাজারের ধরণ:</span>
+                <span className="font-bold text-white uppercase text-[11px]">
+                  {viewingReceiptBazar.type === 'regular'
+                    ? 'রেগুলার বাজার'
+                    : viewingReceiptBazar.type === 'big'
+                    ? 'বড় বাজার'
+                    : 'এক্সট্রা বাজার'}
+                </span>
+              </div>
+
+              {/* If items array exists */}
+              {viewingReceiptBazar.items && viewingReceiptBazar.items.length > 0 ? (
+                <div className="border border-slate-800 rounded-xl overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950 text-slate-400 text-[10px] uppercase font-bold border-b border-slate-800">
+                      <tr>
+                        <th className="py-2 px-3">#</th>
+                        <th className="py-2 px-3">জিনিসের নাম</th>
+                        <th className="py-2 px-3">পরিমাণ</th>
+                        <th className="py-2 px-3 text-right">মূল্য</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
+                      {viewingReceiptBazar.items.map((it: any, idx: number) => (
+                        <tr key={idx} className="text-slate-300">
+                          <td className="py-2 px-3 font-mono text-slate-500">{idx + 1}</td>
+                          <td className="py-2 px-3 font-semibold text-white">{it.name}</td>
+                          <td className="py-2 px-3 text-slate-400 font-mono">{it.qty || '—'}</td>
+                          <td className="py-2 px-3 text-right font-mono font-bold text-amber-400">
+                            {formatTaka(it.price)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                  <span className="text-[11px] text-slate-400 block font-semibold">সম্পূর্ণ বিবরণ ও জিনিস:</span>
+                  <p className="text-slate-200 leading-relaxed font-mono whitespace-pre-wrap">
+                    {viewingReceiptBazar.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Total Summary */}
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/30 to-slate-950 border border-amber-500/30 flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-amber-300 font-bold block">মোট পরিশোধিত টাকা</span>
+                  <span className="text-[10px] text-slate-400">ক্রেতা: {viewingReceiptBazar.userName}</span>
+                </div>
+                <span className="text-lg font-black text-amber-400 font-mono">
+                  {formatTaka(viewingReceiptBazar.amount)}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 border-t border-slate-800 flex justify-end bg-slate-950/60">
+              <button
+                onClick={() => setViewingReceiptBazar(null)}
+                className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-white font-semibold text-xs cursor-pointer"
+              >
+                বন্ধ করুন
+              </button>
+            </div>
           </div>
         </div>
       )}

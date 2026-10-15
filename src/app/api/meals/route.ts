@@ -56,7 +56,7 @@ export async function POST(request: Request) {
           {
             $set: {
               consumed: morningCount,
-              weight: 0.5,
+              weight: 1.0,
               updatedAt: new Date(),
             },
             $setOnInsert: {

@@ -179,7 +179,7 @@ function ProfileContent() {
         entry.night += count;
       }
       entry.totalCount += count;
-      entry.totalUnits += count * weight;
+      entry.totalUnits += count;
     });
 
     let list = Array.from(dateMap.values());

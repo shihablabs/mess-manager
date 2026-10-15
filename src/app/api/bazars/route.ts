@@ -37,6 +37,8 @@ export async function POST(request: Request) {
       cycleId = store.cycles[0]?._id as string || 'cycle_1',
       amount,
       description,
+      items,
+      date,
       type = 'regular',
       splitType = 'meal_pool',
       customMemberIds,
@@ -52,6 +54,7 @@ export async function POST(request: Request) {
       membership?.role === 'admin';
 
     const todayStr = new Date().toISOString().split('T')[0];
+    const entryDate = date || todayStr;
 
     // 1. Big Bazar Constraint: Only Admin/Manager can manage Big Bazar
     if (type === 'big') {
@@ -72,7 +75,7 @@ export async function POST(request: Request) {
       const activeSlotForUser = store.bazarSlots.find((s) => {
         if (s.cycleId !== cycleId) return false;
         if (!s.assignedUserIds.includes(userId)) return false;
-        return todayStr >= s.startDate && todayStr <= s.endDate;
+        return entryDate >= s.startDate && entryDate <= s.endDate;
       });
 
       // If duty slots exist in this cycle and user is NOT on duty today
@@ -89,15 +92,22 @@ export async function POST(request: Request) {
       }
     }
 
+    // Calculate total amount from items if not directly provided
+    const itemsTotal = Array.isArray(items)
+      ? items.reduce((s: number, it: any) => s + (Number(it.price) || 0), 0)
+      : 0;
+    const finalAmount = Number(amount) > 0 ? Number(amount) : itemsTotal;
+
     // Direct addition for legitimate bazars (Approved directly as requested)
     const newEntry: BazarDoc = {
       _id: `baz_${Date.now()}`,
       userId,
       cycleId,
       messId: store.mess._id as string,
-      date: todayStr,
-      amount: Number(amount),
+      date: entryDate,
+      amount: finalAmount,
       description,
+      items: Array.isArray(items) && items.length > 0 ? items : undefined,
       type,
       splitType,
       customMemberIds,
@@ -110,6 +120,7 @@ export async function POST(request: Request) {
     if (db) {
       await db.collection('bazars').insertOne(newEntry as any);
     }
+    store.bazars.unshift(newEntry);
 
     return NextResponse.json({
       success: true,

@@ -342,7 +342,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
         }
       }
 
-      const totalUnits = morningTotal * 0.5 + nightTotal * 1.0;
+      const totalUnits = morningTotal + nightTotal;
       const estimatedCost = Math.round(totalUnits * liveMealRate);
 
       return {
@@ -410,7 +410,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       Object.entries(userObj).forEach(([userId, counts]) => {
         const mem = diningMembersMap.get(userId);
         if (!mem || mem.role === 'super_admin') return;
-        const total = counts.morning * 0.5 + counts.night * 1.0;
+        const total = counts.morning + counts.night;
         rows.push({
           date,
           userId,
@@ -523,7 +523,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
     totalMorningMeals += e.morning || 0;
     totalNightMeals += e.night || 0;
   });
-  const totalMealUnits = totalMorningMeals * 0.5 + totalNightMeals * 1.0;
+  const totalMealUnits = totalMorningMeals + totalNightMeals;
 
   return (
     <div className="space-y-6">
@@ -539,15 +539,22 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <button
-            onClick={onOpenRequestModal}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            মিল অফ/অন আবেদন
-          </button>
-        </div>
+        {currentUser.role !== 'super_admin' ? (
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={onOpenRequestModal}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              মিল অফ/অন আবেদন
+            </button>
+          </div>
+        ) : (
+          <div className="text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20 px-3.5 py-2 rounded-xl flex items-center gap-1.5">
+            <Shield className="w-4 h-4 text-amber-400" />
+            <span>সুপার অ্যাডমিন অডিট ভিউ</span>
+          </div>
+        )}
       </div>
 
       {/* Sub-tab Switcher: 4 distinct views */}
@@ -986,19 +993,19 @@ export const MealsTab: React.FC<MealsTabProps> = ({
             {/* Daily Summary Stats Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-800/80">
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-[11px] text-slate-400">সকালের মিল (০.৫)</span>
+                <span className="text-[11px] text-slate-400">সকালের মিল</span>
                 <p className="text-base font-bold text-white mt-0.5">{totalMorningMeals} টি</p>
-                <span className="text-[10px] text-slate-500 font-mono">({formatMealUnits(totalMorningMeals * 0.5)} ইউনিট)</span>
+                <span className="text-[10px] text-slate-500 font-mono">হাফ ০.৫ / ফুল ১.০</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-[11px] text-slate-400">রাতের মিল (১.০)</span>
+                <span className="text-[11px] text-slate-400">রাতের মিল</span>
                 <p className="text-base font-bold text-white mt-0.5">{totalNightMeals} টি</p>
-                <span className="text-[10px] text-slate-500 font-mono">({formatMealUnits(totalNightMeals * 1.0)} ইউনিট)</span>
+                <span className="text-[10px] text-slate-500 font-mono">হাফ ০.৫ / ফুল ১.০</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                 <span className="text-[11px] text-indigo-400">মোট মিল ইউনিট</span>
                 <p className="text-base font-bold text-indigo-300 mt-0.5 font-mono">{formatMealUnits(totalMealUnits)}</p>
-                <span className="text-[10px] text-indigo-400/80 font-mono">সকাল×০.৫ + রাত×১.০</span>
+                <span className="text-[10px] text-indigo-400/80 font-mono">সকাল ({totalMorningMeals}) + রাত ({totalNightMeals})</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                 <span className="text-[11px] text-slate-400">ডাইনিং সদস্য সংখ্যা</span>
@@ -1033,7 +1040,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   .map((member) => {
                     const uId = member.userId || member._id;
                     const entry = dailyEntries[uId] || { morning: 1, night: 1 };
-                    const userTotal = entry.morning * 0.5 + entry.night * 1.0;
+                    const userTotal = entry.morning + entry.night;
 
                     return (
                       <div
@@ -1421,9 +1428,9 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
               {/* Real-time Units Calculation Preview */}
               <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/30 flex items-center justify-between">
-                <span className="text-xs text-indigo-300">হিসাবকৃত মিল ইউনিট:</span>
+                <span className="text-xs text-indigo-300">হিসাবকৃত মোট মিল ইউনিট:</span>
                 <span className="font-mono font-bold text-sm text-indigo-200">
-                  {formatMealUnits(editingLogItem.morning * 0.5 + editingLogItem.night * 1.0)} ইউনিট
+                  {formatMealUnits(editingLogItem.morning + editingLogItem.night)} ইউনিট
                 </span>
               </div>
             </div>
