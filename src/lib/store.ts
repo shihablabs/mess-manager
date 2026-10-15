@@ -154,6 +154,9 @@ export class MessStore {
         roomRent: mc ? mc.roomRent : 0,
         isActive: mc ? mc.isActive : false,
         leftDate: mc?.leftDate,
+        stayedDays: (mc as any)?.stayedDays,
+        settlementType: (mc as any)?.settlementType,
+        settledMealRate: (mc as any)?.settledMealRate,
         isUtilityExempt: (mc as any)?.isUtilityExempt ?? false,
       };
     });
@@ -226,6 +229,10 @@ export class MessStore {
       deposits: depositsInput,
       utilityBills: utilityBillsInput,
       bigBazarConfig,
+      cycleInfo: {
+        startDate: cycle?.startDate,
+        endDate: cycle?.endDate,
+      },
       options: { roundToInteger: true },
     };
 

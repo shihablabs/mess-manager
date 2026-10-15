@@ -598,6 +598,107 @@ describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
     expect(paidResult.memberResults['u1'].totalCredits).toBe(3000);
     expect(paidResult.memberResults['u1'].netBalance).toBe(0);
   });
+
+  it('correctly calculates pro-rata room rent and utility for mid-cycle departure', () => {
+    // 30 days cycle, member stayed 15 days
+    const members = [
+      {
+        userId: 'u_full',
+        name: 'Full Member',
+        roomRent: 3000,
+        isActive: true,
+      },
+      {
+        userId: 'u_half',
+        name: 'Half Member',
+        roomRent: 3000,
+        isActive: false,
+        stayedDays: 15,
+        totalDaysInCycle: 30,
+        leftDate: '2026-10-25',
+      },
+    ];
+
+    const utilityBills = [
+      { id: 'b1', name: 'Electricity', amount: 1000 }, // 500 per member base
+    ];
+
+    const result = calculateBilling({
+      members,
+      mealRecords: [],
+      fixedEvents: [],
+      bazarItems: [],
+      deposits: [],
+      utilityBills,
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+      cycleInfo: { totalDays: 30 },
+    });
+
+    const full = result.memberResults['u_full'];
+    const half = result.memberResults['u_half'];
+
+    // Full member: rent 3000, utility 500
+    expect(full.roomRent).toBe(3000);
+    expect(full.utilityShare).toBe(500);
+    expect(full.totalDues).toBe(3500);
+
+    // Half member: rent 3000 * (15/30) = 1500, utility 500 * (15/30) = 250
+    expect(half.stayedDays).toBe(15);
+    expect(half.proRataRatio).toBe(0.5);
+    expect(half.roomRent).toBe(1500);
+    expect(half.utilityShare).toBe(250);
+    expect(half.totalDues).toBe(1750);
+  });
+
+  it('correctly applies "current_rate_final" locked meal rate vs "cycle_end_adjustment" floating rate', () => {
+    const members = [
+      {
+        userId: 'u_locked',
+        name: 'Settled Locked Member',
+        roomRent: 0,
+        isActive: false,
+        settlementType: 'current_rate_final' as const,
+        settledMealRate: 50.0, // settled early when rate was 50
+      },
+      {
+        userId: 'u_floating',
+        name: 'Settled Floating Member',
+        roomRent: 0,
+        isActive: false,
+        settlementType: 'cycle_end_adjustment' as const,
+      },
+    ];
+
+    // Each member consumed 10 meals
+    const mealRecords = [
+      { userId: 'u_locked', date: '2026-10-15', slotId: 'all', weight: 10, consumed: true },
+      { userId: 'u_floating', date: '2026-10-15', slotId: 'all', weight: 10, consumed: true },
+    ];
+
+    // Later bazars increased total bazar to 1600 for 20 meals -> current meal rate is 1600 / 20 = 80
+    const bazarItems = [
+      { id: 'b1', userId: 'u_floating', amount: 1600, type: 'regular' as const, isApproved: true },
+    ];
+
+    const result = calculateBilling({
+      members,
+      mealRecords,
+      fixedEvents: [],
+      bazarItems,
+      deposits: [],
+      utilityBills: [],
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+    });
+
+    expect(result.mealRate).toBe(80);
+
+    // Locked member pays at their settledMealRate of 50: 10 * 50 = 500
+    expect(result.memberResults['u_locked'].regularMealCost).toBe(500);
+
+    // Floating member adjusts to the current/final cycle meal rate of 80: 10 * 80 = 800
+    expect(result.memberResults['u_floating'].regularMealCost).toBe(800);
+  });
 });
+
 
 

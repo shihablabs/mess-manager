@@ -347,6 +347,23 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'ইউজার আইডি আবশ্যক' }, { status: 400 });
       }
 
+      const settlementType = body.settlementType === 'cycle_end_adjustment' ? 'cycle_end_adjustment' : 'current_rate_final';
+      const effectiveLeftDate = body.leftDate || new Date().toISOString().split('T')[0];
+
+      // Calculate running meal rate for 'current_rate_final'
+      const currentBilling = store.computeCurrentCycleBilling(cycleId);
+      const settledMealRate = settlementType === 'current_rate_final' ? currentBilling.mealRate : null;
+
+      let stayedDays: number | undefined = undefined;
+      const cycle = store.cycles.find((c) => c._id === cycleId);
+      if (cycle?.startDate) {
+        const s = new Date(cycle.startDate).getTime();
+        const l = new Date(effectiveLeftDate).getTime();
+        if (!isNaN(s) && !isNaN(l)) {
+          stayedDays = Math.max(1, Math.round((l - s) / (1000 * 60 * 60 * 24)) + 1);
+        }
+      }
+
       if (db) {
         await db.collection('member_cycles').updateOne(
           { userId: userId.toString(), cycleId },
@@ -356,14 +373,23 @@ export async function POST(request: Request) {
               individualSettled: true,
               settledAt: new Date(),
               settlementRequested: false,
-              leftDate: new Date().toISOString().split('T')[0],
+              settlementType,
+              settledMealRate,
+              stayedDays,
+              leftDate: effectiveLeftDate,
               updatedAt: new Date(),
             },
           }
         );
       }
 
-      return NextResponse.json({ success: true, message: 'সদস্যের হিসাব চূড়ান্ত নিষ্পত্তি সম্পন্ন হয়েছে' });
+      return NextResponse.json({
+        success: true,
+        message: 'সদস্যের হিসাব চূড়ান্ত নিষ্পত্তি সম্পন্ন হয়েছে',
+        settlementType,
+        settledMealRate,
+        stayedDays,
+      });
     }
 
     return NextResponse.json({ success: false, error: 'অবৈধ একশন' }, { status: 400 });

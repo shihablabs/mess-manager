@@ -40,13 +40,32 @@ export async function POST(request: Request) {
 
     // 1. Settle individual member leaving mid-cycle
     if (action === 'settle_member') {
+      const settlementType = body.settlementType === 'cycle_end_adjustment' ? 'cycle_end_adjustment' : 'current_rate_final';
+      const effectiveLeftDate = leftDate || new Date().toISOString().split('T')[0];
+
+      // Calculate running meal rate for 'current_rate_final'
+      const currentBilling = store.computeCurrentCycleBilling(cycleId);
+      const settledMealRate = settlementType === 'current_rate_final' ? currentBilling.mealRate : null;
+
+      let stayedDays: number | undefined = undefined;
+      if (cycle.startDate) {
+        const s = new Date(cycle.startDate).getTime();
+        const l = new Date(effectiveLeftDate).getTime();
+        if (!isNaN(s) && !isNaN(l)) {
+          stayedDays = Math.max(1, Math.round((l - s) / (1000 * 60 * 60 * 24)) + 1);
+        }
+      }
+
       if (db) {
         await db.collection('member_cycles').updateOne(
           { userId: memberId, cycleId },
           {
             $set: {
               isActive: false,
-              leftDate: leftDate || new Date().toISOString().split('T')[0],
+              leftDate: effectiveLeftDate,
+              stayedDays,
+              settlementType,
+              settledMealRate,
               individualSettled: true,
               settledAt: new Date(),
               updatedAt: new Date(),
@@ -54,7 +73,13 @@ export async function POST(request: Request) {
           }
         );
       }
-      return NextResponse.json({ success: true, message: 'সদস্যের হিসাব সফলভাবে নিষ্পত্তি হয়েছে' });
+      return NextResponse.json({
+        success: true,
+        message: 'সদস্যের হিসাব সফলভাবে নিষ্পত্তি হয়েছে',
+        settlementType,
+        settledMealRate,
+        stayedDays,
+      });
     }
 
     // 2. Close Cycle and create snapshot

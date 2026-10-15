@@ -20,6 +20,7 @@ export function calculateBilling(
     deposits,
     utilityBills,
     bigBazarConfig,
+    cycleInfo,
     options = { roundToInteger: true },
   } = input;
 
@@ -101,10 +102,17 @@ export function calculateBilling(
   const rawMealRate = totalMealUnits > 0 ? mealPoolTotal / totalMealUnits : 0;
   const mealRate = Math.round(rawMealRate * 100) / 100; // 2 decimal places
 
-  // 4. Utility bills (distributed according to applicableUserIds / headcount / non-exempt active members)
+  // 4. Utility bills (distributed according to applicableUserIds / headcount / eligible members)
   const totalUtility = utilityBills.reduce((sum, u) => sum + u.amount, 0);
   const memberUtilityShareMap = new Map<string, number>();
   members.forEach((m) => memberUtilityShareMap.set(m.userId, 0));
+
+  const eligibleUtilityMembers = members.filter(
+    (m) =>
+      m.isActive ||
+      m.settlementType !== undefined ||
+      (m.stayedDays !== undefined && m.stayedDays > 0),
+  );
 
   for (const bill of utilityBills) {
     if (!bill.amount || bill.amount <= 0) continue;
@@ -112,8 +120,10 @@ export function calculateBilling(
     const isSpecific =
       bill.applicableUserIds && bill.applicableUserIds.length > 0;
     const targetMembers = isSpecific
-      ? activeMembers.filter((m) => bill.applicableUserIds!.includes(m.userId))
-      : activeMembers;
+      ? eligibleUtilityMembers.filter((m) =>
+          bill.applicableUserIds!.includes(m.userId),
+        )
+      : eligibleUtilityMembers;
 
     // Apply utility exemption (m.isUtilityExempt)
     const nonExemptTargets = targetMembers.filter((m) => !m.isUtilityExempt);
@@ -220,18 +230,42 @@ export function calculateBilling(
   let sumCredits = 0;
 
   for (const member of members) {
+    const proRata = calculateMemberProRata(member, cycleInfo);
     const units = memberMealUnitsMap.get(member.userId) || 0;
-    const rawMealCost = units * mealRate;
+
+    // Settle member meal rate logic (Option 1 vs Option 2):
+    // "এখনকার রেটে চূড়ান্ত" (current_rate_final) uses settledMealRate if present
+    // "চক্র শেষে সমন্বয়" (cycle_end_adjustment) uses floating cycle mealRate
+    let effectiveMealRate = mealRate;
+    if (
+      member.settlementType === "current_rate_final" &&
+      member.settledMealRate !== undefined &&
+      member.settledMealRate !== null
+    ) {
+      effectiveMealRate = member.settledMealRate;
+    }
+
+    const rawMealCost = units * effectiveMealRate;
     const fixedShare = memberFixedShareMap.get(member.userId) || 0;
-    const utilShare =
-      member.isActive && !member.isUtilityExempt
-        ? memberUtilityShareMap.get(member.userId) || 0
-        : 0;
+
+    // Utility share pro-rated by stayedDays / totalDays
+    const isEligibleForUtil =
+      (member.isActive ||
+        member.settlementType !== undefined ||
+        (member.stayedDays !== undefined && member.stayedDays > 0)) &&
+      !member.isUtilityExempt;
+    const fullUtil = isEligibleForUtil
+      ? memberUtilityShareMap.get(member.userId) || 0
+      : 0;
+    const rawUtilShare = fullUtil * proRata.ratio;
+
     const extraNonPool = memberExtraNonPoolMap.get(member.userId) || 0;
-    const rent = member.roomRent || 0;
+
+    // Room rent pro-rated by stayedDays / totalDays
+    const rawRent = (member.roomRent || 0) * proRata.ratio;
 
     const rawTotalDues =
-      rent + utilShare + rawMealCost + fixedShare + extraNonPool;
+      rawRent + rawUtilShare + rawMealCost + fixedShare + extraNonPool;
 
     const dep = memberDepositsMap.get(member.userId) || {
       general: 0,
@@ -250,14 +284,17 @@ export function calculateBilling(
       ? Math.round(fixedShare)
       : Number(fixedShare.toFixed(2));
     const finalUtilShare = options.roundToInteger
-      ? Math.round(utilShare)
-      : Number(utilShare.toFixed(2));
+      ? Math.round(rawUtilShare)
+      : Number(rawUtilShare.toFixed(2));
+    const finalRent = options.roundToInteger
+      ? Math.round(rawRent)
+      : Number(rawRent.toFixed(2));
     const finalExtraNonPool = options.roundToInteger
       ? Math.round(extraNonPool)
       : Number(extraNonPool.toFixed(2));
 
     const computedDues = options.roundToInteger
-      ? rent +
+      ? finalRent +
         finalUtilShare +
         finalMealCost +
         finalFixedShare +
@@ -279,7 +316,7 @@ export function calculateBilling(
       regularMealCost: finalMealCost,
       fixedShare: finalFixedShare,
       utilityShare: finalUtilShare,
-      roomRent: rent,
+      roomRent: finalRent,
       extraShareNonPool: finalExtraNonPool,
       totalDues: computedDues,
       generalDeposits: dep.general,
@@ -288,6 +325,14 @@ export function calculateBilling(
       openingCarryCredit: openingCredit,
       totalCredits,
       netBalance,
+      stayedDays: proRata.stayedDays,
+      totalDays: proRata.totalDays,
+      proRataRatio: proRata.ratio,
+      settlementType: member.settlementType,
+      settledMealRate:
+        member.settledMealRate !== undefined && member.settledMealRate !== null
+          ? member.settledMealRate
+          : undefined,
     };
 
     memberResults[member.userId] = res;
@@ -362,3 +407,70 @@ export function calculateUtilityBillPerPerson(
   if (nonExempt.length === 0) return 0;
   return Math.round((bill.amount / nonExempt.length) * 100) / 100;
 }
+
+/**
+ * Computes pro-rata ratio and day counts for a member in a cycle (Pure Engine function)
+ */
+export function calculateMemberProRata(
+  member: {
+    isActive?: boolean;
+    leftDate?: string | null;
+    stayedDays?: number;
+    totalDaysInCycle?: number;
+    settlementType?: string;
+  },
+  cycleInfo?: { startDate?: string; endDate?: string; totalDays?: number },
+): { stayedDays: number; totalDays: number; ratio: number } {
+  // 1. Determine total days in cycle
+  let totalDays = 30;
+  if (member.totalDaysInCycle && member.totalDaysInCycle > 0) {
+    totalDays = member.totalDaysInCycle;
+  } else if (cycleInfo?.totalDays && cycleInfo.totalDays > 0) {
+    totalDays = cycleInfo.totalDays;
+  } else if (cycleInfo?.startDate && cycleInfo?.endDate) {
+    const s = new Date(cycleInfo.startDate).getTime();
+    const e = new Date(cycleInfo.endDate).getTime();
+    if (!isNaN(s) && !isNaN(e) && e >= s) {
+      totalDays = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1);
+    }
+  }
+
+  // If member is not active and has no settlementType and no explicit stayedDays, treat as fixed dues (ratio = 1)
+  if (!member.isActive && !member.settlementType && member.stayedDays === undefined) {
+    return { stayedDays: totalDays, totalDays, ratio: 1 };
+  }
+
+  // 2. Determine stayed days
+  let stayedDays = totalDays;
+  if (member.stayedDays !== undefined && member.stayedDays !== null) {
+    stayedDays = Math.max(0, Math.min(totalDays, member.stayedDays));
+  } else if (member.leftDate && cycleInfo?.startDate) {
+    const s = new Date(cycleInfo.startDate).getTime();
+    const l = new Date(member.leftDate).getTime();
+    if (!isNaN(s) && !isNaN(l)) {
+      const days = Math.round((l - s) / (1000 * 60 * 60 * 24)) + 1;
+      stayedDays = Math.max(0, Math.min(totalDays, days));
+    }
+  }
+
+  const ratio = totalDays > 0 ? Math.max(0, Math.min(1, stayedDays / totalDays)) : 1;
+  return { stayedDays, totalDays, ratio };
+}
+
+/**
+ * Calculates pro-rata amount based on stayed days and total cycle days (Pure Engine function)
+ * Formula: Math.round(baseAmount * (stayedDays / totalDays))
+ */
+export function calculateProRataAmount(
+  baseAmount: number,
+  stayedDays: number,
+  totalDays: number,
+  roundToInteger = true,
+): number {
+  if (!baseAmount || baseAmount <= 0) return 0;
+  if (!totalDays || totalDays <= 0) return 0;
+  const ratio = Math.max(0, Math.min(1, stayedDays / totalDays));
+  const raw = baseAmount * ratio;
+  return roundToInteger ? Math.round(raw) : Number(raw.toFixed(2));
+}
+

@@ -113,6 +113,9 @@ export interface MemberCycleDoc {
   leftDate?: string | null;
   individualSettled?: boolean;
   settledAt?: Date | null;
+  settlementType?: 'current_rate_final' | 'cycle_end_adjustment';
+  settledMealRate?: number | null;
+  stayedDays?: number;
   createdAt: Date;
   updatedAt: Date;
 }

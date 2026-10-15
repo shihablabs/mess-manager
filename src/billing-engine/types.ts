@@ -9,6 +9,10 @@ export interface MemberInput {
   isActive: boolean;
   isUtilityExempt?: boolean; // When true, utility bills are waived (e.g. absent whole month)
   leftDate?: string | null;
+  stayedDays?: number; // Explicit stayed days if calculated or overridden
+  totalDaysInCycle?: number; // Total days in this cycle
+  settlementType?: 'current_rate_final' | 'cycle_end_adjustment';
+  settledMealRate?: number | null; // Fixed/locked meal rate if settled at current rate
   openingCarryCredit?: number; // credit from previous cycle carry-over
 }
 
@@ -76,6 +80,11 @@ export interface BillingEngineInput {
   deposits: DepositInput[];
   utilityBills: UtilityBillInput[];
   bigBazarConfig: BigBazarConfigInput;
+  cycleInfo?: {
+    startDate?: string;
+    endDate?: string;
+    totalDays?: number;
+  };
   options?: {
     roundToInteger?: boolean; // default true for final summary
   };
@@ -101,6 +110,13 @@ export interface MemberBillingResult {
   totalCredits: number;
   
   netBalance: number; // totalCredits - totalDues (+ means refund, - means payable)
+
+  // Mid-cycle departure & settlement metadata
+  stayedDays?: number;
+  totalDays?: number;
+  proRataRatio?: number;
+  settlementType?: 'current_rate_final' | 'cycle_end_adjustment';
+  settledMealRate?: number;
 }
 
 export interface BillingEngineOutput {

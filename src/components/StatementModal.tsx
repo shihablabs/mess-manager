@@ -30,6 +30,8 @@ export const StatementModal: React.FC<StatementModalProps> = ({
   const [formattedDate, setFormattedDate] = React.useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [settlementRequested, setSettlementRequested] = useState(false);
+  const [settlementType, setSettlementType] = useState<'current_rate_final' | 'cycle_end_adjustment'>('current_rate_final');
+  const [departureDate, setDepartureDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   React.useEffect(() => {
     setFormattedDate(new Date().toLocaleDateString('bn-BD'));
@@ -118,6 +120,8 @@ export const StatementModal: React.FC<StatementModalProps> = ({
         body: JSON.stringify({
           action: 'confirm_settlement',
           userId: member.userId,
+          settlementType,
+          leftDate: departureDate,
         }),
       });
       const data = await res.json();
@@ -379,6 +383,60 @@ export const StatementModal: React.FC<StatementModalProps> = ({
             <p className="text-[11px] text-slate-400">
               সদস্য মেস ছাড়তে চাইলে এই হিসাব অনুযায়ী অবশিষ্ট টাকা লেনদেন করে হিসাব নিষ্পত্তি করা হয়।
             </p>
+
+            {isManagerOrSuperAdmin && (
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      মেস ছাড়ার তারিখ (দিনের অনুপাত)
+                    </label>
+                    <input
+                      type="date"
+                      value={departureDate}
+                      onChange={(e) => setDepartureDate(e.target.value)}
+                      className="w-full text-xs px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      হিসাব নিষ্পত্তির ধরন
+                    </label>
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="settlementType"
+                          value="current_rate_final"
+                          checked={settlementType === 'current_rate_final'}
+                          onChange={() => setSettlementType('current_rate_final')}
+                          className="accent-emerald-500"
+                        />
+                        <span>
+                          <strong className="text-emerald-400">এখনকার রেটে চূড়ান্ত</strong> (ডিফল্ট)
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="settlementType"
+                          value="cycle_end_adjustment"
+                          checked={settlementType === 'cycle_end_adjustment'}
+                          onChange={() => setSettlementType('cycle_end_adjustment')}
+                          className="accent-indigo-500"
+                        />
+                        <span>
+                          <strong className="text-indigo-400">চক্র শেষে সমন্বয়</strong>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 italic">
+                  * দিনের অনুপাতে (pro-rata) রুম ভাড়া ও ইউটিলিটি স্বয়ংক্রিয়ভাবে ইঞ্জিনে সমন্বয় হবে।
+                </p>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
               {/* If member viewing own statement */}
