@@ -34,12 +34,31 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
               SRS সূত্র ৫.১–৫.৫ অনুযায়ী স্বয়ংক্রিয় গণনা — অনুমোদিত সব মিল ও বাজারের সর্বশেষ ফল
             </p>
           </div>
-          <div className="text-xs text-slate-400 flex items-center gap-2">
-            <span>রাউন্ডিং ব্যবধান:</span>
-            <span className="font-mono text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
-              {calculation.totals.roundingDifference > 0 ? '+' : ''}
-              {calculation.totals.roundingDifference} টাকা
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-400 flex items-center gap-1.5 mr-2">
+              <span>রাউন্ডিং ব্যবধান:</span>
+              <span className="font-mono text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
+                {calculation.totals.roundingDifference > 0 ? '+' : ''}
+                {calculation.totals.roundingDifference} টাকা
+              </span>
             </span>
+
+            <a
+              href="/api/export?format=csv"
+              download
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5 text-indigo-400" />
+              CSV ডাউনলোড
+            </a>
+
+            <a
+              href="/api/export?format=json"
+              download
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors"
+            >
+              JSON ব্যাকআপ
+            </a>
           </div>
         </div>
 

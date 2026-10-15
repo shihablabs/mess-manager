@@ -11,6 +11,7 @@ import { UtilitiesTab } from '@/components/UtilitiesTab';
 import { MembersTab } from '@/components/MembersTab';
 import { StatementModal } from '@/components/StatementModal';
 import { NewBazarModal } from '@/components/NewBazarModal';
+import { NewFixedEventModal } from '@/components/NewFixedEventModal';
 import { MealRequestModal } from '@/components/MealRequestModal';
 import { DepositModal } from '@/components/DepositModal';
 import { DEMO_USERS, AppUser } from '@/lib/session';
@@ -42,6 +43,7 @@ export default function HomePage() {
   // Modals
   const [statementMember, setStatementMember] = useState<MemberBillingResult | null>(null);
   const [isNewBazarOpen, setIsNewBazarOpen] = useState(false);
+  const [isFixedEventOpen, setIsFixedEventOpen] = useState(false);
   const [isMealRequestOpen, setIsMealRequestOpen] = useState(false);
   const [isDepositOpen, setIsDepositOpen] = useState(false);
 
@@ -177,6 +179,7 @@ export default function HomePage() {
             fixedEvents={fixedEvents}
             onRefresh={fetchData}
             onOpenNewBazarModal={() => setIsNewBazarOpen(true)}
+            onOpenFixedEventModal={() => setIsFixedEventOpen(true)}
           />
         )}
 
@@ -227,6 +230,13 @@ export default function HomePage() {
         currentUser={currentUser}
         isOpen={isNewBazarOpen}
         onClose={() => setIsNewBazarOpen(false)}
+        onSuccess={fetchData}
+      />
+
+      <NewFixedEventModal
+        members={members}
+        isOpen={isFixedEventOpen}
+        onClose={() => setIsFixedEventOpen(false)}
         onSuccess={fetchData}
       />
 

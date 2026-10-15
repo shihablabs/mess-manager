@@ -11,6 +11,7 @@ interface BazarTabProps {
   fixedEvents: any[];
   onRefresh: () => void;
   onOpenNewBazarModal: () => void;
+  onOpenFixedEventModal?: () => void;
 }
 
 export const BazarTab: React.FC<BazarTabProps> = ({
@@ -19,6 +20,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
   fixedEvents,
   onRefresh,
   onOpenNewBazarModal,
+  onOpenFixedEventModal,
 }) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'regular' | 'fixed' | 'extra' | 'big'>('all');
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -64,13 +66,25 @@ export const BazarTab: React.FC<BazarTabProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={onOpenNewBazarModal}
-          className="flex items-center gap-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-amber-500/25 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          নতুন বাজার এন্ট্রি করুন
-        </button>
+        <div className="flex items-center gap-2">
+          {currentUser.role === 'admin' && onOpenFixedEventModal && (
+            <button
+              onClick={onOpenFixedEventModal}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold px-3.5 py-2.5 rounded-xl border border-amber-500/30 transition-all"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              বিশেষ ভোজ শিডিউল
+            </button>
+          )}
+
+          <button
+            onClick={onOpenNewBazarModal}
+            className="flex items-center gap-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-amber-500/25 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            নতুন বাজার এন্ট্রি করুন
+          </button>
+        </div>
       </div>
 
       {/* Friday Special Feasts (Fixed Bazar Events) */}
