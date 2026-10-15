@@ -36,6 +36,7 @@ export default function MealsManagementPage() {
           currentUser={currentUser}
           members={members}
           cycle={summaryData?.cycle}
+          calculation={summaryData?.calculation}
           requests={mealRequests}
           onRefresh={refreshData}
           onOpenRequestModal={openMealRequest}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Utensils,
   CheckCircle,
@@ -16,37 +16,46 @@ import {
   Check,
   UserCheck,
   RefreshCw,
+  Search,
+  Filter,
+  ArrowUpDown,
+  Download,
+  Sun,
+  Moon,
+  Coffee,
+  Table,
+  FileText,
+  User,
+  Zap,
 } from 'lucide-react';
 import { AppUser } from '@/lib/session';
+import { formatTaka } from '@/lib/money';
 import { toast } from 'sonner';
 
 interface MealsTabProps {
   currentUser: AppUser;
   members: any[];
   cycle?: any;
+  calculation?: any;
   requests: any[];
   onRefresh: () => void;
   onOpenRequestModal: () => void;
-}
-
-interface MemberMealEntry {
-  userId: string;
-  morning: number;
-  night: number;
 }
 
 export const MealsTab: React.FC<MealsTabProps> = ({
   currentUser,
   members = [],
   cycle,
+  calculation,
   requests = [],
   onRefresh,
   onOpenRequestModal,
 }) => {
-  const [subTab, setSubTab] = useState<'sheet' | 'requests'>('sheet');
+  // Sub-tabs: register (মাসিক পূর্ণাঙ্গ মাস্টার খাতা), sheet (দৈনিক ইনপুট), logs (তারিখভিত্তিক লগ), requests (অনুরোধ)
+  const [subTab, setSubTab] = useState<'register' | 'sheet' | 'logs' | 'requests'>('register');
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  // Date selection (default today YYYY-MM-DD)
+  // Today string YYYY-MM-DD
   const getTodayStr = () => {
     const now = new Date();
     return now.toISOString().split('T')[0];
@@ -58,7 +67,42 @@ export const MealsTab: React.FC<MealsTabProps> = ({
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
+  // Full Month Meals State
+  const [allCycleMeals, setAllCycleMeals] = useState<any[]>([]);
+  const [isLoadingAllMeals, setIsLoadingAllMeals] = useState<boolean>(false);
+
+  // DataTable filter states for Monthly Master Register
+  const [registerSearchQuery, setRegisterSearchQuery] = useState('');
+  const [registerSortKey, setRegisterSortKey] = useState<'totalUnits' | 'name' | 'morningTotal' | 'nightTotal' | 'estimatedCost'>('totalUnits');
+  const [registerSortAsc, setRegisterSortAsc] = useState(false);
+
+  // DataTable filter states for Daily Logs
+  const [logSearchQuery, setLogSearchQuery] = useState('');
+  const [logDateFilter, setLogDateFilter] = useState('');
+  const [logUserFilter, setLogUserFilter] = useState('');
+
   const canEditMeals = currentUser.role === 'admin' || currentUser.role === 'super_admin';
+  const liveMealRate = calculation?.mealRate || 0;
+
+  // 1. Fetch All Meals for the Cycle (Full month)
+  const fetchAllCycleMeals = useCallback(async () => {
+    try {
+      setIsLoadingAllMeals(true);
+      const res = await fetch(`/api/meals?cycleId=${cycle?._id || 'cycle_1'}`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.meals)) {
+        setAllCycleMeals(json.meals);
+      }
+    } catch (err) {
+      console.error('Failed to fetch all cycle meals:', err);
+    } finally {
+      setIsLoadingAllMeals(false);
+    }
+  }, [cycle?._id]);
+
+  useEffect(() => {
+    fetchAllCycleMeals();
+  }, [fetchAllCycleMeals]);
 
   // Navigate date
   const changeDateByDays = (days: number) => {
@@ -67,18 +111,19 @@ export const MealsTab: React.FC<MealsTabProps> = ({
     setSelectedDate(current.toISOString().split('T')[0]);
   };
 
-  // Fetch meals for selected date
+  // 2. Fetch meals for selected single date (Daily input editor)
   const fetchDateMeals = useCallback(async (date: string) => {
     try {
       setIsLoadingDateMeals(true);
-      const res = await fetch(`/api/meals?date=${date}`);
+      const res = await fetch(`/api/meals?date=${date}&cycleId=${cycle?._id || 'cycle_1'}`);
       const json = await res.json();
 
       const newEntries: Record<string, { morning: number; night: number }> = {};
+      const diningMembers = members.filter((m) => m.role !== 'super_admin');
 
       // Initialize with 1 morning, 1 night for all active members as default
-      members.forEach((m) => {
-        newEntries[m.userId] = { morning: 1, night: 1 };
+      diningMembers.forEach((m) => {
+        newEntries[m.userId || m._id] = { morning: 1, night: 1 };
       });
 
       // Override if records exist in DB for this date
@@ -102,7 +147,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
     } finally {
       setIsLoadingDateMeals(false);
     }
-  }, [members]);
+  }, [members, cycle?._id]);
 
   useEffect(() => {
     if (members.length > 0) {
@@ -131,8 +176,10 @@ export const MealsTab: React.FC<MealsTabProps> = ({
   const handleSetAll = (val: number) => {
     if (!canEditMeals) return;
     const updated: Record<string, { morning: number; night: number }> = {};
-    members.forEach((m) => {
-      updated[m.userId] = { morning: val, night: val };
+    const diningMembers = members.filter((m) => m.role !== 'super_admin');
+    diningMembers.forEach((m) => {
+      const uid = m.userId || m._id;
+      updated[uid] = { morning: val, night: val };
     });
     setDailyEntries(updated);
   };
@@ -152,6 +199,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          cycleId: cycle?._id || 'cycle_1',
           date: selectedDate,
           entries: entriesPayload,
         }),
@@ -161,7 +209,8 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       if (data.success) {
         setSaveSuccessMsg(`${selectedDate} তারিখের মিল সংরক্ষিত হয়েছে!`);
         setTimeout(() => setSaveSuccessMsg(null), 3500);
-        toast.success(`${selectedDate} তারিখের মিল হাজিরা সংরক্ষিত হয়েছে!`);
+        toast.success(`${selectedDate} তারিখের মিল হাজিরা ডাটাবেজে সংরক্ষিত হয়েছে!`);
+        fetchAllCycleMeals();
         onRefresh();
       } else {
         toast.error(data.error || 'সংরক্ষণ ব্যর্থ হয়েছে');
@@ -190,6 +239,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
         toast.success(status === 'approved' ? 'অনুরোধ অনুমোদিত হয়েছে' : 'অনুরোধ বাতিল করা হয়েছে');
         onRefresh();
         fetchDateMeals(selectedDate);
+        fetchAllCycleMeals();
       } else {
         toast.error(data.error || 'ব্যর্থ হয়েছে');
       }
@@ -200,10 +250,204 @@ export const MealsTab: React.FC<MealsTabProps> = ({
     }
   };
 
+  // 3. Compute Per-Member Full Month Stats
+  const memberMonthlyStats = useMemo(() => {
+    const diningMembers = members.filter((m) => m.role !== 'super_admin');
+
+    return diningMembers.map((m) => {
+      const uId = m.userId || m._id;
+      const userRecords = allCycleMeals.filter((r) => r.userId === uId);
+
+      let morningTotal = 0;
+      let nightTotal = 0;
+      const attendedDates = new Set<string>();
+
+      for (const rec of userRecords) {
+        const count = typeof rec.consumed === 'number' ? rec.consumed : (rec.consumed ? 1 : 0);
+        if (rec.slotId === 'morning') {
+          morningTotal += count;
+          if (count > 0) attendedDates.add(rec.date);
+        } else if (rec.slotId === 'night') {
+          nightTotal += count;
+          if (count > 0) attendedDates.add(rec.date);
+        }
+      }
+
+      const totalUnits = morningTotal * 0.5 + nightTotal * 1.0;
+      const estimatedCost = Math.round(totalUnits * liveMealRate);
+
+      return {
+        userId: uId,
+        name: m.name,
+        email: m.email,
+        image: m.image || `https://api.dicebear.com/7.x/bottts/svg?seed=${uId}`,
+        role: m.role,
+        isActive: m.isActive ?? true,
+        morningTotal,
+        nightTotal,
+        totalUnits,
+        estimatedCost,
+        attendedDaysCount: attendedDates.size,
+      };
+    });
+  }, [members, allCycleMeals, liveMealRate]);
+
+  // Master Register Filtered & Sorted List
+  const filteredRegister = useMemo(() => {
+    let list = [...memberMonthlyStats];
+    if (registerSearchQuery.trim()) {
+      const q = registerSearchQuery.toLowerCase().trim();
+      list = list.filter(
+        (m) => m.name.toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q)
+      );
+    }
+
+    list.sort((a, b) => {
+      const valA: any = a[registerSortKey];
+      const valB: any = b[registerSortKey];
+      if (typeof valA === 'string') {
+        return registerSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      return registerSortAsc ? valA - valB : valB - valA;
+    });
+
+    return list;
+  }, [memberMonthlyStats, registerSearchQuery, registerSortKey, registerSortAsc]);
+
+  // Master Summary KPI calculations
+  const totalMonthUnits = memberMonthlyStats.reduce((sum, m) => sum + m.totalUnits, 0);
+  const totalMonthMorning = memberMonthlyStats.reduce((sum, m) => sum + m.morningTotal, 0);
+  const totalMonthNight = memberMonthlyStats.reduce((sum, m) => sum + m.nightTotal, 0);
+  const totalEstimatedFoodCost = Math.round(totalMonthUnits * liveMealRate);
+
+  // 4. Date-wise Matrix for Daily Logs DataTable
+  const dateWiseMealLogs = useMemo(() => {
+    const diningMembersMap = new Map<string, any>();
+    members.forEach((m) => diningMembersMap.set(m.userId || m._id, m));
+
+    // Map: date -> userId -> { morning: 0, night: 0 }
+    const matrix: Record<string, Record<string, { morning: number; night: number }>> = {};
+
+    for (const rec of allCycleMeals) {
+      if (!matrix[rec.date]) matrix[rec.date] = {};
+      if (!matrix[rec.date][rec.userId]) matrix[rec.date][rec.userId] = { morning: 0, night: 0 };
+      const count = typeof rec.consumed === 'number' ? rec.consumed : (rec.consumed ? 1 : 0);
+      if (rec.slotId === 'morning') matrix[rec.date][rec.userId].morning = count;
+      if (rec.slotId === 'night') matrix[rec.date][rec.userId].night = count;
+    }
+
+    const rows: any[] = [];
+    Object.entries(matrix).forEach(([date, userObj]) => {
+      Object.entries(userObj).forEach(([userId, counts]) => {
+        const mem = diningMembersMap.get(userId);
+        if (!mem || mem.role === 'super_admin') return;
+        const total = counts.morning * 0.5 + counts.night * 1.0;
+        rows.push({
+          date,
+          userId,
+          name: mem.name,
+          email: mem.email,
+          image: mem.image || `https://api.dicebear.com/7.x/bottts/svg?seed=${userId}`,
+          morning: counts.morning,
+          night: counts.night,
+          total,
+        });
+      });
+    });
+
+    // Sort newest date first
+    rows.sort((a, b) => b.date.localeCompare(a.date));
+    return rows;
+  }, [allCycleMeals, members]);
+
+  // Filtered Daily Logs
+  const filteredDailyLogs = useMemo(() => {
+    let list = [...dateWiseMealLogs];
+
+    if (logDateFilter) {
+      list = list.filter((r) => r.date === logDateFilter);
+    }
+
+    if (logUserFilter) {
+      list = list.filter((r) => r.userId === logUserFilter);
+    }
+
+    if (logSearchQuery.trim()) {
+      const q = logSearchQuery.toLowerCase().trim();
+      list = list.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          r.date.includes(q) ||
+          String(r.total).includes(q)
+      );
+    }
+
+    return list;
+  }, [dateWiseMealLogs, logDateFilter, logUserFilter, logSearchQuery]);
+
+  // Available unique dates for filter dropdown
+  const uniqueDates = useMemo(() => {
+    const set = new Set<string>();
+    allCycleMeals.forEach((m) => {
+      if (m.date) set.add(m.date);
+    });
+    return Array.from(set).sort().reverse();
+  }, [allCycleMeals]);
+
+  // CSV Export for Monthly Master Register
+  const handleExportCSV = () => {
+    try {
+      const headers = [
+        'সদস্যের নাম',
+        'ইমেইল',
+        'মোট সকালের মিল (০.৫)',
+        'মোট রাতের মিল (১.০)',
+        'সর্বমোট মিল ইউনিট',
+        'মিল রেট (টাকা)',
+        'আনুমানিক খাবার খরচ (টাকা)',
+        'হাজিরার দিন সংখ্যা',
+        'স্ট্যাটাস',
+      ];
+
+      const csvRows = [headers.join(',')];
+
+      memberMonthlyStats.forEach((m) => {
+        const row = [
+          `"${m.name.replace(/"/g, '""')}"`,
+          `"${(m.email || '').replace(/"/g, '""')}"`,
+          m.morningTotal,
+          m.nightTotal,
+          m.totalUnits.toFixed(1),
+          liveMealRate,
+          m.estimatedCost,
+          m.attendedDaysCount,
+          `"${m.isActive ? 'সক্রিয়' : 'অনুপস্থিত'}"`,
+        ];
+        csvRows.push(row.join(','));
+      });
+
+      // UTF-8 BOM for proper Bengali text rendering in Excel
+      const blob = new Blob(['\uFEFF' + csvRows.join('\n')], {
+        type: 'text/csv;charset=utf-8;',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `monthly_meals_register_${cycle?.name || 'cycle'}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('মাসিক মিল খাতা CSV সফলভাবে ডাউনলোড হয়েছে!');
+    } catch (e: any) {
+      toast.error('CSV ডাউনলোড ব্যর্থ হয়েছে');
+    }
+  };
+
   const pendingRequests = requests.filter((r) => r.status === 'pending');
   const pastRequests = requests.filter((r) => r.status !== 'pending');
 
-  // Daily totals
+  // Daily totals for single-day stepper
   let totalMorningMeals = 0;
   let totalNightMeals = 0;
   Object.values(dailyEntries).forEach((e) => {
@@ -219,41 +463,65 @@ export const MealsTab: React.FC<MealsTabProps> = ({
         <div>
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <Utensils className="w-5 h-5 text-indigo-400" />
-            মিল খাতা ও দৈনিক ব্যবস্থাপনা
+            মাসিক পূর্ণাঙ্গ মিল খাতা ও হাজিরা ব্যবস্থাপনা
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            সকালের মিল ডেডলাইন: আগের রাত ১০:০০ টা | রাতের মিল ডেডলাইন: বিকাল ৪:০০ টা
+            চলমান চক্র: <strong className="text-slate-200">{cycle?.name || 'অক্টোবর ২০২৬'}</strong> | লাইভ মিল রেট: <strong className="text-emerald-400">৳{liveMealRate}</strong>
           </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <button
             onClick={onOpenRequestModal}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/25 transition-all"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            মিল অফ/অন রিকোয়েস্ট
+            মিল অফ/অন আবেদন
           </button>
         </div>
       </div>
 
-      {/* Sub-tab Switcher */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+      {/* Sub-tab Switcher: 4 distinct views */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-2">
+        <button
+          onClick={() => setSubTab('register')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            subTab === 'register'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <Table className="w-4 h-4" />
+          মাসিক মাস্টার মিল রেজিস্টার (DataTable)
+        </button>
+
         <button
           onClick={() => setSubTab('sheet')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             subTab === 'sheet'
               ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
           }`}
         >
           <Calendar className="w-4 h-4" />
-          দৈনিক মিল হাজিরা শিট
+          দৈনিক হাজিরা ইনপুট শিট
+        </button>
+
+        <button
+          onClick={() => setSubTab('logs')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            subTab === 'logs'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          তারিখভিত্তিক বিস্তারিত মিল লগ
         </button>
 
         <button
           onClick={() => setSubTab('requests')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all relative ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all relative cursor-pointer ${
             subTab === 'requests'
               ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -269,9 +537,301 @@ export const MealsTab: React.FC<MealsTabProps> = ({
         </button>
       </div>
 
-      {/* SUB-TAB 1: DAILY MEAL ATTENDANCE SHEET */}
+      {/* VIEW 1: MONTHLY MASTER REGISTER (DATA TABLE) */}
+      {subTab === 'register' && (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          {/* Top KPI Cards for Full Month */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="glass-panel rounded-2xl p-4 border border-emerald-500/20 bg-emerald-950/10">
+              <div className="flex items-center justify-between text-slate-400 text-xs">
+                <span>সর্বমোট মাসিক মিল</span>
+                <Utensils className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono mt-1">
+                {totalMonthUnits.toFixed(1)} <span className="text-xs font-normal text-slate-400">ইউনিট</span>
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">
+                সকাল: {totalMonthMorning} | রাত: {totalMonthNight}
+              </div>
+            </div>
+
+            <div className="glass-panel rounded-2xl p-4 border border-indigo-500/20 bg-indigo-950/10">
+              <div className="flex items-center justify-between text-slate-400 text-xs">
+                <span>সক্রিয় মিল বর্ডার</span>
+                <UserCheck className="w-4 h-4 text-indigo-400" />
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-indigo-300 font-mono mt-1">
+                {memberMonthlyStats.length} <span className="text-xs font-normal text-slate-400">জন</span>
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">
+                সদস্য প্রতি গড়: {memberMonthlyStats.length > 0 ? (totalMonthUnits / memberMonthlyStats.length).toFixed(1) : 0} মিল
+              </div>
+            </div>
+
+            <div className="glass-panel rounded-2xl p-4 border border-purple-500/20 bg-purple-950/10">
+              <div className="flex items-center justify-between text-slate-400 text-xs">
+                <span>লাইভ মিল রেট</span>
+                <Zap className="w-4 h-4 text-purple-400" />
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-purple-300 font-mono mt-1">
+                ৳{liveMealRate}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">
+                অনুমোদিত বাজার ÷ মোট মিল
+              </div>
+            </div>
+
+            <div className="glass-panel rounded-2xl p-4 border border-cyan-500/20 bg-cyan-950/10">
+              <div className="flex items-center justify-between text-slate-400 text-xs">
+                <span>আনুমানিক খাদ্য বিল</span>
+                <Save className="w-4 h-4 text-cyan-400" />
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-cyan-300 font-mono mt-1">
+                {formatTaka(totalEstimatedFoodCost)}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">
+                চলমান চক্রের মোট মিল খরচ
+              </div>
+            </div>
+          </div>
+
+          {/* Master Register DataTable */}
+          <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Table className="w-4 h-4 text-emerald-400" />
+                  সদস্যদের মাসিক পূর্ণাঙ্গ মিল তালিকা ({filteredRegister.length} জন)
+                </h4>
+                <p className="text-xs text-slate-400">
+                  চলমান মাসে কার কয়টা সকালের ও রাতের মিল হয়েছে এবং আনুমানিক খাবার খরচের সারসংক্ষেপ
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                {/* Search Bar */}
+                <div className="relative flex-1 sm:w-60">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={registerSearchQuery}
+                    onChange={(e) => setRegisterSearchQuery(e.target.value)}
+                    placeholder="সদস্যের নাম দিয়ে খুঁজুন..."
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 outline-none focus:border-indigo-500"
+                  />
+                  {registerSearchQuery && (
+                    <button
+                      onClick={() => setRegisterSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                {/* CSV Export Button */}
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-all cursor-pointer"
+                  title="সম্পূর্ণ মাসের মিল শিট CSV ফাইলে ডাউনলোড করুন"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>CSV এক্সপোর্ট</span>
+                </button>
+              </div>
+            </div>
+
+            {/* DataTable */}
+            <div className="overflow-x-auto rounded-xl border border-slate-800/80">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-900/80 border-b border-slate-800 text-slate-400 font-bold">
+                    <th
+                      onClick={() => {
+                        if (registerSortKey === 'name') setRegisterSortAsc(!registerSortAsc);
+                        else {
+                          setRegisterSortKey('name');
+                          setRegisterSortAsc(true);
+                        }
+                      }}
+                      className="py-3 px-3 cursor-pointer hover:text-white"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>সদস্যের বিবরণ</span>
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => {
+                        if (registerSortKey === 'morningTotal') setRegisterSortAsc(!registerSortAsc);
+                        else {
+                          setRegisterSortKey('morningTotal');
+                          setRegisterSortAsc(false);
+                        }
+                      }}
+                      className="py-3 px-3 text-center cursor-pointer hover:text-white"
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <Sun className="w-3 h-3 text-amber-400" />
+                        <span>সকাল (০.৫)</span>
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => {
+                        if (registerSortKey === 'nightTotal') setRegisterSortAsc(!registerSortAsc);
+                        else {
+                          setRegisterSortKey('nightTotal');
+                          setRegisterSortAsc(false);
+                        }
+                      }}
+                      className="py-3 px-3 text-center cursor-pointer hover:text-white"
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <Moon className="w-3 h-3 text-indigo-400" />
+                        <span>রাত (১.০)</span>
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => {
+                        if (registerSortKey === 'totalUnits') setRegisterSortAsc(!registerSortAsc);
+                        else {
+                          setRegisterSortKey('totalUnits');
+                          setRegisterSortAsc(false);
+                        }
+                      }}
+                      className="py-3 px-3 text-center cursor-pointer hover:text-white"
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <Utensils className="w-3 h-3 text-emerald-400" />
+                        <span>মোট মিল ইউনিট</span>
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => {
+                        if (registerSortKey === 'estimatedCost') setRegisterSortAsc(!registerSortAsc);
+                        else {
+                          setRegisterSortKey('estimatedCost');
+                          setRegisterSortAsc(false);
+                        }
+                      }}
+                      className="py-3 px-3 text-right cursor-pointer hover:text-white"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        <span>খাবার খরচ</span>
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                    </th>
+                    <th className="py-3 px-3 text-center">উপস্থিতি</th>
+                    <th className="py-3 px-3 text-center">অ্যাকশন</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
+                  {filteredRegister.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-500">
+                        {registerSearchQuery
+                          ? `"${registerSearchQuery}" দিয়ে কোনো সদস্য পাওয়া যায়নি`
+                          : 'কোনো সদস্যের মিল রেকর্ড নেই'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRegister.map((m) => (
+                      <tr key={m.userId} className="hover:bg-slate-900/60 transition-colors">
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={m.image}
+                              alt={m.name}
+                              className="w-8 h-8 rounded-xl object-cover border border-slate-700 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="font-bold text-white text-xs truncate flex items-center gap-1.5">
+                                <span>{m.name}</span>
+                                {m.role === 'admin' && (
+                                  <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1 rounded font-normal">
+                                    ম্যানেজার
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-400 block truncate">
+                                {m.email || 'সদস্য'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
+                          {m.morningTotal} টি
+                        </td>
+
+                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
+                          {m.nightTotal} টি
+                        </td>
+
+                        <td className="py-3 px-3 text-center">
+                          <span className="inline-block px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono font-extrabold text-xs">
+                            {m.totalUnits.toFixed(1)}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">
+                          {formatTaka(m.estimatedCost)}
+                        </td>
+
+                        <td className="py-3 px-3 text-center text-[11px] text-slate-400">
+                          <span className="font-semibold text-slate-300">{m.attendedDaysCount}</span> দিন
+                        </td>
+
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={() => {
+                              setLogUserFilter(m.userId);
+                              setSubTab('logs');
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-600/15 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-[10px] font-semibold transition-all cursor-pointer"
+                            title="এই সদস্যের সকল তারিখের বিস্তারিত লগ দেখুন"
+                          >
+                            লগ দেখুন
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-900 border-t-2 border-slate-800 text-xs font-bold text-slate-200">
+                    <td className="py-3 px-3">
+                      মোট ({filteredRegister.length} জন বর্ডার)
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-amber-300">
+                      {filteredRegister.reduce((sum, m) => sum + m.morningTotal, 0)} টি
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-indigo-300">
+                      {filteredRegister.reduce((sum, m) => sum + m.nightTotal, 0)} টি
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-emerald-400 font-extrabold">
+                      {filteredRegister.reduce((sum, m) => sum + m.totalUnits, 0).toFixed(1)}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono text-emerald-400 font-black">
+                      {formatTaka(filteredRegister.reduce((sum, m) => sum + m.estimatedCost, 0))}
+                    </td>
+                    <td colSpan={2} className="py-3 px-3 text-right text-[10px] text-slate-400">
+                      মাসিক চূড়ান্ত মিল রেট: ৳{liveMealRate}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 2: DAILY ATTENDANCE STEPPER & INPUT SHEET */}
       {subTab === 'sheet' && (
-        <div className="space-y-5">
+        <div className="space-y-5 animate-in fade-in duration-200">
           {/* Date Selector & KPI Strip */}
           <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 space-y-4">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -279,7 +839,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
                   onClick={() => changeDateByDays(-1)}
-                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
                   title="আগের দিন"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -290,13 +850,13 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full sm:w-auto bg-slate-900 border border-slate-700 hover:border-slate-600 text-white font-mono text-xs font-semibold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500"
+                    className="w-full sm:w-auto bg-slate-900 border border-slate-700 hover:border-slate-600 text-white font-mono text-xs font-semibold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer"
                   />
                 </div>
 
                 <button
                   onClick={() => changeDateByDays(1)}
-                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
                   title="পরের দিন"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -304,7 +864,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
                 <button
                   onClick={() => setSelectedDate(getTodayStr())}
-                  className="text-xs px-2.5 py-2 rounded-xl bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 font-medium transition-all"
+                  className="text-xs px-2.5 py-2 rounded-xl bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 font-medium transition-all cursor-pointer"
                 >
                   আজ
                 </button>
@@ -334,14 +894,14 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   <button
                     onClick={handleSaveMeals}
                     disabled={isSaving}
-                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg shadow-emerald-600/20 transition-all"
+                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
                   >
                     {isSaving ? (
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                     ) : (
                       <Save className="w-3.5 h-3.5" />
                     )}
-                    {isSaving ? 'সংরক্ষণ হচ্ছে...' : 'ডাটাবেজে সেভ করুন'}
+                    {isSaving ? 'সংরক্ষণ হচ্ছে...' : 'হাজিরা সংরক্ষণ করুন'}
                   </button>
                 </div>
               )}
@@ -369,8 +929,8 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 <p className="text-base font-bold text-indigo-300 mt-0.5 font-mono">{totalMealUnits.toFixed(1)}</p>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-[11px] text-slate-400">সদস্য সংখ্যা</span>
-                <p className="text-base font-bold text-white mt-0.5">{members.length} জন</p>
+                <span className="text-[11px] text-slate-400">ডাইনিং সদস্য সংখ্যা</span>
+                <p className="text-base font-bold text-white mt-0.5">{members.filter((m) => m.role !== 'super_admin').length} জন</p>
               </div>
             </div>
           </div>
@@ -378,176 +938,272 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           {/* Members Meal Grid */}
           <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-emerald-400" />
-                সদস্যদের মিল হাজিরা ({members.length})
-              </h4>
-              {!canEditMeals && (
-                <span className="text-[11px] text-slate-400">
-                  (শুধুমাত্র এডমিন/ম্যানেজার মিল পরিবর্তন করতে পারেন)
-                </span>
-              )}
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-indigo-400" />
+                  {selectedDate} তারিখের ব্যক্তিগত মিল তালিকা
+                </h4>
+                <p className="text-xs text-slate-400">
+                  সদস্যদের সকাল ও রাতের মিল পরিবর্তন করতে + / - বাটনে ক্লিক করুন
+                </p>
+              </div>
             </div>
 
-            {members.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-500">
-                কোনো সদস্য পাওয়া যায়নি।
+            {isLoadingDateMeals ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
+                <RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
+                <span>তারিখের মিল লোড হচ্ছে...</span>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {members.map((member) => {
-                  const entry = dailyEntries[member.userId] || { morning: 1, night: 1 };
-                  const memberUnits = entry.morning * 0.5 + entry.night * 1.0;
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {members
+                  .filter((m) => m.role !== 'super_admin')
+                  .map((member) => {
+                    const uId = member.userId || member._id;
+                    const entry = dailyEntries[uId] || { morning: 1, night: 1 };
+                    const userTotal = entry.morning * 0.5 + entry.night * 1.0;
 
-                  // Check if this member has a request on this date
-                  const reqOnDate = requests.find(
-                    (r) => r.userId === member.userId && r.date === selectedDate
-                  );
-
-                  return (
-                    <div
-                      key={member.userId}
-                      className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 transition-all space-y-3"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center text-white text-xs font-bold overflow-hidden">
-                            {member.image ? (
-                              <img src={member.image} alt={member.name} className="w-full h-full object-cover" />
-                            ) : (
-                              member.name.charAt(0)
-                            )}
+                    return (
+                      <div
+                        key={uId}
+                        className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800/80 hover:border-slate-700 transition-all space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <img
+                              src={member.image || `https://api.dicebear.com/7.x/bottts/svg?seed=${uId}`}
+                              alt={member.name}
+                              className="w-8 h-8 rounded-xl object-cover border border-slate-700"
+                            />
+                            <div className="truncate">
+                              <span className="font-semibold text-slate-200 text-xs block truncate">
+                                {member.name}
+                              </span>
+                              <span className="text-[10px] text-slate-500 block truncate">
+                                {member.email || 'মেস সদস্য'}
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-bold text-slate-200">{member.name}</span>
-                              {member.role === 'super_admin' && (
-                                <span className="text-[9px] bg-rose-500/20 text-rose-300 font-bold px-1.5 py-0.2 rounded border border-rose-500/30">
-                                  সুপার এডমিন
-                                </span>
+
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] text-slate-400 block">মোট ইউনিট</span>
+                            <span className="font-mono font-bold text-indigo-300 text-xs">
+                              {userTotal.toFixed(1)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {/* Morning */}
+                          <div className="flex items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
+                            <div>
+                              <span className="text-[11px] font-semibold text-slate-400">সকাল</span>
+                              <span className="text-[10px] text-slate-500 block">(০.৫)</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {canEditMeals && (
+                                <button
+                                  onClick={() => updateCount(uId, 'morning', -0.5)}
+                                  className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                  title="০.৫ কমান"
+                                >
+                                  -
+                                </button>
                               )}
-                              {member.role === 'admin' && (
-                                <span className="text-[9px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.2 rounded border border-amber-500/30">
-                                  ম্যানেজার
-                                </span>
+                              <span className="w-10 text-center text-sm font-bold font-mono text-white">
+                                {entry.morning}
+                              </span>
+                              {canEditMeals && (
+                                <button
+                                  onClick={() => updateCount(uId, 'morning', 0.5)}
+                                  className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                  title="০.৫ বাড়ান"
+                                >
+                                  +
+                                </button>
                               )}
                             </div>
-                            <span className="text-[11px] text-slate-500 font-mono">
-                              মোট ইউনিট: {memberUnits.toFixed(1)}
-                            </span>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-2">
-                          {canEditMeals && (
-                            <button
-                              onClick={() => {
-                                const isOff = entry.morning === 0 && entry.night === 0;
-                                setDailyEntries((prev) => ({
-                                  ...prev,
-                                  [member.userId]: isOff ? { morning: 1, night: 1 } : { morning: 0, night: 0 },
-                                }));
-                              }}
-                              className={`text-[10px] px-2 py-0.5 rounded font-semibold transition-all cursor-pointer ${
-                                entry.morning === 0 && entry.night === 0
-                                  ? 'bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30'
-                                  : 'bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30'
-                              }`}
-                            >
-                              {entry.morning === 0 && entry.night === 0 ? 'মিল চালু (১)' : 'আজকের মিল অফ'}
-                            </button>
-                          )}
-
-                          {reqOnDate && (
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                                reqOnDate.status === 'approved'
-                                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
-                                  : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                              }`}
-                            >
-                              রিকোয়েস্ট: {reqOnDate.slotName} {reqOnDate.action === 'off' ? 'অফ' : 'অন'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Counters */}
-                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60">
-                        {/* Morning */}
-                        <div className="flex items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                          <div>
-                            <span className="text-[11px] font-semibold text-slate-400">সকাল</span>
-                            <span className="text-[10px] text-slate-500 block">(০.৫)</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {canEditMeals && (
-                              <button
-                                onClick={() => updateCount(member.userId, 'morning', -0.5)}
-                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
-                                title="০.৫ কমান"
-                              >
-                                -
-                              </button>
-                            )}
-                            <span className="w-10 text-center text-sm font-bold font-mono text-white">
-                              {entry.morning}
-                            </span>
-                            {canEditMeals && (
-                              <button
-                                onClick={() => updateCount(member.userId, 'morning', 0.5)}
-                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
-                                title="০.৫ বাড়ান"
-                              >
-                                +
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Night */}
-                        <div className="flex items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                          <div>
-                            <span className="text-[11px] font-semibold text-slate-400">রাত</span>
-                            <span className="text-[10px] text-slate-500 block">(১.০)</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {canEditMeals && (
-                              <button
-                                onClick={() => updateCount(member.userId, 'night', -0.5)}
-                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
-                                title="০.৫ কমান"
-                              >
-                                -
-                              </button>
-                            )}
-                            <span className="w-10 text-center text-sm font-bold font-mono text-white">
-                              {entry.night}
-                            </span>
-                            {canEditMeals && (
-                              <button
-                                onClick={() => updateCount(member.userId, 'night', 0.5)}
-                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
-                                title="০.৫ বাড়ান"
-                              >
-                                +
-                              </button>
-                            )}
+                          {/* Night */}
+                          <div className="flex items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
+                            <div>
+                              <span className="text-[11px] font-semibold text-slate-400">রাত</span>
+                              <span className="text-[10px] text-slate-500 block">(১.০)</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {canEditMeals && (
+                                <button
+                                  onClick={() => updateCount(uId, 'night', -0.5)}
+                                  className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                  title="০.৫ কমান"
+                                >
+                                  -
+                                </button>
+                              )}
+                              <span className="w-10 text-center text-sm font-bold font-mono text-white">
+                                {entry.night}
+                              </span>
+                              {canEditMeals && (
+                                <button
+                                  onClick={() => updateCount(uId, 'night', 0.5)}
+                                  className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                  title="০.৫ বাড়ান"
+                                >
+                                  +
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* SUB-TAB 2: MEAL REQUESTS & APPROVALS */}
+      {/* VIEW 3: DATE-WISE DETAILED MEAL LOGS (DATATABLE) */}
+      {subTab === 'logs' && (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-400" />
+                  তারিখভিত্তিক বিস্তারিত মিল লগ ({filteredDailyLogs.length} রেকর্ড)
+                </h4>
+                <p className="text-xs text-slate-400">
+                  প্রতিদিনের সকাল ও রাতের মিলের বিস্তারিত উপস্থিতি ইতিহাস
+                </p>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                {/* Date Dropdown Filter */}
+                <select
+                  value={logDateFilter}
+                  onChange={(e) => setLogDateFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 outline-none cursor-pointer"
+                >
+                  <option value="">সকল তারিখ</option>
+                  {uniqueDates.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Member Dropdown Filter */}
+                <select
+                  value={logUserFilter}
+                  onChange={(e) => setLogUserFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 outline-none cursor-pointer"
+                >
+                  <option value="">সকল সদস্য</option>
+                  {members
+                    .filter((m) => m.role !== 'super_admin')
+                    .map((m) => (
+                      <option key={m.userId || m._id} value={m.userId || m._id}>
+                        {m.name}
+                      </option>
+                    ))}
+                </select>
+
+                {/* Search query */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={logSearchQuery}
+                    onChange={(e) => setLogSearchQuery(e.target.value)}
+                    placeholder="খুঁজুন..."
+                    className="bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 outline-none w-36 sm:w-44 focus:border-indigo-500"
+                  />
+                  {logSearchQuery && (
+                    <button
+                      onClick={() => setLogSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Logs Table */}
+            <div className="overflow-x-auto rounded-xl border border-slate-800">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-900/80 border-b border-slate-800 text-slate-400 font-bold">
+                    <th className="py-2.5 px-3">তারিখ</th>
+                    <th className="py-2.5 px-3">সদস্যের নাম</th>
+                    <th className="py-2.5 px-3 text-center">সকালের মিল</th>
+                    <th className="py-2.5 px-3 text-center">রাতের মিল</th>
+                    <th className="py-2.5 px-3 text-center">মোট মিল ইউনিট</th>
+                    <th className="py-2.5 px-3 text-right">স্ট্যাটাস</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
+                  {filteredDailyLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-500">
+                        কোনো মিল লগ পাওয়া যায়নি
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredDailyLogs.map((row, idx) => (
+                      <tr key={`${row.date}_${row.userId}_${idx}`} className="hover:bg-slate-900/50">
+                        <td className="py-2.5 px-3 font-mono font-semibold text-slate-300">
+                          {row.date}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={row.image}
+                              alt={row.name}
+                              className="w-6 h-6 rounded-lg object-cover border border-slate-700"
+                            />
+                            <span className="font-medium text-slate-200">{row.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono text-slate-300">
+                          {row.morning}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono text-slate-300">
+                          {row.night}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-400">
+                          {row.total.toFixed(1)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              row.total > 0
+                                ? 'bg-emerald-500/15 text-emerald-400'
+                                : 'bg-rose-500/15 text-rose-400'
+                            }`}
+                          >
+                            {row.total > 0 ? 'খাবার চালু' : 'মিল অফ'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 4: MEAL REQUESTS & APPROVALS */}
       {subTab === 'requests' && (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in duration-200">
           {/* Pending Requests */}
           <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
             <div className="flex items-center justify-between">
@@ -614,7 +1270,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                         <button
                           onClick={() => handleReview(req._id, 'approved')}
                           disabled={processingId === req._id}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition-all"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition-all cursor-pointer"
                         >
                           <CheckCircle className="w-3.5 h-3.5" />
                           অনুমোদন
@@ -622,7 +1278,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                         <button
                           onClick={() => handleReview(req._id, 'rejected')}
                           disabled={processingId === req._id}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-500 text-white text-xs font-semibold shadow transition-all"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-500 text-white text-xs font-semibold shadow transition-all cursor-pointer"
                         >
                           <XCircle className="w-3.5 h-3.5" />
                           বাতিল

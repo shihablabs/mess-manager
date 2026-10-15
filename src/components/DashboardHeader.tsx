@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Sparkles,
   Zap,
+  Calendar,
 } from 'lucide-react';
 import { AppUser } from '@/lib/session';
 import { signOut } from 'next-auth/react';
@@ -30,6 +31,9 @@ interface DashboardHeaderProps {
   cycleName?: string;
   isCycleClosed?: boolean;
   isLoading?: boolean;
+  cycles?: any[];
+  currentCycleId?: string;
+  onSelectCycle?: (cycleId: string) => void;
   onRefresh?: () => void;
   onToggleMobileMenu: () => void;
   onOpenMyStatement: () => void;
@@ -57,6 +61,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   cycleName = 'অক্টোবর ২০২৬',
   isCycleClosed = false,
   isLoading = false,
+  cycles = [],
+  currentCycleId,
+  onSelectCycle,
   onRefresh,
   onToggleMobileMenu,
   onOpenMyStatement,
@@ -97,8 +104,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         </button>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-400 hidden sm:inline">মেস ইআরপি /</span>
-          <h1 className="text-sm sm:text-base font-bold text-white tracking-wide truncate max-w-[180px] xs:max-w-xs sm:max-w-none">
+          <span className="text-xs font-semibold text-slate-400 hidden sm:inline">মেস ড্যাশবোর্ড /</span>
+          <h1 className="text-sm sm:text-base font-bold text-white tracking-wide truncate max-w-[140px] xs:max-w-xs sm:max-w-none">
             {TAB_TITLES[effectiveTab] || 'ড্যাশবোর্ড'}
           </h1>
           {isCycleClosed && (
@@ -107,6 +114,25 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </span>
           )}
         </div>
+
+        {/* Cycle / Month Selector (Supports switching to previous or current months) */}
+        {cycles && cycles.length > 0 && (
+          <div className="hidden lg:flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 text-xs ml-2">
+            <Calendar className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <select
+              value={currentCycleId || ''}
+              onChange={(e) => onSelectCycle && onSelectCycle(e.target.value)}
+              className="bg-transparent text-slate-200 font-semibold outline-none cursor-pointer text-xs"
+              title="পূর্ববর্তী বা বর্তমান মাসের হিসাব চক্র বাছাই করুন"
+            >
+              {cycles.map((c) => (
+                <option key={c._id} value={c._id} className="bg-slate-900 text-slate-200">
+                  {c.name} {c.status === 'open' ? '🟢 (চলমান)' : '🔒 (আর্কাইভ)'}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Right: Refresh action & Profile Dropdown Menu */}
@@ -211,23 +237,23 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   </div>
                 </div>
 
-                {/* Profile Page Navigation Link */}
-                <div className="mb-2 space-y-1">
-                  <Link
-                    href="/dashboard/profile"
-                    onClick={() => setIsDropdownOpen(false)}
-                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-indigo-400" />
-                      <span>আমার প্রোফাইল ও বিস্তারিত হিসাব</span>
-                    </div>
-                    <span className="text-[10px] bg-indigo-500/25 px-2 py-0.5 rounded text-indigo-200">
-                      পেজ
-                    </span>
-                  </Link>
+                {/* Profile Page Navigation Link (Hidden for Super Admin) */}
+                {!isSuperAdmin ? (
+                  <div className="mb-2 space-y-1">
+                    <Link
+                      href="/dashboard/profile"
+                      onClick={() => setIsDropdownOpen(false)}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-indigo-400" />
+                        <span>আমার প্রোফাইল ও বিস্তারিত হিসাব</span>
+                      </div>
+                      <span className="text-[10px] bg-indigo-500/25 px-2 py-0.5 rounded text-indigo-200">
+                        পেজ
+                      </span>
+                    </Link>
 
-                  {!isSuperAdmin && (
                     <button
                       onClick={() => {
                         setIsDropdownOpen(false);
@@ -243,8 +269,24 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                         মডাল
                       </span>
                     </button>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="mb-2 space-y-1">
+                    <Link
+                      href="/dashboard/users"
+                      onClick={() => setIsDropdownOpen(false)}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-purple-600/15 hover:bg-purple-600/25 text-purple-300 border border-purple-500/30 text-xs font-semibold transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-purple-400" />
+                        <span>সুপার অ্যাডমিন কন্ট্রোল প্যানেল</span>
+                      </div>
+                      <span className="text-[10px] bg-purple-500/25 px-2 py-0.5 rounded text-purple-200">
+                        কন্ট্রোল
+                      </span>
+                    </Link>
+                  </div>
+                )}
 
                 {/* Emergency Actions Menu */}
                 <div className="p-1 space-y-0.5 border-b border-slate-800/80 pb-2 mb-2">

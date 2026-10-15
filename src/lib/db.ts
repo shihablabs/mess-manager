@@ -27,25 +27,45 @@ export async function getMongoClient(): Promise<MongoClient | null> {
     return null;
   }
 
+  try {
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+    if ((dns as any).setDefaultResultOrder) {
+      (dns as any).setDefaultResultOrder('ipv4first');
+    }
+  } catch {
+    // Ignore in environments where setServers is restricted
+  }
+
   const uri = process.env.MONGODB_URI!;
 
   if (process.env.NODE_ENV === 'development') {
     if (!global._mongoClientPromise) {
       client = new MongoClient(uri, options);
-      global._mongoClientPromise = client.connect();
+      global._mongoClientPromise = client.connect().catch((err) => {
+        global._mongoClientPromise = undefined;
+        throw err;
+      });
     }
     return global._mongoClientPromise;
   } else {
     if (!clientPromise) {
       client = new MongoClient(uri, options);
-      clientPromise = client.connect();
+      clientPromise = client.connect().catch((err) => {
+        clientPromise = null;
+        throw err;
+      });
     }
     return clientPromise;
   }
 }
 
 export async function getDb(dbName = 'mess_manager'): Promise<Db | null> {
-  const client = await getMongoClient();
-  if (!client) return null;
-  return client.db(dbName);
+  try {
+    const client = await getMongoClient();
+    if (!client) return null;
+    return client.db(dbName);
+  } catch (err) {
+    console.error('getDb error:', err);
+    return null;
+  }
 }

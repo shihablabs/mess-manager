@@ -42,6 +42,9 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
     isDepositOpen,
     openDeposit,
     closeDeposit,
+    cycles,
+    currentCycleId,
+    setCurrentCycleId,
   } = useDashboard();
 
   // 1. Session Verification Loading
@@ -49,7 +52,7 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
     return (
       <GlobalLoader
         message="লগইন অবস্থা ও ড্যাশবোর্ড যাচাই করা হচ্ছে..."
-        subMessage="Developer Zone • মেস ইআরপি সুরক্ষিত প্রবেশদ্বার"
+        subMessage="Developer Zone • মেস ম্যানেজার সুরক্ষিত প্রবেশদ্বার"
         fullScreen={true}
       />
     );
@@ -181,6 +184,9 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
           cycleName={summaryData?.cycle?.name || 'অক্টোবর ২০২৬'}
           isCycleClosed={summaryData?.cycle?.status === 'closed'}
           isLoading={isLoading}
+          cycles={cycles}
+          currentCycleId={currentCycleId}
+          onSelectCycle={(cId) => setCurrentCycleId(cId)}
           onRefresh={refreshData}
           onToggleMobileMenu={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           onOpenMyStatement={() => {

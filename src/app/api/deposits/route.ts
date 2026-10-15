@@ -13,6 +13,12 @@ export async function GET(request: Request) {
   if (userId) list = list.filter((d) => d.userId === userId);
 
   const enriched = list.map((d) => {
+    if (d.userId === 'mess_fund') {
+      return {
+        ...d,
+        userName: '🏦 মেস সাধারণ তহবিল (সরাসরি পরিশোধ)',
+      };
+    }
     const user = store.users.find((u) => u._id === d.userId);
     return {
       ...d,

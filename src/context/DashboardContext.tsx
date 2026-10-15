@@ -15,6 +15,9 @@ interface DashboardContextType {
   slots: any[];
   slotRequests: any[];
   deposits: any[];
+  cycles: any[];
+  currentCycleId: string;
+  setCurrentCycleId: (cycleId: string) => void;
   isLoading: boolean;
   refreshData: () => Promise<void>;
 
@@ -63,6 +66,9 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [members, setMembers] = useState<any[]>([]);
   const [deposits, setDeposits] = useState<any[]>([]);
 
+  const [currentCycleId, setCurrentCycleId] = useState<string>('cycle_1');
+  const [cycles, setCycles] = useState<any[]>([]);
+
   // Modals state
   const [statementMember, setStatementMember] = useState<MemberBillingResult | null>(null);
   const [isNewBazarOpen, setIsNewBazarOpen] = useState(false);
@@ -95,14 +101,15 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!currentUser?.id) return;
     try {
       setIsLoading(true);
-      const [sumRes, reqRes, bazRes, fixRes, slotRes, memRes, depRes] = await Promise.all([
-        fetch(`/api/summary?userId=${currentUser.id}`),
-        fetch('/api/meal-requests'),
-        fetch('/api/bazars'),
-        fetch('/api/fixed-events'),
-        fetch('/api/slots'),
-        fetch('/api/members'),
-        fetch('/api/deposits'),
+      const [sumRes, reqRes, bazRes, fixRes, slotRes, memRes, depRes, cycRes] = await Promise.all([
+        fetch(`/api/summary?userId=${currentUser.id}&cycleId=${currentCycleId}`),
+        fetch(`/api/meal-requests?cycleId=${currentCycleId}`),
+        fetch(`/api/bazars?cycleId=${currentCycleId}`),
+        fetch(`/api/fixed-events?cycleId=${currentCycleId}`),
+        fetch(`/api/slots?cycleId=${currentCycleId}`),
+        fetch(`/api/members?cycleId=${currentCycleId}`),
+        fetch(`/api/deposits?cycleId=${currentCycleId}`),
+        fetch('/api/cycles'),
       ]);
 
       const sumJson = await sumRes.json();
@@ -112,6 +119,7 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const slotJson = await slotRes.json();
       const memJson = await memRes.json();
       const depJson = await depRes.json();
+      const cycJson = await cycRes.json();
 
       if (sumJson.success) setSummaryData(sumJson);
       if (reqJson.success) setMealRequests(reqJson.requests || []);
@@ -123,12 +131,13 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       if (memJson.success) setMembers(memJson.members || []);
       if (depJson.success) setDeposits(depJson.deposits || []);
+      if (cycJson.success && cycJson.allCycles) setCycles(cycJson.allCycles || []);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, currentCycleId]);
 
   useEffect(() => {
     if (status === 'authenticated' && currentUser?.id) {
@@ -148,6 +157,9 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         slots,
         slotRequests,
         deposits,
+        cycles,
+        currentCycleId,
+        setCurrentCycleId,
         isLoading,
         refreshData,
         isMobileSidebarOpen,

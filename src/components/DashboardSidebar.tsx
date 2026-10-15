@@ -219,22 +219,26 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           },
         ]
       : []),
-    {
-      id: 'profile',
-      label: 'আমার প্রোফাইল ও হিসাব',
-      href: '/dashboard/profile',
-      icon: User,
-      badge: null,
-      isActive: pathname.startsWith('/dashboard/profile'),
-      subItems: [
-        {
-          id: 'profile_view',
-          label: 'ব্যক্তিগত ব্যালেন্স ও লেজার',
-          href: '/dashboard/profile',
-          isActive: pathname === '/dashboard/profile',
-        },
-      ],
-    },
+    ...(!isSuperAdmin
+      ? [
+          {
+            id: 'profile',
+            label: 'আমার প্রোফাইল ও হিসাব',
+            href: '/dashboard/profile',
+            icon: User,
+            badge: null,
+            isActive: pathname.startsWith('/dashboard/profile'),
+            subItems: [
+              {
+                id: 'profile_view',
+                label: 'ব্যক্তিগত ব্যালেন্স ও লেজার',
+                href: '/dashboard/profile',
+                isActive: pathname === '/dashboard/profile',
+              },
+            ],
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -268,7 +272,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 Developer Zone
               </span>
               <p className="text-[10px] text-slate-400">
-                ইআরপি • <span className="text-slate-200 font-medium">{cycleName}</span>
+                মেস ম্যানেজার • <span className="text-slate-200 font-medium">{cycleName}</span>
               </p>
             </div>
           </Link>

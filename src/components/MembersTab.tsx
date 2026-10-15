@@ -65,8 +65,8 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   const [isClosingCycle, setIsClosingCycle] = useState(false);
   const [carryAmount, setCarryAmount] = useState('0');
 
-  const isManagerOrSuperAdmin =
-    currentUser.role === 'super_admin' || currentUser.role === 'admin';
+  const isSuperAdmin = currentUser.role === 'super_admin';
+  const isManagerOrSuperAdmin = isSuperAdmin || currentUser.role === 'admin';
 
   const pendingMembers = members.filter((m) => m.status === 'pending');
   const activeMembers = members.filter((m) => m.status !== 'pending');
@@ -458,12 +458,13 @@ export const MembersTab: React.FC<MembersTabProps> = ({
               <input
                 type="checkbox"
                 id="bigBazarCheckbox"
+                disabled={!isSuperAdmin}
                 checked={isBigBazarEnabled}
                 onChange={(e) => setIsBigBazarEnabled(e.target.checked)}
-                className="w-4 h-4 rounded text-indigo-600 bg-slate-900 border-slate-700"
+                className="w-4 h-4 rounded text-indigo-600 bg-slate-900 border-slate-700 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
               />
               <label htmlFor="bigBazarCheckbox" className="text-xs text-slate-200 font-medium cursor-pointer">
-                চলমান চক্রে বড় বাজার ফান্ড সক্রিয় থাকবে
+                চলমান চক্রে বড় বাজার ফান্ড সক্রিয় থাকবে {!isSuperAdmin && '(🔒 কেবল সুপার অ্যাডমিন)'}
               </label>
             </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Lightbulb,
   Package,
@@ -15,6 +15,11 @@ import {
   X,
   AlertCircle,
   UserCheck,
+  Download,
+  Upload,
+  Database,
+  Archive,
+  FileJson,
 } from 'lucide-react';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
@@ -52,7 +57,71 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
   );
 
   const totalUtility = bills.reduce((sum, b) => sum + b.amount, 0);
-  const isManager = currentUser.role === 'admin' || currentUser.role === 'super_admin';
+  const isSuperAdmin = currentUser.role === 'super_admin';
+  const isManager = currentUser.role === 'admin' || isSuperAdmin;
+
+  // 6-Month Backup & Restore State
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [pendingImportData, setPendingImportData] = useState<any | null>(null);
+
+  const handleExportBackup = async () => {
+    try {
+      setIsExporting(true);
+      window.location.href = '/api/backup?download=true';
+      toast.success('সম্পূর্ণ ৬ মাসের মেস ব্যাকআপ ডাউনলোড হচ্ছে!');
+    } catch (err: any) {
+      toast.error('ব্যাকআপ এক্সপোর্ট ব্যর্থ হয়েছে');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = JSON.parse(text);
+        if (!parsed.data && !parsed.cycles && !parsed.users) {
+          toast.error('অবৈধ ব্যাকআপ ফাইল। সঠিক JSON ব্যাকআপ ফাইল নির্বাচন করুন।');
+          return;
+        }
+        setPendingImportData(parsed);
+      } catch (err) {
+        toast.error('JSON ফাইল পড়তে সমস্যা হয়েছে');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleConfirmImport = async () => {
+    if (!pendingImportData) return;
+    try {
+      setIsImporting(true);
+      const res = await fetch('/api/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pendingImportData),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'ব্যাকআপ ডাটা সফলভাবে রিস্টোর হয়েছে!');
+        setPendingImportData(null);
+        onRefresh();
+      } else {
+        toast.error(data.error || 'রিস্টোর ব্যর্থ হয়েছে');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   // Add utility bill (support specific member paying Khala/Electricity bill from own pocket)
   const handleAddBill = async (e: React.FormEvent) => {
@@ -93,8 +162,12 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
     }
   };
 
-  // Toggle Big Bazar On / Off for the cycle
+  // Toggle Big Bazar On / Off for the cycle (Super Admin ONLY)
   const handleToggleBigBazar = async () => {
+    if (!isSuperAdmin) {
+      toast.error('বড় বাজার চালু বা বন্ধ করার ক্ষমতা কেবল সুপার অ্যাডমিনের হাতে সংরক্ষিত!');
+      return;
+    }
     try {
       setIsTogglingBigBazar(true);
       const newStatus = !cycle?.isBigBazarEnabled;
@@ -338,8 +411,8 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
               <p className="text-xs text-slate-400">চাল, তেল, ডাল, পেঁয়াজ ইত্যাদি অগ্রিম কেনাকাটার ফান্ড</p>
             </div>
 
-            {/* Enable/Disable Toggle Button */}
-            {isManager ? (
+            {/* Enable/Disable Toggle Button (STRICTLY for Super Admin) */}
+            {isSuperAdmin ? (
               <button
                 onClick={handleToggleBigBazar}
                 disabled={isTogglingBigBazar}
@@ -348,7 +421,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                     ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-rose-500/20 hover:text-rose-300'
                     : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-emerald-500/20 hover:text-emerald-300'
                 }`}
-                title="বড় বাজার সক্রিয় বা নিষ্ক্রিয় করুন"
+                title="বড় বাজার সক্রিয় বা নিষ্ক্রিয় করুন (সুপার অ্যাডমিন)"
               >
                 {cycle?.isBigBazarEnabled ? (
                   <>
@@ -363,15 +436,20 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                 )}
               </button>
             ) : (
-              <span
-                className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold border ${
-                  cycle?.isBigBazarEnabled
-                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
-                    : 'bg-slate-800 text-slate-400 border-slate-700'
-                }`}
-              >
-                {cycle?.isBigBazarEnabled ? 'চালু' : 'বন্ধ'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold border ${
+                    cycle?.isBigBazarEnabled
+                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}
+                >
+                  {cycle?.isBigBazarEnabled ? 'চালু' : 'বন্ধ'}
+                </span>
+                <span className="text-[10px] text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-800 hidden sm:inline" title="বড় বাজার নিয়ন্ত্রণ কেবল সুপার অ্যাডমিনের হাতে">
+                  🔒 কেবল সুপার অ্যাডমিন নিয়ন্ত্রণ করতে পারেন
+                </span>
+              </div>
             )}
           </div>
 
@@ -497,6 +575,128 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* 4. 6-Month Data Archive & JSON Backup Hub */}
+      <div className="glass-panel rounded-2xl p-5 border border-cyan-500/30 bg-cyan-950/15 space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-bold text-cyan-300 flex items-center gap-2">
+              <Database className="w-4 h-4 text-cyan-400" />
+              ৬ মাসের ডাটা ব্যাকআপ ও হিস্ট্রি হাব (JSON Backup & Restore)
+            </h4>
+            <p className="text-xs text-slate-400 mt-0.5">
+              মেস ডাটাবেজের সম্পূর্ণ ৬ মাসের ডাটা অফলাইনে এক্সপোর্ট বা পূর্ববর্তী ব্যাকআপ ফাইল রিস্টোর করুন
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Hidden JSON file input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".json"
+              className="hidden"
+            />
+
+            {/* Export JSON Button */}
+            <button
+              onClick={handleExportBackup}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-all cursor-pointer"
+              title="সম্পূর্ণ ডাটাবেজ ব্যাকআপ JSON ফাইলে ডাউনলোড করুন"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{isExporting ? 'প্রসেসিং...' : 'ব্যাকআপ ডাউনলোড (JSON)'}</span>
+            </button>
+
+            {/* Import JSON Button */}
+            {isManager && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isImporting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 text-xs font-bold transition-all cursor-pointer"
+                title="পূর্ববর্তী ব্যাকআপ ফাইল থেকে ডাটা রিস্টোর করুন"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>রিস্টোর (JSON Import)</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Confirmation Modal when JSON is loaded */}
+        {pendingImportData && (
+          <div className="p-4 rounded-xl bg-slate-900 border border-cyan-500/50 space-y-3 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-2">
+                <FileJson className="w-4 h-4 text-cyan-400" />
+                ব্যাকআপ ফাইল প্রিভিউ ও নিশ্চিতকরণ
+              </span>
+              <button
+                onClick={() => setPendingImportData(null)}
+                className="text-slate-400 hover:text-white text-xs"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">মোট চক্র</span>
+                <strong className="text-slate-200">
+                  {pendingImportData.summary?.totalCycles || pendingImportData.data?.cycles?.length || 1} টি
+                </strong>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">মিল রেকর্ড</span>
+                <strong className="text-emerald-400">
+                  {pendingImportData.summary?.totalMeals || pendingImportData.data?.meals?.length || 0} টি
+                </strong>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">বাজার খরচ</span>
+                <strong className="text-purple-400">
+                  {pendingImportData.summary?.totalBazars || pendingImportData.data?.bazars?.length || 0} টি
+                </strong>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">মোট জমা</span>
+                <strong className="text-cyan-400">
+                  {pendingImportData.summary?.totalDeposits || pendingImportData.data?.deposits?.length || 0} টি
+                </strong>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-amber-300/90 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
+              ⚠️ <strong>সতর্কতা:</strong> ব্যাকআপ রিস্টোর করলে বর্তমান ডাটাবেজের রেকর্ডগুলোর সাথে ব্যাকআপের রেকর্ডগুলো মার্জ/আপডেট হবে।
+            </p>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setPendingImportData(null)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+              >
+                বাতিল
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmImport}
+                disabled={isImporting}
+                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-md shadow-cyan-600/30 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>{isImporting ? 'রিস্টোর হচ্ছে...' : 'হ্যাঁ, রিস্টোর নিশ্চিত করুন'}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+          💡 <strong>৬ মাসের হিস্ট্রি পলিসি:</strong> মেস ম্যানেজারে বিগত ৬ মাসের সকল চক্রের ব্যালেন্স, মিল হাজিরা এবং বাজার ভাউচার স্বয়ংক্রিয়ভাবে সংরক্ষিত থাকে। যেকোনো সময় উপরের সাইকেল ড্রপডাউন থেকে পূর্ববর্তী মাস নির্বাচন করে দেখতে পারবেন। এছাড়া দীর্ঘমেয়াদে অফলাইন সংরক্ষণের জন্য প্রতি মাসান্তে JSON ব্যাকআপ ডাউনলোড করে রাখা অত্যন্ত নিরাপদ ও কার্যকর।
         </div>
       </div>
     </div>

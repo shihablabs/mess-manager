@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Wallet, X } from 'lucide-react';
+import { Wallet, X, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface DepositModalProps {
@@ -29,12 +29,13 @@ export const DepositModal: React.FC<DepositModalProps> = ({
   // Ensure selectedUser is correctly initialized when modal opens or members change
   useEffect(() => {
     if (diningMembers.length > 0) {
+      if (selectedUser === 'mess_fund') return;
       const currentValid = diningMembers.some((m) => (m.userId || m._id) === selectedUser);
       if (!currentValid) {
         setSelectedUser(diningMembers[0].userId || diningMembers[0]._id);
       }
     }
-  }, [members, isOpen, selectedUser]);
+  }, [diningMembers, isOpen, selectedUser]);
 
   if (!isOpen) return null;
 
@@ -96,22 +97,38 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
           <div>
-            <label className="block text-slate-400 mb-1 font-medium">সদস্য বাছাই করুন</label>
+            <label className="block text-slate-400 mb-1 font-medium">জমাগ্রহীতা বা ফান্ড বাছাই করুন</label>
             <select
               value={selectedUser}
               onChange={(e) => setSelectedUser(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-emerald-500 cursor-pointer"
             >
-              {diningMembers.map((m) => {
-                const id = m.userId || m._id;
-                return (
-                  <option key={id} value={id}>
-                    {m.name} {m.role === 'admin' ? '(মেস ম্যানেজার)' : ''}
-                  </option>
-                );
-              })}
+              <optgroup label="🏦 সাধারণ তহবিল / সরাসরি বিল">
+                <option value="mess_fund">
+                  🏦 মেস সাধারণ তহবিল (ক্যাশ বাক্স / সরাসরি ইউটিলিটি পরিশোধ)
+                </option>
+              </optgroup>
+              <optgroup label="👤 মেস সদস্যদের ব্যক্তিগত জমা">
+                {diningMembers.map((m) => {
+                  const id = m.userId || m._id;
+                  return (
+                    <option key={id} value={id}>
+                      {m.name} {m.role === 'admin' ? '(মেস ম্যানেজার)' : ''}
+                    </option>
+                  );
+                })}
+              </optgroup>
             </select>
           </div>
+
+          {selectedUser === 'mess_fund' && (
+            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-xs flex items-start gap-2">
+              <Info className="w-4 h-4 shrink-0 mt-0.5 text-indigo-400" />
+              <div className="leading-relaxed">
+                <strong>সরাসরি ইউটিলিটি / ক্যাশ তহবিল মোড:</strong> এই টাকা কোনো একক সদস্যের ব্যক্তিগত মেস ডাইনিং ব্যালেন্সে যোগ হবে না। এটি সরাসরি মেসের ক্যাশ বক্সে / সাধারণ ইউটিলিটি তহবিল হিসেবে সংরক্ষিত থাকবে।
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-slate-400 mb-1 font-medium">জমার ধরন</label>

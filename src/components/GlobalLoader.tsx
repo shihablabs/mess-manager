@@ -11,7 +11,7 @@ interface GlobalLoaderProps {
 
 export const GlobalLoader: React.FC<GlobalLoaderProps> = ({
   message = 'লোড হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...',
-  subMessage = 'Developer Zone • স্মার্ট মেস ইআরপি',
+  subMessage = 'Developer Zone • স্মার্ট মেস ম্যানেজার',
   fullScreen = true,
 }) => {
   const content = (
