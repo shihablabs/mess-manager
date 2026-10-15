@@ -22,7 +22,7 @@ export interface MemberMealRecord {
   date: string;
   slotId: string;
   weight: number;
-  consumed: boolean;
+  consumed: boolean | number;
 }
 
 export interface FixedEventInput {

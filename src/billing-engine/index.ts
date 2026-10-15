@@ -53,7 +53,8 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
   for (const record of mealRecords) {
     if (record.consumed && memberMealUnitsMap.has(record.userId)) {
       const current = memberMealUnitsMap.get(record.userId) || 0;
-      memberMealUnitsMap.set(record.userId, current + record.weight);
+      const count = typeof (record as any).consumed === 'number' ? (record as any).consumed : (record.consumed ? 1 : 0);
+      memberMealUnitsMap.set(record.userId, current + record.weight * count);
     }
   }
 

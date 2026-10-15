@@ -109,7 +109,7 @@ export interface MealDoc {
   date: string; // YYYY-MM-DD
   slotId: string; // 'morning' | 'night'
   weight: number;
-  consumed: boolean; // default true (খাবে)
+  consumed: boolean | number; // boolean or count (e.g. 1, 2, 0)
   source: 'default' | 'request' | 'admin';
   updatedAt: Date;
 }

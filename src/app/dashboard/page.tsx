@@ -201,6 +201,8 @@ export default function DashboardPage() {
           {activeTab === 'meals' && (
             <MealsTab
               currentUser={currentUser}
+              members={members}
+              cycle={summaryData?.cycle}
               requests={mealRequests}
               onRefresh={fetchData}
               onOpenRequestModal={() => setIsMealRequestOpen(true)}
