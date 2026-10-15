@@ -19,12 +19,19 @@ export async function GET(request: Request) {
       userId: u._id,
       name: u.name,
       email: u.email,
-      phone: u.phone,
+      phone: u.phone || '',
+      whatsapp: u.whatsapp || '',
+      dob: u.dob || '',
+      address: u.address || '',
+      bio: u.bio || '',
+      bloodGroup: u.bloodGroup || '',
+      emergencyContact: u.emergencyContact || '',
+      occupation: u.occupation || '',
       image: u.image,
       role: (u.role || mem?.role || 'member') as UserRole,
-      status: mem?.status || 'active',
+      status: (mem?.status || 'pending') as any,
       roomRent: mc ? mc.roomRent : 0,
-      isActiveInCycle: mc ? mc.isActive : true,
+      isActiveInCycle: mc ? Boolean(mc.isActive) : false,
       isUtilityExempt: Boolean((mc as any)?.isUtilityExempt),
       leftDate: mc?.leftDate,
     };
@@ -175,13 +182,71 @@ export async function POST(request: Request) {
       }
 
       if (db) {
+        const uId = userId.toString();
         await db.collection('memberships').updateOne(
-          { userId: userId.toString() },
-          { $set: { status: 'inactive', updatedAt: new Date() } }
+          { userId: uId },
+          { $set: { status: 'rejected', updatedAt: new Date() } }
+        );
+        // Remove cycle association so user is not active anywhere
+        await db.collection('member_cycles').deleteMany({
+          userId: uId,
+        });
+      }
+
+      return NextResponse.json({ success: true, message: 'সদস্যের রেজিস্ট্রেশন সফলভাবে বাতিল (Rejected) করা হয়েছে' });
+    }
+
+    // Permanently delete a member and clean up records (Super Admin only)
+    if (action === 'delete_member') {
+      if (!userId) {
+        return NextResponse.json({ success: false, error: 'ইউজার আইডি আবশ্যক' }, { status: 400 });
+      }
+
+      if (db) {
+        const uId = userId.toString();
+        await db.collection('users').deleteOne({
+          $or: [{ _id: new ObjectId(uId) as any }, { _id: uId as any }],
+        });
+        await db.collection('memberships').deleteMany({ userId: uId });
+        await db.collection('member_cycles').deleteMany({ userId: uId });
+      }
+
+      return NextResponse.json({ success: true, message: 'সদস্য সফলভাবে মুছে ফেলা হয়েছে' });
+    }
+
+    // Update user profile credentials & display name
+    if (action === 'update_profile') {
+      if (!userId) {
+        return NextResponse.json({ success: false, error: 'ইউজার আইডি আবশ্যক' }, { status: 400 });
+      }
+
+      const updateData: Partial<UserDoc> = {
+        updatedAt: new Date(),
+      };
+
+      if (body.name && typeof body.name === 'string') updateData.name = body.name.trim();
+      if (body.phone !== undefined) updateData.phone = String(body.phone).trim();
+      if (body.whatsapp !== undefined) updateData.whatsapp = String(body.whatsapp).trim();
+      if (body.dob !== undefined) updateData.dob = String(body.dob).trim();
+      if (body.address !== undefined) updateData.address = String(body.address).trim();
+      if (body.bio !== undefined) updateData.bio = String(body.bio).trim();
+      if (body.bloodGroup !== undefined) updateData.bloodGroup = String(body.bloodGroup).trim();
+      if (body.emergencyContact !== undefined) updateData.emergencyContact = String(body.emergencyContact).trim();
+      if (body.occupation !== undefined) updateData.occupation = String(body.occupation).trim();
+
+      if (db) {
+        const uId = userId.toString();
+        await db.collection('users').updateOne(
+          { $or: [{ _id: new ObjectId(uId) as any }, { _id: uId as any }] },
+          { $set: updateData }
         );
       }
 
-      return NextResponse.json({ success: true, message: 'সদস্য বাতিল করা হয়েছে' });
+      return NextResponse.json({
+        success: true,
+        message: 'প্রোফাইল তথ্য সফলভাবে সংরক্ষণ করা হয়েছে',
+        updated: updateData,
+      });
     }
 
     // Update room rent

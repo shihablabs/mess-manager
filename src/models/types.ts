@@ -1,7 +1,7 @@
 import { ObjectId } from 'mongodb';
 
 export type UserRole = 'super_admin' | 'admin' | 'member';
-export type MembershipStatus = 'pending' | 'active' | 'inactive';
+export type MembershipStatus = 'pending' | 'active' | 'inactive' | 'rejected';
 export type CycleStatus = 'open' | 'closed';
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
 export type BazarType = 'regular' | 'fixed' | 'extra' | 'big';
@@ -33,11 +33,18 @@ export interface MessDoc {
 // 2. Users
 export interface UserDoc {
   _id?: ObjectId | string;
-  name: string;
+  name: string; // Editable display name
   email: string;
   role?: UserRole;
   image?: string;
   phone?: string;
+  whatsapp?: string;
+  dob?: string; // Date of birth: YYYY-MM-DD
+  address?: string; // Present / Permanent address
+  bio?: string; // Bio or description
+  bloodGroup?: string; // e.g. 'A+', 'B+', 'O+', etc.
+  emergencyContact?: string; // Emergency phone number / person
+  occupation?: string; // Profession / Student / Job
   createdAt: Date;
   updatedAt: Date;
 }

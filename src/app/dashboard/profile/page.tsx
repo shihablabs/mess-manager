@@ -40,6 +40,14 @@ import {
   ExternalLink,
   Check,
   X,
+  Phone,
+  MessageCircle,
+  MapPin,
+  Edit3,
+  Heart,
+  Briefcase,
+  Copy,
+  Save,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -184,6 +192,94 @@ function ProfileContent() {
       (r) => r.toUserId === effectiveUserId && r.status === 'pending'
     );
   }, [slotRequests, effectiveUserId]);
+
+  // Helper: Calculate age from DOB
+  const calculateAge = (dobString?: string) => {
+    if (!dobString) return null;
+    const birthDate = new Date(dobString);
+    if (isNaN(birthDate.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age > 0 ? `${age} বছর` : null;
+  };
+
+  // Profile Edit States
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editWhatsapp, setEditWhatsapp] = useState('');
+  const [editDob, setEditDob] = useState('');
+  const [editBloodGroup, setEditBloodGroup] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editEmergencyContact, setEditEmergencyContact] = useState('');
+  const [editOccupation, setEditOccupation] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const openEditProfile = () => {
+    setEditName(targetMember?.name || currentUser?.name || '');
+    setEditPhone(targetMember?.phone || '');
+    setEditWhatsapp(targetMember?.whatsapp || '');
+    setEditDob(targetMember?.dob || '');
+    setEditBloodGroup(targetMember?.bloodGroup || '');
+    setEditAddress(targetMember?.address || '');
+    setEditBio(targetMember?.bio || '');
+    setEditEmergencyContact(targetMember?.emergencyContact || '');
+    setEditOccupation(targetMember?.occupation || '');
+    setIsEditProfileOpen(true);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editName.trim()) {
+      toast.warning('সদস্যের নাম বা ডিসপ্লে নাম আবশ্যক');
+      return;
+    }
+
+    try {
+      setIsSavingProfile(true);
+      const res = await fetch('/api/user/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: effectiveUserId,
+          name: editName.trim(),
+          phone: editPhone.trim(),
+          whatsapp: editWhatsapp.trim(),
+          dob: editDob,
+          bloodGroup: editBloodGroup.trim(),
+          address: editAddress.trim(),
+          bio: editBio.trim(),
+          emergencyContact: editEmergencyContact.trim(),
+          occupation: editOccupation.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setIsEditProfileOpen(false);
+        await refreshData();
+        Swal.fire({
+          title: 'প্রোফাইল তথ্য সংরক্ষিত হয়েছে!',
+          text: 'আপনার ডিসপ্লে নাম ও ব্যক্তিগত তথ্য সফলভাবে আপডেট করা হয়েছে।',
+          icon: 'success',
+          confirmButtonColor: '#4f46e5',
+          background: '#0f172a',
+          color: '#f8fafc',
+        });
+      } else {
+        toast.error(data.error || 'আপডেট করতে ব্যর্থ হয়েছে');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'ত্রুটি ঘটেছে');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   // Send peer-to-peer swap request
   const handleSendPeerSwap = async (e: React.FormEvent) => {
@@ -550,6 +646,17 @@ function ProfileContent() {
 
           {/* Action Buttons: Print Statement & Deposit */}
           <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end flex-wrap">
+            {(isViewingSelf || isSuperAdmin) && (
+              <button
+                onClick={openEditProfile}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-white text-xs font-semibold border border-indigo-500/30 transition-all cursor-pointer shadow-sm"
+                title="ইউজার নাম ও ব্যক্তিগত তথ্য পরিবর্তন করুন"
+              >
+                <Edit3 className="w-4 h-4 text-indigo-400" />
+                প্রোফাইল এডিট
+              </button>
+            )}
+
             {calculationResult && (
               <button
                 onClick={() => openStatement(calculationResult)}
@@ -568,6 +675,176 @@ function ProfileContent() {
               <Plus className="w-4 h-4" />
               টাকা জমা দিন
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* PERSONAL PROFILE & CREDENTIALS CARD */}
+      <div className="glass-panel rounded-3xl p-5 sm:p-6 border border-slate-800 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800/80 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+              <User className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-white">ব্যক্তিগত প্রোফাইল ও যোগাযোগের তথ্য</h4>
+              <p className="text-[11px] text-slate-400">মেস সদস্যদের জরুরি যোগাযোগ ও পরিচিতি রেকর্ড</p>
+            </div>
+          </div>
+          {(isViewingSelf || isSuperAdmin) && (
+            <button
+              onClick={openEditProfile}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              তথ্য পরিবর্তন করুন
+            </button>
+          )}
+        </div>
+
+        {/* Credentials Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* Display Name */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+            <span className="text-[10px] text-slate-400 block font-medium">ডিসপ্লে / ইউজার নাম</span>
+            <div className="text-sm font-bold text-white truncate flex items-center gap-1.5">
+              <span>{targetMember?.name}</span>
+            </div>
+          </div>
+
+          {/* Email with Google Verified */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+            <span className="text-[10px] text-slate-400 block font-medium">গুগল ইমেইল</span>
+            <div className="text-xs font-semibold text-slate-200 truncate flex items-center gap-1">
+              <span className="truncate">{targetMember?.email}</span>
+              <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1 rounded shrink-0">
+                Google ✓
+              </span>
+            </div>
+          </div>
+
+          {/* Phone */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+            <span className="text-[10px] text-slate-400 block font-medium">মোবাইল নম্বর</span>
+            {targetMember?.phone ? (
+              <a
+                href={`tel:${targetMember.phone}`}
+                className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 transition-colors"
+                title="কল করতে ক্লিক করুন"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>{targetMember.phone}</span>
+              </a>
+            ) : (
+              <span className="text-xs text-slate-500 italic">যোগ করা হয়নি</span>
+            )}
+          </div>
+
+          {/* WhatsApp */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+            <span className="text-[10px] text-slate-400 block font-medium">হোয়াটসঅ্যাপ (WhatsApp)</span>
+            {targetMember?.whatsapp ? (
+              <a
+                href={`https://wa.me/${targetMember.whatsapp.replace(/[^0-9]/g, '')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 transition-colors"
+                title="হোয়াটসঅ্যাপে মেসেজ পাঠান"
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{targetMember.whatsapp}</span>
+              </a>
+            ) : (
+              <span className="text-xs text-slate-500 italic">যোগ করা হয়নি</span>
+            )}
+          </div>
+
+          {/* Date of Birth & Age */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+            <span className="text-[10px] text-slate-400 block font-medium">জন্ম তারিখ ও বয়স</span>
+            {targetMember?.dob ? (
+              <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                <span>{targetMember.dob}</span>
+                {calculateAge(targetMember.dob) && (
+                  <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.2 rounded font-semibold">
+                    {calculateAge(targetMember.dob)}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-xs text-slate-500 italic">যোগ করা হয়নি</span>
+            )}
+          </div>
+
+          {/* Blood Group */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+            <span className="text-[10px] text-slate-400 block font-medium">রক্তের গ্রুপ</span>
+            {targetMember?.bloodGroup ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-black">
+                <Heart className="w-3 h-3 text-rose-400 fill-rose-400/30" />
+                {targetMember.bloodGroup}
+              </span>
+            ) : (
+              <span className="text-xs text-slate-500 italic">অজ্ঞাত</span>
+            )}
+          </div>
+
+          {/* Occupation */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+            <span className="text-[10px] text-slate-400 block font-medium">পেশা / প্রতিষ্ঠান</span>
+            {targetMember?.occupation ? (
+              <div className="text-xs font-semibold text-slate-200 flex items-center gap-1.5 truncate">
+                <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate">{targetMember.occupation}</span>
+              </div>
+            ) : (
+              <span className="text-xs text-slate-500 italic">যোগ করা হয়নি</span>
+            )}
+          </div>
+
+          {/* Emergency Contact */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+            <span className="text-[10px] text-slate-400 block font-medium">জরুরি যোগাযোগ নম্বর</span>
+            {targetMember?.emergencyContact ? (
+              <a
+                href={`tel:${targetMember.emergencyContact}`}
+                className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1.5 transition-colors"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>{targetMember.emergencyContact}</span>
+              </a>
+            ) : (
+              <span className="text-xs text-slate-500 italic">যোগ করা হয়নি</span>
+            )}
+          </div>
+        </div>
+
+        {/* Address & Bio Rows */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1">
+          {/* Address */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+            <span className="text-[10px] text-slate-400 block font-medium flex items-center gap-1">
+              <MapPin className="w-3 h-3 text-indigo-400" />
+              বর্তমান / স্থায়ী ঠিকানা
+            </span>
+            <p className="text-xs text-slate-200 leading-relaxed">
+              {targetMember?.address || (
+                <span className="text-slate-500 italic">ঠিকানা যুক্ত করা হয়নি</span>
+              )}
+            </p>
+          </div>
+
+          {/* Bio / Description */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+            <span className="text-[10px] text-slate-400 block font-medium flex items-center gap-1">
+              <FileText className="w-3 h-3 text-indigo-400" />
+              সংক্ষিপ্ত পরিচিতি / বিবরণ
+            </span>
+            <p className="text-xs text-slate-300 leading-relaxed italic">
+              {targetMember?.bio ? `“${targetMember.bio}”` : (
+                <span className="text-slate-500 not-italic">কোনো পরিচিতি বিবরণ যোগ করা হয়নি</span>
+              )}
+            </p>
           </div>
         </div>
       </div>
@@ -1546,6 +1823,175 @@ function ProfileContent() {
                   className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/25 transition-all cursor-pointer"
                 >
                   {isSubmittingSwap ? 'পাঠানো হচ্ছে...' : 'সোয়াপ অনুরোধ পাঠান'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PROFILE MODAL */}
+      {isEditProfileOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="glass-panel w-full max-w-2xl rounded-3xl border border-indigo-500/40 bg-slate-900/95 p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">প্রোফাইল তথ্য ও ডিসপ্লে নাম পরিবর্তন</h3>
+                  <p className="text-xs text-slate-400">আপনার ডিসপ্লে নাম ও যোগাযোগের ক্রেডেনশিয়াল আপডেট করুন</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEditProfileOpen(false)}
+                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Display Name */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    ডিসপ্লে / ইউজার নাম <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="আপনার নাম লিখুন"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all font-semibold"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    মেসের মিল খাতা, বাজার তালিকা ও ড্যাশবোর্ডে এই নামটি প্রদর্শিত হবে।
+                  </p>
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">মোবাইল নম্বর</label>
+                  <input
+                    type="tel"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    placeholder="017xxxxxxxx"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all"
+                  />
+                </div>
+
+                {/* WhatsApp */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">হোয়াটসঅ্যাপ নম্বর</label>
+                  <input
+                    type="tel"
+                    value={editWhatsapp}
+                    onChange={(e) => setEditWhatsapp(e.target.value)}
+                    placeholder="017xxxxxxxx"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all"
+                  />
+                </div>
+
+                {/* Date of Birth */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">জন্ম তারিখ</label>
+                  <input
+                    type="date"
+                    value={editDob}
+                    onChange={(e) => setEditDob(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all cursor-pointer"
+                  />
+                </div>
+
+                {/* Blood Group */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">রক্তের গ্রুপ</label>
+                  <select
+                    value={editBloodGroup}
+                    onChange={(e) => setEditBloodGroup(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all cursor-pointer"
+                  >
+                    <option value="">বাছাই করুন</option>
+                    <option value="A+">A+ (A Positive)</option>
+                    <option value="A-">A- (A Negative)</option>
+                    <option value="B+">B+ (B Positive)</option>
+                    <option value="B-">B- (B Negative)</option>
+                    <option value="O+">O+ (O Positive)</option>
+                    <option value="O-">O- (O Negative)</option>
+                    <option value="AB+">AB+ (AB Positive)</option>
+                    <option value="AB-">AB- (AB Negative)</option>
+                  </select>
+                </div>
+
+                {/* Occupation */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">পেশা / প্রতিষ্ঠান</label>
+                  <input
+                    type="text"
+                    value={editOccupation}
+                    onChange={(e) => setEditOccupation(e.target.value)}
+                    placeholder="যেমন: সফটওয়্যার ইঞ্জিনিয়ার / শিক্ষার্থী"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all"
+                  />
+                </div>
+
+                {/* Emergency Contact */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">জরুরি যোগাযোগ নম্বর</label>
+                  <input
+                    type="tel"
+                    value={editEmergencyContact}
+                    onChange={(e) => setEditEmergencyContact(e.target.value)}
+                    placeholder="অভিভাবক বা জরুরি নম্বর"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all"
+                  />
+                </div>
+
+                {/* Address */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">বর্তমান / স্থায়ী ঠিকানা</label>
+                  <input
+                    type="text"
+                    value={editAddress}
+                    onChange={(e) => setEditAddress(e.target.value)}
+                    placeholder="গ্রাম/বাড়ি, থানা/উপজেলা, জেলা"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all"
+                  />
+                </div>
+
+                {/* Bio */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">সংক্ষিপ্ত পরিচিতি (Bio / বিবরণ)</label>
+                  <textarea
+                    rows={2}
+                    value={editBio}
+                    onChange={(e) => setEditBio(e.target.value)}
+                    placeholder="নিজের সম্পর্কে সংক্ষিপ্ত পরিচিতি..."
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsEditProfileOpen(false)}
+                  disabled={isSavingProfile}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingProfile}
+                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSavingProfile ? 'সংরক্ষণ হচ্ছে...' : 'তথ্য সংরক্ষণ করুন'}</span>
                 </button>
               </div>
             </form>

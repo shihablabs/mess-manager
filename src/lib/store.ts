@@ -141,13 +141,18 @@ export class MessStore {
     // Super admin is strictly an overseer/controller and never part of dining calculations
     const membersInput = this.users
       .filter((u) => u.role !== 'super_admin')
+      .filter((u) => {
+        const mem = this.memberships.find((m) => m.userId === u._id);
+        // Only active memberships participate in dining cycle calculations
+        return mem ? mem.status === 'active' : true;
+      })
       .map((u) => {
       const mc = this.memberCycles.find((m) => m.userId === u._id && m.cycleId === cycleId);
       return {
         userId: u._id as string,
         name: u.name,
         roomRent: mc ? mc.roomRent : 0,
-        isActive: mc ? mc.isActive : true,
+        isActive: mc ? mc.isActive : false,
         leftDate: mc?.leftDate,
         isUtilityExempt: (mc as any)?.isUtilityExempt ?? false,
       };

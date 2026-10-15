@@ -18,6 +18,10 @@ import {
   DollarSign,
   UserCheck,
   User,
+  Phone,
+  MessageCircle,
+  MapPin,
+  Trash2,
 } from 'lucide-react';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
@@ -69,7 +73,8 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   const isManagerOrSuperAdmin = isSuperAdmin || currentUser.role === 'admin';
 
   const pendingMembers = members.filter((m) => m.status === 'pending');
-  const activeMembers = members.filter((m) => m.status !== 'pending');
+  const activeMembers = members.filter((m) => m.status === 'active');
+  const rejectedMembers = members.filter((m) => m.status === 'rejected' || m.status === 'inactive');
 
   // 1. Approve pending member
   const handleApprove = async (userId: string) => {
@@ -102,7 +107,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
 
   // 2. Reject pending member
   const handleReject = async (userId: string) => {
-    const confirmReject = confirm('আপনি কি নিশ্চিত যে এই সদস্যের রেজিস্ট্রেশন বাতিল করতে চান?');
+    const confirmReject = confirm('আপনি কি নিশ্চিত যে এই ইউজারের রেজিস্ট্রেশনের আবেদন বাতিল (Reject) করতে চান?');
     if (!confirmReject) return;
     try {
       setIsSubmitting(true);
@@ -116,10 +121,38 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('সদস্যের রেজিস্ট্রেশন সফলভাবে বাতিল করা হয়েছে');
+        toast.success('সদস্যের রেজিস্ট্রেশন বাতিল করা হয়েছে');
         onRefresh();
       } else {
         toast.error(data.error || 'বাতিল ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 2.1 Permanently delete member (Super Admin)
+  const handleDeleteMember = async (userId: string) => {
+    const confirmDelete = confirm('আপনি কি নিশ্চিত যে এই ইউজারের সমস্ত ডাটা স্থায়ীভাবে মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না!');
+    if (!confirmDelete) return;
+    try {
+      setIsSubmitting(true);
+      const res = await fetch('/api/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_member',
+          userId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('সদস্যের ডাটা ডাটাবেজ থেকে স্থায়ীভাবে মুছে ফেলা হয়েছে');
+        onRefresh();
+      } else {
+        toast.error(data.error || 'মুছে ফেলতে ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
       toast.error(e.message || 'ত্রুটি ঘটেছে');
@@ -428,6 +461,86 @@ export const MembersTab: React.FC<MembersTabProps> = ({
         </div>
       )}
 
+      {/* REJECTED / INACTIVE MEMBERS SECTION */}
+      {isManagerOrSuperAdmin && rejectedMembers.length > 0 && (
+        <div className="glass-panel rounded-2xl p-5 border border-rose-500/30 bg-rose-950/20 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-bold text-rose-300 flex items-center gap-2">
+              <XCircle className="w-4 h-4 text-rose-400" />
+              বাতিলকৃত রেজিস্ট্রেশনের আবেদন ({rejectedMembers.length} জন)
+            </h4>
+            <span className="text-[11px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2.5 py-0.5 rounded-full font-semibold">
+              বাতিল / স্থগিত
+            </span>
+          </div>
+          <p className="text-xs text-slate-300">
+            নিচের ইউজারদের আবেদন পূর্বে বাতিল (Reject) করা হয়েছিল। মেসের প্রয়োজনে চাইলে তাঁদের রুম ভাড়া নির্ধারণ করে পুনরায় অনুমোদন করতে পারবেন অথবা ডাটাবেজ থেকে চিরতরে মুছে ফেলতে পারবেন।
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            {rejectedMembers.map((rm) => (
+              <div
+                key={rm.userId}
+                className="p-4 rounded-xl bg-slate-900/90 border border-rose-500/30 flex flex-col justify-between gap-3"
+              >
+                <div className="flex items-center gap-3">
+                  <img
+                    src={rm.image}
+                    alt={rm.name}
+                    className="w-10 h-10 rounded-full bg-slate-800 border border-rose-500/40 object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-white truncate flex items-center gap-2">
+                      <span>{rm.name}</span>
+                      <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1.5 py-0.2 rounded font-mono">
+                        বাতিলকৃত
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-400 truncate">{rm.email}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800 gap-2">
+                  <div className="flex-1">
+                    <label className="block text-[10px] text-slate-400 mb-0.5">নির্ধারিত রুম ভাড়া (৳)</label>
+                    <input
+                      type="number"
+                      placeholder="3000"
+                      value={pendingRentMap[rm.userId] ?? '3000'}
+                      onChange={(e) =>
+                        setPendingRentMap({ ...pendingRentMap, [rm.userId]: e.target.value })
+                      }
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div className="flex items-end gap-1.5 pt-3">
+                    <button
+                      onClick={() => handleApprove(rm.userId)}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer shadow"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      পুনরায় অনুমোদন
+                    </button>
+                    {isSuperAdmin && (
+                      <button
+                        onClick={() => handleDeleteMember(rm.userId)}
+                        disabled={isSubmitting}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-600 text-white text-xs font-medium transition-all cursor-pointer"
+                        title="ডাটাবেজ থেকে চিরতরে মুছুন"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        মুছুন
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* CYCLE & BIG BAZAR CONFIGURATION PANEL */}
       {isCycleSettingsOpen && isManagerOrSuperAdmin && (
         <form
@@ -636,6 +749,43 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                       )}
                     </h4>
                     <p className="text-xs text-slate-400 truncate">{mem.email}</p>
+                    {(mem.phone || mem.whatsapp || mem.bloodGroup) && (
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                        {mem.bloodGroup && (
+                          <span className="text-[10px] bg-rose-500/10 text-rose-300 border border-rose-500/30 px-1.5 py-0.2 rounded-full font-bold">
+                            🩸 {mem.bloodGroup}
+                          </span>
+                        )}
+                        {mem.phone && (
+                          <a
+                            href={`tel:${mem.phone}`}
+                            className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors"
+                            title="সরাসরি কল করুন"
+                          >
+                            <Phone className="w-2.5 h-2.5 text-emerald-400" />
+                            {mem.phone}
+                          </a>
+                        )}
+                        {mem.whatsapp && (
+                          <a
+                            href={`https://wa.me/${mem.whatsapp.replace(/[^0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors"
+                            title="হোয়াটসঅ্যাপে চ্যাট করুন"
+                          >
+                            <MessageCircle className="w-2.5 h-2.5 text-emerald-400" />
+                            WA
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {mem.address && (
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1 truncate pt-0.5">
+                        <MapPin className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                        <span className="truncate">{mem.address}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -11,9 +11,9 @@ import { NewBazarModal } from '@/components/NewBazarModal';
 import { NewFixedEventModal } from '@/components/NewFixedEventModal';
 import { MealRequestModal } from '@/components/MealRequestModal';
 import { DepositModal } from '@/components/DepositModal';
-import { useSession, signIn } from 'next-auth/react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
-import { ShieldAlert, Clock } from 'lucide-react';
+import { ShieldAlert, Clock, XCircle } from 'lucide-react';
 import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
 import { getMemberBillingResultSafe } from '@/lib/safe-utils';
 
@@ -87,6 +87,48 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
               className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3.5 px-5 rounded-xl shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
             >
               স্ট্যাটাস রিফ্রেশ করুন
+            </button>
+            <Link
+              href="/"
+              className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-xs py-3.5 px-5 rounded-xl transition-all"
+            >
+              হোম পেজে ফিরে যান
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2.1. Rejected State: User was explicitly rejected by Admin
+  if (status === 'authenticated' && (currentUser?.status === 'rejected' || currentUser?.status === 'inactive')) {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+        <Navbar currentUser={currentUser} />
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto space-y-6">
+          <div className="w-20 h-20 rounded-3xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shadow-2xl shadow-rose-500/10">
+            <XCircle className="w-10 h-10 text-rose-500" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-[11px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-3 py-1 rounded-full font-semibold">
+              প্রবেশাধিকার বাতিল (Rejected)
+            </span>
+            <h2 className="text-2xl font-black text-white mt-2">আপনার আবেদনটি অনুমোদন করা হয়নি</h2>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              দুঃখিত <strong>{currentUser.name}</strong>, মেস কর্তৃপক্ষ এই গুগল অ্যাকাউন্টের মাধ্যমে মেসে যুক্ত হওয়ার আবেদনটি বাতিল (Reject) বা স্থগিত রেখেছেন।
+            </p>
+            <p className="text-xs text-slate-500">
+              এটি কোনো ভুলবশত হলে অনুগ্রহ করে মেস সুপার অ্যাডমিন বা ম্যানেজারের সাথে সরাসরি যোগাযোগ করুন।
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full pt-2">
+            <button
+              onClick={() => signOut({ callbackUrl: '/' })}
+              className="w-full flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs py-3.5 px-5 rounded-xl shadow-lg shadow-rose-500/25 transition-all cursor-pointer"
+            >
+              লগআউট করুন
             </button>
             <Link
               href="/"

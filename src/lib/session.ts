@@ -6,7 +6,15 @@ export interface AppUser {
   email: string;
   role: UserRole;
   image: string;
-  status?: 'pending' | 'active' | 'inactive';
+  status?: 'pending' | 'active' | 'inactive' | 'rejected';
+  phone?: string;
+  whatsapp?: string;
+  dob?: string;
+  address?: string;
+  bio?: string;
+  bloodGroup?: string;
+  emergencyContact?: string;
+  occupation?: string;
 }
 
 export const SUPER_ADMIN_EMAIL = 'shihab.warfaze@gmail.com';

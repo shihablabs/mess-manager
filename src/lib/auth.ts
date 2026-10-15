@@ -142,6 +142,9 @@ export const authOptions: NextAuthOptions = {
             const dbUser = await db.collection('users').findOne({ email: token.email });
             if (dbUser) {
               token.id = dbUser._id.toString();
+              if (dbUser.name) {
+                token.name = dbUser.name;
+              }
               // Google users can only be 'member' or promoted to 'admin' (manager)
               token.role = dbUser.role === 'super_admin' ? 'member' : (dbUser.role || 'member');
               const membership = await db.collection('memberships').findOne({
@@ -159,6 +162,9 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = token.id;
+        if (token.name) {
+          session.user.name = token.name;
+        }
         (session.user as any).role = token.role || 'member';
         (session.user as any).status =
           token.status || (token.role === 'super_admin' ? 'active' : 'pending');
