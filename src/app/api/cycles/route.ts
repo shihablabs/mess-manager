@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
+import { getDb } from '@/lib/db';
 import { CycleSnapshotDoc } from '@/models/types';
 
 export async function GET(request: Request) {
-  const store = getStore();
+  const store = await getStore();
   const { searchParams } = new URL(request.url);
-  const cycleId = searchParams.get('cycleId') || 'cycle_1';
+  const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
 
   const cycle = store.cycles.find((c) => c._id === cycleId);
   const snapshot = store.cycleSnapshots.find((s) => s.cycleId === cycleId);
@@ -20,50 +21,48 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const store = getStore();
+    const store = await getStore();
+    const db = await getDb();
     const body = await request.json();
-    const { action, cycleId = 'cycle_1', adminUserId = 'user_admin', carryAmount = 0, memberId, leftDate } = body;
+    const {
+      action,
+      cycleId = store.cycles[0]?._id as string || 'cycle_1',
+      adminUserId,
+      carryAmount = 0,
+      memberId,
+      leftDate,
+    } = body;
 
     const cycle = store.cycles.find((c) => c._id === cycleId);
     if (!cycle) {
       return NextResponse.json({ success: false, error: 'চক্র পাওয়া যায়নি' }, { status: 404 });
     }
 
-    // 1. Settle individual member leaving mid-cycle (SRS Section 4.10)
+    // 1. Settle individual member leaving mid-cycle
     if (action === 'settle_member') {
-      const mc = store.memberCycles.find((m) => m.userId === memberId && m.cycleId === cycleId);
-      if (!mc) {
-        return NextResponse.json({ success: false, error: 'সদস্যের তথ্য পাওয়া যায়নি' }, { status: 404 });
+      if (db) {
+        await db.collection('member_cycles').updateOne(
+          { userId: memberId, cycleId },
+          {
+            $set: {
+              isActive: false,
+              leftDate: leftDate || new Date().toISOString().split('T')[0],
+              individualSettled: true,
+              settledAt: new Date(),
+              updatedAt: new Date(),
+            },
+          }
+        );
       }
-
-      mc.isActive = false;
-      mc.leftDate = leftDate || new Date().toISOString().split('T')[0];
-      mc.individualSettled = true;
-      mc.settledAt = new Date();
-
-      const member = store.users.find((u) => u._id === memberId);
-      store.auditLogs.unshift({
-        _id: `log_${Date.now()}`,
-        messId: store.mess._id as string,
-        cycleId,
-        performedByUserId: adminUserId,
-        performedByUserName: 'Admin',
-        action: `${member?.name || 'সদস্য'}-এর মেস ছাড়ার হিসাব নিষ্পত্তি (Individual Settlement) করা হয়েছে`,
-        targetCollection: 'memberCycles',
-        targetId: mc._id as string,
-        createdAt: new Date(),
-      });
-
       return NextResponse.json({ success: true, message: 'সদস্যের হিসাব সফলভাবে নিষ্পত্তি হয়েছে' });
     }
 
-    // 2. Close Cycle and create snapshot (SRS Section 7.6)
+    // 2. Close Cycle and create snapshot
     if (action === 'close_cycle') {
       if (cycle.status === 'closed') {
         return NextResponse.json({ success: false, error: 'এই চক্রটি ইতোমধ্যে বন্ধ করা হয়েছে' }, { status: 400 });
       }
 
-      // Compute final calculation
       cycle.bigBazarCarryToNext = Number(carryAmount) || 0;
       const finalBilling = store.computeCurrentCycleBilling(cycleId);
 
@@ -72,7 +71,7 @@ export async function POST(request: Request) {
         cycleId,
         messId: store.mess._id as string,
         closedAt: new Date(),
-        closedBy: adminUserId,
+        closedBy: adminUserId || 'admin',
         mealRate: finalBilling.mealRate,
         totalMealUnits: finalBilling.totalMealUnits,
         mealPoolTotal: finalBilling.mealPoolTotal,
@@ -96,21 +95,20 @@ export async function POST(request: Request) {
         summaryNote: `চক্র সমাপ্তি: মিল রেট ৳${finalBilling.mealRate}, মোট মিল ${finalBilling.totalMealUnits}`,
       };
 
-      store.cycleSnapshots.push(snapshot);
-      cycle.status = 'closed';
-      cycle.closedAt = new Date();
-
-      store.auditLogs.unshift({
-        _id: `log_${Date.now()}`,
-        messId: store.mess._id as string,
-        cycleId,
-        performedByUserId: adminUserId,
-        performedByUserName: 'Admin',
-        action: `হিসাব চক্র #${cycleId} বন্ধ করা হয়েছে এবং চূড়ান্ত স্ন্যাপশট সংরক্ষিত হয়েছে`,
-        targetCollection: 'cycles',
-        targetId: cycleId,
-        createdAt: new Date(),
-      });
+      if (db) {
+        await db.collection('cycle_snapshots').insertOne(snapshot as any);
+        await db.collection('cycles').updateOne(
+          { _id: cycleId },
+          {
+            $set: {
+              status: 'closed',
+              closedAt: new Date(),
+              bigBazarCarryToNext: Number(carryAmount) || 0,
+              updatedAt: new Date(),
+            },
+          }
+        );
+      }
 
       return NextResponse.json({
         success: true,
@@ -119,10 +117,14 @@ export async function POST(request: Request) {
       });
     }
 
-    // 3. Re-open cycle (if admin permits)
+    // 3. Re-open cycle
     if (action === 'reopen_cycle') {
-      cycle.status = 'open';
-      cycle.closedAt = null;
+      if (db) {
+        await db.collection('cycles').updateOne(
+          { _id: cycleId },
+          { $set: { status: 'open', closedAt: null, updatedAt: new Date() } }
+        );
+      }
       return NextResponse.json({ success: true, message: 'চক্র পুনরায় উন্মুক্ত করা হয়েছে' });
     }
 

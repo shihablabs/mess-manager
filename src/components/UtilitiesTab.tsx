@@ -54,6 +54,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
 
   const generalDeposits = deposits.filter((d) => d.type === 'general');
   const bigBazarDeposits = deposits.filter((d) => d.type === 'big_bazar');
+  const isManager = currentUser.role === 'admin' || currentUser.role === 'super_admin';
 
   return (
     <div className="space-y-6">
@@ -69,7 +70,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
           </p>
         </div>
 
-        {currentUser.role === 'admin' && (
+        {isManager && (
           <button
             onClick={onOpenDepositModal}
             className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-500/25 transition-all"
@@ -106,7 +107,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
             ))}
           </div>
 
-          {currentUser.role === 'admin' && (
+          {isManager && (
             <div className="border-t border-slate-800 pt-3">
               {!isAddingBill ? (
                 <button

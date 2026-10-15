@@ -14,12 +14,14 @@ import {
   DepositDoc,
   CycleSnapshotDoc,
   AuditLogDoc,
+  UserRole,
 } from '@/models/types';
 import { calculateBilling } from '@/billing-engine';
 import { BillingEngineInput, BillingEngineOutput } from '@/billing-engine/types';
+import { getDb, isMongoConfigured } from '@/lib/db';
+import { SUPER_ADMIN_EMAIL } from '@/lib/session';
 
-// In-Memory Seed Storage for seamless testing, serverless persistence, and MongoDB mirroring
-class MessStore {
+export class MessStore {
   mess: MessDoc = {
     _id: 'mess_1',
     name: 'শান্তিনীড় মেস',
@@ -33,146 +35,33 @@ class MessStore {
     fixedMealTimeDefault: 'lunch',
     fixedExtraWeightDefault: 0.5,
     allowMembersViewOthersBalance: true,
-    createdAt: new Date('2026-10-01'),
-    updatedAt: new Date('2026-10-01'),
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
   users: UserDoc[] = [
     {
-      _id: 'user_admin',
-      name: 'মুহাম্মদ শিহাব উদ্দিন (Admin)',
-      email: 'admin@mess.com',
-      image: 'https://api.dicebear.com/7.x/bottts/svg?seed=admin',
-      phone: '01700000001',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'user_1',
-      name: 'সদস্য ক (রাফি)',
-      email: 'rafi@mess.com',
-      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=rafi',
-      phone: '01700000002',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'user_2',
-      name: 'সদস্য খ (তানভীর)',
-      email: 'tanvir@mess.com',
-      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=tanvir',
-      phone: '01700000003',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'user_3',
-      name: 'সদস্য গ (হাসান)',
-      email: 'hasan@mess.com',
-      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=hasan',
-      phone: '01700000004',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'user_4',
-      name: 'সদস্য ঘ (মাহমুদ)',
-      email: 'mahmud@mess.com',
-      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=mahmud',
-      phone: '01700000005',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'user_5',
-      name: 'সদস্য ঙ (সাকিব)',
-      email: 'sakib@mess.com',
-      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sakib',
-      phone: '01700000006',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'user_6',
-      name: 'সদস্য চ (জাহিদ)',
-      email: 'zahid@mess.com',
-      image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zahid',
-      phone: '01700000007',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
+      _id: '6ad084c58790b3c278c86efa',
+      name: 'Shihab Uddin',
+      email: SUPER_ADMIN_EMAIL,
+      image: 'https://lh3.googleusercontent.com/a/ACg8ocJYyl_ytE7bX3w_IDsC1mzZRx63hG2MnjbhemMnBZ0rLUm47utI=s96-c',
+      role: 'super_admin',
+      phone: '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   ];
 
   memberships: MembershipDoc[] = [
     {
-      _id: 'm_admin',
-      userId: 'user_admin',
+      _id: 'm_shihab',
+      userId: '6ad084c58790b3c278c86efa',
       messId: 'mess_1',
-      role: 'admin',
+      role: 'super_admin',
       status: 'active',
       joinedDate: '2026-10-01',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'm_1',
-      userId: 'user_1',
-      messId: 'mess_1',
-      role: 'member',
-      status: 'active',
-      joinedDate: '2026-10-01',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'm_2',
-      userId: 'user_2',
-      messId: 'mess_1',
-      role: 'member',
-      status: 'active',
-      joinedDate: '2026-10-01',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'm_3',
-      userId: 'user_3',
-      messId: 'mess_1',
-      role: 'member',
-      status: 'active',
-      joinedDate: '2026-10-01',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'm_4',
-      userId: 'user_4',
-      messId: 'mess_1',
-      role: 'member',
-      status: 'active',
-      joinedDate: '2026-10-01',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'm_5',
-      userId: 'user_5',
-      messId: 'mess_1',
-      role: 'member',
-      status: 'active',
-      joinedDate: '2026-10-01',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
-    },
-    {
-      _id: 'm_6',
-      userId: 'user_6',
-      messId: 'mess_1',
-      role: 'member',
-      status: 'active',
-      joinedDate: '2026-10-01',
-      createdAt: new Date('2026-10-01'),
-      updatedAt: new Date('2026-10-01'),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   ];
 
@@ -180,326 +69,52 @@ class MessStore {
     {
       _id: 'cycle_1',
       messId: 'mess_1',
-      name: '১০ অক্টোবর – ১০ নভেম্বর ২০২৬',
-      startDate: '2026-10-10',
-      endDate: '2026-11-10',
+      name: 'অক্টোবর ২০২৬',
+      month: '2026-10',
+      startDate: '2026-10-01',
+      endDate: '2026-10-31',
       status: 'open',
       isBigBazarEnabled: true,
       bigBazarContributionPerMember: 1400,
       bigBazarCarryToNext: 0,
-      createdAt: new Date('2026-10-10'),
-      updatedAt: new Date('2026-10-10'),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   ];
 
   memberCycles: MemberCycleDoc[] = [
     {
-      _id: 'mc_1',
-      userId: 'user_1',
+      _id: 'mc_shihab',
+      userId: '6ad084c58790b3c278c86efa',
       cycleId: 'cycle_1',
       messId: 'mess_1',
-      roomRent: 3100,
+      roomRent: 0,
       isActive: true,
-      createdAt: new Date('2026-10-10'),
-      updatedAt: new Date('2026-10-10'),
-    },
-    {
-      _id: 'mc_2',
-      userId: 'user_2',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      roomRent: 3000,
-      isActive: true,
-      createdAt: new Date('2026-10-10'),
-      updatedAt: new Date('2026-10-10'),
-    },
-    {
-      _id: 'mc_3',
-      userId: 'user_3',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      roomRent: 3000,
-      isActive: true,
-      createdAt: new Date('2026-10-10'),
-      updatedAt: new Date('2026-10-10'),
-    },
-    {
-      _id: 'mc_4',
-      userId: 'user_4',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      roomRent: 2800,
-      isActive: true,
-      createdAt: new Date('2026-10-10'),
-      updatedAt: new Date('2026-10-10'),
-    },
-    {
-      _id: 'mc_5',
-      userId: 'user_5',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      roomRent: 2800,
-      isActive: true,
-      createdAt: new Date('2026-10-10'),
-      updatedAt: new Date('2026-10-10'),
-    },
-    {
-      _id: 'mc_6',
-      userId: 'user_6',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      roomRent: 2400,
-      isActive: true,
-      createdAt: new Date('2026-10-10'),
-      updatedAt: new Date('2026-10-10'),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
   ];
 
-  bills: BillDoc[] = [
-    { _id: 'b_water', cycleId: 'cycle_1', messId: 'mess_1', type: 'পানি', amount: 1000, splitMethod: 'equal', createdAt: new Date(), updatedAt: new Date() },
-    { _id: 'b_gas', cycleId: 'cycle_1', messId: 'mess_1', type: 'গ্যাস', amount: 1000, splitMethod: 'equal', createdAt: new Date(), updatedAt: new Date() },
-    { _id: 'b_elec', cycleId: 'cycle_1', messId: 'mess_1', type: 'বিদ্যুৎ', amount: 3000, splitMethod: 'equal', createdAt: new Date(), updatedAt: new Date() },
-    { _id: 'b_net', cycleId: 'cycle_1', messId: 'mess_1', type: 'ইন্টারনেট', amount: 1000, splitMethod: 'equal', createdAt: new Date(), updatedAt: new Date() },
-    { _id: 'b_waste', cycleId: 'cycle_1', messId: 'mess_1', type: 'ময়লা', amount: 100, splitMethod: 'equal', createdAt: new Date(), updatedAt: new Date() },
-  ];
-
+  bills: BillDoc[] = [];
   meals: MealDoc[] = [];
-
-  mealRequests: MealRequestDoc[] = [
-    {
-      _id: 'mr_1',
-      userId: 'user_1',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      date: '2026-10-18',
-      slotId: 'night',
-      action: 'off',
-      isLate: false,
-      status: 'pending',
-      reason: 'অফিসে বিশেষ ডিনার আছে',
-      createdAt: new Date('2026-10-17T14:00:00Z'),
-    },
-  ];
-
-  bazars: BazarDoc[] = [
-    {
-      _id: 'baz_1',
-      userId: 'user_1',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      date: '2026-10-11',
-      amount: 2500,
-      description: 'মাছ, শাকসবজি ও ডিম',
-      type: 'regular',
-      status: 'approved',
-      paidFromBigBazarFund: false,
-      createdAt: new Date('2026-10-11'),
-      updatedAt: new Date('2026-10-11'),
-    },
-    {
-      _id: 'baz_2',
-      userId: 'user_2',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      date: '2026-10-13',
-      amount: 12500,
-      description: 'মুরগি, সবজি, মাছ ও ফলমূল',
-      type: 'regular',
-      status: 'approved',
-      paidFromBigBazarFund: false,
-      createdAt: new Date('2026-10-13'),
-      updatedAt: new Date('2026-10-13'),
-    },
-    {
-      _id: 'baz_big',
-      userId: 'user_2',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      date: '2026-10-10',
-      amount: 8400,
-      description: 'মাসের চাল, সয়াবিন তেল, ডাল, পেঁয়াজ, রসুন ও মসলা',
-      type: 'big',
-      status: 'approved',
-      paidFromBigBazarFund: true,
-      createdAt: new Date('2026-10-10'),
-      updatedAt: new Date('2026-10-10'),
-    },
-    {
-      _id: 'baz_extra',
-      userId: 'user_3',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      date: '2026-10-14',
-      amount: 600,
-      description: 'সন্ধ্যার নাস্তা ও মিষ্টি (মেস pool)',
-      type: 'extra',
-      splitType: 'meal_pool',
-      status: 'approved',
-      paidFromBigBazarFund: false,
-      createdAt: new Date('2026-10-14'),
-      updatedAt: new Date('2026-10-14'),
-    },
-    {
-      _id: 'baz_pending',
-      userId: 'user_4',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      date: '2026-10-15',
-      amount: 1800,
-      description: 'বিকেলের মাছ ও মসলা',
-      type: 'regular',
-      status: 'pending',
-      paidFromBigBazarFund: false,
-      createdAt: new Date('2026-10-15'),
-      updatedAt: new Date('2026-10-15'),
-    },
-  ];
-
-  fixedEvents: FixedEventDoc[] = [
-    {
-      _id: 'fix_1',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      date: '2026-10-16',
-      title: 'শুক্রবার স্পেশাল গরুর মাংসের ভোজ',
-      mealTime: 'lunch',
-      cost: 600,
-      extraMealWeight: 0,
-      attendeeUserIds: ['user_1', 'user_2', 'user_3', 'user_4'],
-      createdAt: new Date('2026-10-16'),
-      updatedAt: new Date('2026-10-16'),
-    },
-    {
-      _id: 'fix_2',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      date: '2026-10-23',
-      title: 'শুক্রবার স্পেশাল খাসি ও পোলাও',
-      mealTime: 'lunch',
-      cost: 600,
-      extraMealWeight: 0,
-      attendeeUserIds: ['user_1', 'user_2', 'user_3', 'user_4'],
-      createdAt: new Date('2026-10-23'),
-      updatedAt: new Date('2026-10-23'),
-    },
-    {
-      _id: 'fix_3',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      date: '2026-10-30',
-      title: 'শুক্রবার স্পেশাল দেশি মুরগি ভোজ',
-      mealTime: 'lunch',
-      cost: 600,
-      extraMealWeight: 0,
-      attendeeUserIds: ['user_1', 'user_2', 'user_3', 'user_4'],
-      createdAt: new Date('2026-10-30'),
-      updatedAt: new Date('2026-10-30'),
-    },
-  ];
-
+  mealRequests: MealRequestDoc[] = [];
+  bazars: BazarDoc[] = [];
+  fixedEvents: FixedEventDoc[] = [];
   bazarSlots: BazarSlotDoc[] = [];
-
   slotRequests: SlotRequestDoc[] = [];
-
-  deposits: DepositDoc[] = [
-    {
-      _id: 'dep_1',
-      userId: 'user_1',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      amount: 5000,
-      date: '2026-10-10',
-      type: 'general',
-      isPaid: true,
-      notes: 'বিকাশ মারফত জমা',
-      createdAt: new Date('2026-10-10'),
-    },
-    {
-      _id: 'dep_big_1',
-      userId: 'user_1',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      amount: 1400,
-      date: '2026-10-10',
-      type: 'big_bazar',
-      isPaid: true,
-      notes: 'বড় বাজারের কন্ট্রিবিউশন',
-      createdAt: new Date('2026-10-10'),
-    },
-    {
-      _id: 'dep_2',
-      userId: 'user_2',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      amount: 6000,
-      date: '2026-10-10',
-      type: 'general',
-      isPaid: true,
-      createdAt: new Date('2026-10-10'),
-    },
-    {
-      _id: 'dep_big_2',
-      userId: 'user_2',
-      cycleId: 'cycle_1',
-      messId: 'mess_1',
-      amount: 1400,
-      date: '2026-10-10',
-      type: 'big_bazar',
-      isPaid: true,
-      createdAt: new Date('2026-10-10'),
-    },
-  ];
-
+  deposits: DepositDoc[] = [];
   cycleSnapshots: CycleSnapshotDoc[] = [];
+  auditLogs: AuditLogDoc[] = [];
 
-  auditLogs: AuditLogDoc[] = [
-    {
-      _id: 'log_1',
-      messId: 'mess_1',
-      cycleId: 'cycle_1',
-      performedByUserId: 'user_admin',
-      performedByUserName: 'মুহাম্মদ শিহাব উদ্দিন',
-      action: 'সিস্টেম ইনিশিয়ালাইজ ও সাইকেল শুরু করা হয়েছে',
-      targetCollection: 'cycles',
-      createdAt: new Date('2026-10-10'),
-    },
-  ];
-
-  constructor() {
-    this.seedMeals();
-    this.generateDutySlots();
-  }
-
-  // Seed default 40 meal units for each member to match SRS Example 5.7
-  private seedMeals() {
-    // 6 members, each with 40 units
-    const memberIds = ['user_1', 'user_2', 'user_3', 'user_4', 'user_5', 'user_6'];
-    for (const uid of memberIds) {
-      this.meals.push({
-        _id: `m_${uid}_aggregate`,
-        userId: uid,
-        cycleId: 'cycle_1',
-        messId: 'mess_1',
-        date: '2026-10-15',
-        slotId: 'all',
-        weight: 40,
-        consumed: true,
-        source: 'default',
-        updatedAt: new Date(),
-      });
-    }
-  }
-
-  // Generate automated Duty Roster Bazar slots (SRS Section 4.5)
-  public generateDutySlots() {
+  // Duty roster slot generator
+  public generateSlots(numMembers: number, daysPerSlot = 3) {
     this.bazarSlots = [];
-    const memberIds = ['user_1', 'user_2', 'user_3', 'user_4', 'user_5', 'user_6'];
-    const days = 30; // 30 days cycle
-    const numMembers = memberIds.length;
-    const daysPerSlot = Math.floor(days / numMembers); // 5 days each
+    const activeMemberCycles = this.memberCycles.filter((mc) => mc.isActive);
+    const memberIds = activeMemberCycles.map((mc) => mc.userId);
+    if (memberIds.length === 0) return;
 
-    let startDay = 10;
-    for (let i = 0; i < numMembers; i++) {
+    let startDay = 1;
+    for (let i = 0; i < Math.min(numMembers, memberIds.length); i++) {
       const from = `2026-10-${String(startDay).padStart(2, '0')}`;
       const toDay = startDay + daysPerSlot - 1;
       const to = `2026-10-${String(toDay).padStart(2, '0')}`;
@@ -507,13 +122,13 @@ class MessStore {
 
       this.bazarSlots.push({
         _id: `slot_${i + 1}`,
-        cycleId: 'cycle_1',
-        messId: 'mess_1',
+        cycleId: this.cycles[0]?._id as string || 'cycle_1',
+        messId: this.mess._id as string,
         slotIndex: i + 1,
         startDate: from,
         endDate: to,
         capacity: 1,
-        assignedUserIds: [memberIds[i]],
+        assignedUserIds: [memberIds[i % memberIds.length]],
         createdAt: new Date(),
       });
     }
@@ -522,18 +137,16 @@ class MessStore {
   // Real-time calculation helper
   public computeCurrentCycleBilling(cycleId = 'cycle_1'): BillingEngineOutput {
     const cycle = this.cycles.find((c) => c._id === cycleId);
-    const membersInput = this.users
-      .filter((u) => u._id !== 'user_admin')
-      .map((u) => {
-        const mc = this.memberCycles.find((m) => m.userId === u._id && m.cycleId === cycleId);
-        return {
-          userId: u._id as string,
-          name: u.name,
-          roomRent: mc ? mc.roomRent : 0,
-          isActive: mc ? mc.isActive : true,
-          leftDate: mc?.leftDate,
-        };
-      });
+    const membersInput = this.users.map((u) => {
+      const mc = this.memberCycles.find((m) => m.userId === u._id && m.cycleId === cycleId);
+      return {
+        userId: u._id as string,
+        name: u.name,
+        roomRent: mc ? mc.roomRent : 0,
+        isActive: mc ? mc.isActive : true,
+        leftDate: mc?.leftDate,
+      };
+    });
 
     const mealRecords = this.meals
       .filter((m) => m.cycleId === cycleId)
@@ -608,15 +221,73 @@ class MessStore {
   }
 }
 
-// Global singleton instance
-declare global {
-  // eslint-disable-next-line no-var
-  var __messStore: MessStore | undefined;
-}
+// Global instance fallback
+let inMemoryStore = new MessStore();
 
-export const getStore = (): MessStore => {
-  if (!global.__messStore) {
-    global.__messStore = new MessStore();
+/**
+ * Returns store populated with live data from MongoDB Atlas.
+ */
+export async function getStore(): Promise<MessStore> {
+  const store = new MessStore();
+
+  if (!isMongoConfigured()) {
+    return inMemoryStore;
   }
-  return global.__messStore;
-};
+
+  try {
+    const db = await getDb();
+    if (!db) return inMemoryStore;
+
+    const [
+      messes,
+      users,
+      memberships,
+      cycles,
+      memberCycles,
+      meals,
+      mealRequests,
+      bazars,
+      fixedEvents,
+      bazarSlots,
+      slotRequests,
+      deposits,
+      bills,
+      auditLogs,
+    ] = await Promise.all([
+      db.collection('messes').find().toArray(),
+      db.collection('users').find().toArray(),
+      db.collection('memberships').find().toArray(),
+      db.collection('cycles').find().toArray(),
+      db.collection('member_cycles').find().toArray(),
+      db.collection('meals').find().toArray(),
+      db.collection('meal_requests').find().toArray(),
+      db.collection('bazars').find().toArray(),
+      db.collection('fixed_events').find().toArray(),
+      db.collection('bazar_slots').find().toArray(),
+      db.collection('slot_requests').find().toArray(),
+      db.collection('deposits').find().toArray(),
+      db.collection('bills').find().toArray(),
+      db.collection('audit_logs').find().toArray(),
+    ]);
+
+    if (messes.length > 0) store.mess = { ...messes[0], _id: messes[0]._id.toString() } as any;
+    if (cycles.length > 0) store.cycles = cycles.map((c: any) => ({ ...c, _id: c._id.toString() }));
+    if (users.length > 0) store.users = users.map((u: any) => ({ ...u, _id: u._id.toString() }));
+    if (memberships.length > 0) store.memberships = memberships.map((m: any) => ({ ...m, _id: m._id.toString() }));
+    if (memberCycles.length > 0) store.memberCycles = memberCycles.map((mc: any) => ({ ...mc, _id: mc._id.toString() }));
+    if (meals.length > 0) store.meals = meals.map((m: any) => ({ ...m, _id: m._id.toString() }));
+    if (mealRequests.length > 0) store.mealRequests = mealRequests.map((r: any) => ({ ...r, _id: r._id.toString() }));
+    if (bazars.length > 0) store.bazars = bazars.map((b: any) => ({ ...b, _id: b._id.toString() }));
+    if (fixedEvents.length > 0) store.fixedEvents = fixedEvents.map((e: any) => ({ ...e, _id: e._id.toString() }));
+    if (bazarSlots.length > 0) store.bazarSlots = bazarSlots.map((s: any) => ({ ...s, _id: s._id.toString() }));
+    if (slotRequests.length > 0) store.slotRequests = slotRequests.map((sr: any) => ({ ...sr, _id: sr._id.toString() }));
+    if (deposits.length > 0) store.deposits = deposits.map((d: any) => ({ ...d, _id: d._id.toString() }));
+    if (bills.length > 0) store.bills = bills.map((b: any) => ({ ...b, _id: b._id.toString() }));
+    if (auditLogs.length > 0) store.auditLogs = auditLogs.map((a: any) => ({ ...a, _id: a._id.toString() }));
+
+    return store;
+  } catch (err) {
+    console.error('Error fetching live data from MongoDB:', err);
+    return inMemoryStore;
+  }
+}

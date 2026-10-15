@@ -3,7 +3,7 @@ import { getStore } from '@/lib/store';
 
 export async function GET(request: Request) {
   try {
-    const store = getStore();
+    const store = await getStore();
     const { searchParams } = new URL(request.url);
     const cycleId = searchParams.get('cycleId') || 'cycle_1';
     const format = searchParams.get('format') || 'csv';

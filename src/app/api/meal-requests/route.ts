@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
-import { MealRequestDoc } from '@/models/types';
+import { getDb } from '@/lib/db';
+import { MealRequestDoc, MealDoc } from '@/models/types';
 
 export async function GET(request: Request) {
-  const store = getStore();
+  const store = await getStore();
   const { searchParams } = new URL(request.url);
-  const cycleId = searchParams.get('cycleId') || 'cycle_1';
+  const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
   const status = searchParams.get('status');
 
   let list = store.mealRequests.filter((r) => r.cycleId === cycleId);
@@ -26,16 +27,22 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const store = getStore();
+    const store = await getStore();
+    const db = await getDb();
     const body = await request.json();
-    const { userId, cycleId = 'cycle_1', date, slotId, action = 'off', reason } = body;
+    const {
+      userId,
+      cycleId = store.cycles[0]?._id as string || 'cycle_1',
+      date,
+      slotId,
+      action = 'off',
+      reason,
+    } = body;
 
     if (!date || !slotId) {
       return NextResponse.json({ success: false, error: 'তারিখ ও স্লট আবশ্যক' }, { status: 400 });
     }
 
-    // Check cutoff time (SRS Section 4.2 / 6)
-    // Morning deadline default: previous night 22:00. Night deadline default: same day 16:00
     let isLate = false;
     const now = new Date();
     const currentHour = now.getHours();
@@ -60,20 +67,9 @@ export async function POST(request: Request) {
       createdAt: new Date(),
     };
 
-    store.mealRequests.unshift(newReq);
-
-    const user = store.users.find((u) => u._id === userId);
-    store.auditLogs.unshift({
-      _id: `log_${Date.now()}`,
-      messId: store.mess._id as string,
-      cycleId,
-      performedByUserId: userId,
-      performedByUserName: user?.name || 'সদস্য',
-      action: `মিল ${action === 'off' ? 'বন্ধ (Off)' : 'চালু'} করার অনুরোধ পাঠিয়েছেন (${date}) [${isLate ? 'Late' : 'On-time'}]`,
-      targetCollection: 'mealRequests',
-      targetId: newReq._id as string,
-      createdAt: new Date(),
-    });
+    if (db) {
+      await db.collection('meal_requests').insertOne(newReq as any);
+    }
 
     return NextResponse.json({ success: true, request: newReq });
   } catch (err: any) {
@@ -83,54 +79,60 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const store = getStore();
+    const store = await getStore();
+    const db = await getDb();
     const body = await request.json();
-    const { id, status, adminUserId = 'user_admin', adminNote } = body;
+    const { id, status, adminUserId, adminNote } = body;
 
     const reqItem = store.mealRequests.find((r) => r._id === id);
     if (!reqItem) {
       return NextResponse.json({ success: false, error: 'অনুরোধ পাওয়া যায়নি' }, { status: 404 });
     }
 
-    reqItem.status = status;
-    reqItem.adminNote = adminNote;
-    reqItem.reviewedBy = adminUserId;
-    reqItem.reviewedAt = new Date();
-
-    // If approved, update member meal in store
-    if (status === 'approved') {
-      const slotDef = store.mess.mealSlots.find((s) => s.id === reqItem.slotId);
-      const weight = slotDef ? slotDef.weight : 1;
-
-      // Adjust meal count or add record
-      // In aggregate or individual meal:
-      // If member turned off, subtract weight; if on, add weight
-      const aggregateMeal = store.meals.find(
-        (m) => m.userId === reqItem.userId && m.cycleId === reqItem.cycleId
-      );
-      if (aggregateMeal) {
-        if (reqItem.action === 'off') {
-          aggregateMeal.weight = Math.max(0, aggregateMeal.weight - weight);
-        } else if (reqItem.action === 'on') {
-          aggregateMeal.weight += weight;
+    if (db) {
+      await db.collection('meal_requests').updateOne(
+        { _id: id },
+        {
+          $set: {
+            status,
+            adminNote,
+            reviewedBy: adminUserId || 'admin',
+            reviewedAt: new Date(),
+          },
         }
+      );
+
+      // If approved, update or insert into meals
+      if (status === 'approved') {
+        const slotDef = store.mess.mealSlots.find((s) => s.id === reqItem.slotId);
+        const weight = slotDef ? slotDef.weight : reqItem.slotId === 'morning' ? 0.5 : 1.0;
+        const consumed = reqItem.action === 'off' ? 0 : 1;
+
+        await db.collection('meals').updateOne(
+          {
+            userId: reqItem.userId,
+            cycleId: reqItem.cycleId,
+            date: reqItem.date,
+            slotId: reqItem.slotId,
+          },
+          {
+            $set: {
+              consumed,
+              weight,
+              updatedAt: new Date(),
+            },
+            $setOnInsert: {
+              _id: `meal_${Date.now()}`,
+              messId: store.mess._id as string,
+              createdAt: new Date(),
+            },
+          },
+          { upsert: true }
+        );
       }
     }
 
-    const admin = store.users.find((u) => u._id === adminUserId);
-    store.auditLogs.unshift({
-      _id: `log_${Date.now()}`,
-      messId: store.mess._id as string,
-      cycleId: reqItem.cycleId,
-      performedByUserId: adminUserId,
-      performedByUserName: admin?.name || 'Admin',
-      action: `মিল অনুরোধ #${id} অবস্থা: ${status}`,
-      targetCollection: 'mealRequests',
-      targetId: id,
-      createdAt: new Date(),
-    });
-
-    return NextResponse.json({ success: true, request: reqItem });
+    return NextResponse.json({ success: true, message: 'মিল অনুরোধ পর্যালোচনা সম্পন্ন হয়েছে' });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
+import { getDb } from '@/lib/db';
 import { FixedEventDoc } from '@/models/types';
 
 export async function GET(request: Request) {
-  const store = getStore();
+  const store = await getStore();
   const { searchParams } = new URL(request.url);
-  const cycleId = searchParams.get('cycleId') || 'cycle_1';
+  const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
 
   const events = store.fixedEvents.filter((e) => e.cycleId === cycleId);
   const enriched = events.map((e) => {
@@ -16,7 +17,8 @@ export async function GET(request: Request) {
     return {
       ...e,
       attendees,
-      perPersonCost: e.attendeeUserIds.length > 0 ? Math.round(e.cost / e.attendeeUserIds.length) : 0,
+      perPersonCost:
+        e.attendeeUserIds.length > 0 ? Math.round(e.cost / e.attendeeUserIds.length) : 0,
     };
   });
 
@@ -25,9 +27,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const store = getStore();
+    const store = await getStore();
+    const db = await getDb();
     const body = await request.json();
-    const { title, date, cost, mealTime = 'lunch', attendeeUserIds = [], extraMealWeight = 0, cycleId = 'cycle_1' } = body;
+    const {
+      title,
+      date,
+      cost,
+      mealTime = 'lunch',
+      attendeeUserIds = [],
+      extraMealWeight = 0,
+      cycleId = store.cycles[0]?._id as string || 'cycle_1',
+    } = body;
 
     if (!title || !cost || cost <= 0) {
       return NextResponse.json({ success: false, error: 'শিরোনাম ও খরচের পরিমাণ আবশ্যক' }, { status: 400 });
@@ -47,7 +58,9 @@ export async function POST(request: Request) {
       updatedAt: new Date(),
     };
 
-    store.fixedEvents.push(newEvent);
+    if (db) {
+      await db.collection('fixed_events').insertOne(newEvent as any);
+    }
 
     return NextResponse.json({ success: true, event: newEvent });
   } catch (err: any) {

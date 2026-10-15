@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
+import { getDb } from '@/lib/db';
 import { SlotRequestDoc } from '@/models/types';
 
 export async function GET(request: Request) {
-  const store = getStore();
+  const store = await getStore();
   const { searchParams } = new URL(request.url);
-  const cycleId = searchParams.get('cycleId') || 'cycle_1';
+  const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
 
   const slots = store.bazarSlots.filter((s) => s.cycleId === cycleId);
   const enrichedSlots = slots.map((s) => {
@@ -37,9 +38,33 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const store = getStore();
+    const store = await getStore();
+    const db = await getDb();
     const body = await request.json();
-    const { action, userId, cycleId = 'cycle_1', fromSlotIndex, toSlotIndex, requestId, status, reason } = body;
+    const {
+      action,
+      userId,
+      cycleId = store.cycles[0]?._id as string || 'cycle_1',
+      fromSlotIndex,
+      toSlotIndex,
+      requestId,
+      status,
+      reason,
+      numMembers = 6,
+      daysPerSlot = 3,
+    } = body;
+
+    // Generate roster
+    if (action === 'generate_slots') {
+      store.generateSlots(Number(numMembers), Number(daysPerSlot));
+      if (db) {
+        await db.collection('bazar_slots').deleteMany({ cycleId });
+        if (store.bazarSlots.length > 0) {
+          await db.collection('bazar_slots').insertMany(store.bazarSlots as any[]);
+        }
+      }
+      return NextResponse.json({ success: true, slots: store.bazarSlots });
+    }
 
     if (action === 'request_change') {
       const newReq: SlotRequestDoc = {
@@ -53,38 +78,20 @@ export async function POST(request: Request) {
         reason,
         createdAt: new Date(),
       };
-      store.slotRequests.unshift(newReq);
+      if (db) {
+        await db.collection('slot_requests').insertOne(newReq as any);
+      }
       return NextResponse.json({ success: true, request: newReq });
     }
 
     if (action === 'review_request') {
-      const reqItem = store.slotRequests.find((r) => r._id === requestId);
-      if (!reqItem) {
-        return NextResponse.json({ success: false, error: 'অনুরোধ পাওয়া যায়নি' }, { status: 404 });
+      if (db) {
+        await db.collection('slot_requests').updateOne(
+          { _id: requestId },
+          { $set: { status, updatedAt: new Date() } }
+        );
       }
-
-      reqItem.status = status;
-      if (status === 'approved') {
-        // Swap slots
-        const fromSlot = store.bazarSlots.find((s) => s.slotIndex === reqItem.fromSlotIndex && s.cycleId === reqItem.cycleId);
-        const toSlot = store.bazarSlots.find((s) => s.slotIndex === reqItem.toSlotIndex && s.cycleId === reqItem.cycleId);
-
-        if (fromSlot && toSlot) {
-          // Remove from fromSlot
-          fromSlot.assignedUserIds = fromSlot.assignedUserIds.filter((id) => id !== reqItem.userId);
-          // Add to toSlot
-          if (!toSlot.assignedUserIds.includes(reqItem.userId)) {
-            toSlot.assignedUserIds.push(reqItem.userId);
-          }
-        }
-      }
-
-      return NextResponse.json({ success: true, request: reqItem });
-    }
-
-    if (action === 'auto_generate') {
-      store.generateDutySlots();
-      return NextResponse.json({ success: true, message: 'বাজারের ডিউটি স্লট সফলভাবে তৈরি হয়েছে' });
+      return NextResponse.json({ success: true, message: 'অনুরোধ পর্যালোচনা সম্পন্ন হয়েছে' });
     }
 
     return NextResponse.json({ success: false, error: 'অবৈধ একশন' }, { status: 400 });

@@ -14,7 +14,7 @@ import { NewBazarModal } from '@/components/NewBazarModal';
 import { NewFixedEventModal } from '@/components/NewFixedEventModal';
 import { MealRequestModal } from '@/components/MealRequestModal';
 import { DepositModal } from '@/components/DepositModal';
-import { DEMO_USERS, AppUser } from '@/lib/session';
+import { INITIAL_SUPER_ADMIN, AppUser } from '@/lib/session';
 import {
   LayoutDashboard,
   Utensils,
@@ -28,7 +28,7 @@ import { useSession } from 'next-auth/react';
 
 export default function HomePage() {
   const { data: session } = useSession();
-  const [currentUser, setCurrentUser] = useState<AppUser>(DEMO_USERS[0]); // default admin
+  const [currentUser, setCurrentUser] = useState<AppUser>(INITIAL_SUPER_ADMIN);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -36,11 +36,15 @@ export default function HomePage() {
   useEffect(() => {
     if (session?.user) {
       setCurrentUser({
-        id: (session.user as any).id || session.user.email || 'google_user',
-        name: session.user.name || 'গুগল ব্যবহারকারী',
+        id: (session.user as any).id || session.user.email || 'user',
+        name: session.user.name || 'সদস্য',
         email: session.user.email || '',
-        role: (session.user as any).role || 'admin',
-        image: session.user.image || 'https://api.dicebear.com/7.x/bottts/svg?seed=user',
+        role:
+          (session.user as any).role ||
+          (session.user.email === 'shihab.warfaze@gmail.com' ? 'super_admin' : 'member'),
+        image:
+          session.user.image ||
+          'https://api.dicebear.com/7.x/bottts/svg?seed=user',
       });
     }
   }, [session]);
@@ -116,10 +120,9 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
-      {/* Top Navbar with live role switcher */}
+      {/* Top Navbar */}
       <Navbar
         currentUser={currentUser}
-        onSwitchUser={setCurrentUser}
         cycleName={summaryData?.cycle?.name || 'চলমান চক্র'}
         isCycleClosed={summaryData?.cycle?.status === 'closed'}
         onRefresh={fetchData}

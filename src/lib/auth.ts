@@ -15,17 +15,22 @@ export const authOptions: NextAuthOptions = {
       try {
         const db = await getDb();
         if (db) {
+          const isSuperAdmin = user.email === 'shihab.warfaze@gmail.com';
           const existingUser = await db.collection('users').findOne({ email: user.email });
           if (!existingUser) {
-            const usersCount = await db.collection('users').countDocuments();
             await db.collection('users').insertOne({
               name: user.name || 'সদস্য',
               email: user.email,
               image: user.image || '',
-              role: usersCount === 0 ? 'admin' : 'member',
+              role: isSuperAdmin ? 'super_admin' : 'member',
               createdAt: new Date(),
               updatedAt: new Date(),
             });
+          } else if (isSuperAdmin && existingUser.role !== 'super_admin') {
+            await db.collection('users').updateOne(
+              { email: user.email },
+              { $set: { role: 'super_admin', updatedAt: new Date() } }
+            );
           }
         }
       } catch (err) {

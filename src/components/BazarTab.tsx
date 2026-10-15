@@ -67,7 +67,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {currentUser.role === 'admin' && onOpenFixedEventModal && (
+          {(currentUser.role === 'admin' || currentUser.role === 'super_admin') && onOpenFixedEventModal && (
             <button
               onClick={onOpenFixedEventModal}
               className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold px-3.5 py-2.5 rounded-xl border border-amber-500/30 transition-all"
@@ -200,7 +200,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                     {formatTaka(b.amount)}
                   </span>
 
-                  {currentUser.role === 'admin' && b.status === 'pending' && (
+                  {(currentUser.role === 'admin' || currentUser.role === 'super_admin') && b.status === 'pending' && (
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => handleReview(b._id, 'approved')}

@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
-import { UserDoc, MembershipDoc, MemberCycleDoc } from '@/models/types';
+import { getDb, isMongoConfigured } from '@/lib/db';
+import { UserDoc, MembershipDoc, MemberCycleDoc, UserRole } from '@/models/types';
+import { ObjectId } from 'mongodb';
 
 export async function GET(request: Request) {
-  const store = getStore();
+  const store = await getStore();
   const { searchParams } = new URL(request.url);
-  const cycleId = searchParams.get('cycleId') || 'cycle_1';
+  const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
 
   const members = store.users.map((u) => {
     const mem = store.memberships.find((m) => m.userId === u._id);
@@ -16,7 +18,7 @@ export async function GET(request: Request) {
       email: u.email,
       phone: u.phone,
       image: u.image,
-      role: mem?.role || 'member',
+      role: (u.role || mem?.role || 'member') as UserRole,
       status: mem?.status || 'active',
       roomRent: mc ? mc.roomRent : 0,
       isActiveInCycle: mc ? mc.isActive : true,
@@ -29,39 +31,48 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const store = getStore();
+    const store = await getStore();
+    const db = await getDb();
     const body = await request.json();
-    const { action, name, email, phone, roomRent = 3000, role = 'member', userId, cycleId = 'cycle_1' } = body;
+    const {
+      action,
+      name,
+      email,
+      phone,
+      roomRent = 3000,
+      role = 'member',
+      userId,
+      cycleId = store.cycles[0]?._id as string || 'cycle_1',
+    } = body;
 
-    // Add new member
+    // Add new member manually
     if (action === 'add_member') {
       if (!name || !email) {
         return NextResponse.json({ success: false, error: 'নাম ও ইমেইল আবশ্যক' }, { status: 400 });
       }
 
-      const newUserId = `user_${Date.now()}`;
+      const newUserId = new ObjectId().toString();
       const newUser: UserDoc = {
         _id: newUserId,
         name,
         email,
         phone,
-        image: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+        role: role as UserRole,
+        image: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      store.users.push(newUser);
 
       const newMembership: MembershipDoc = {
         _id: `m_${Date.now()}`,
         userId: newUserId,
         messId: store.mess._id as string,
-        role,
+        role: role as UserRole,
         status: 'active',
         joinedDate: new Date().toISOString().split('T')[0],
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      store.memberships.push(newMembership);
 
       const newMemberCycle: MemberCycleDoc = {
         _id: `mc_${Date.now()}`,
@@ -73,23 +84,53 @@ export async function POST(request: Request) {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      store.memberCycles.push(newMemberCycle);
+
+      if (db) {
+        await db.collection('users').insertOne({ ...newUser, _id: new ObjectId(newUserId) as any });
+        await db.collection('memberships').insertOne(newMembership as any);
+        await db.collection('member_cycles').insertOne(newMemberCycle as any);
+      }
 
       return NextResponse.json({ success: true, user: newUser });
     }
 
-    // Update room rent or status
-    if (action === 'update_member') {
-      const mc = store.memberCycles.find((m) => m.userId === userId && m.cycleId === cycleId);
-      if (mc && roomRent !== undefined) {
-        mc.roomRent = Number(roomRent);
-        mc.updatedAt = new Date();
+    // Role assignment: super_admin can assign 'admin' (Manager) or 'member'
+    if (action === 'change_role') {
+      if (!userId || !role) {
+        return NextResponse.json({ success: false, error: 'ইউজার ও ভূমিকা উল্লেখ করুন' }, { status: 400 });
       }
 
-      const mem = store.memberships.find((m) => m.userId === userId);
-      if (mem && role) {
-        mem.role = role;
-        mem.updatedAt = new Date();
+      if (db) {
+        const query = ObjectId.isValid(userId) ? { _id: new ObjectId(userId) } : { _id: userId };
+        const targetUser = await db.collection('users').findOne(query);
+
+        if (targetUser?.email === 'shihab.warfaze@gmail.com') {
+          return NextResponse.json(
+            { success: false, error: 'সুপার এডমিনের ভূমিকা পরিবর্তন করা সম্ভব নয়' },
+            { status: 400 }
+          );
+        }
+
+        await db.collection('users').updateOne(query, {
+          $set: { role: role as UserRole, updatedAt: new Date() },
+        });
+
+        await db.collection('memberships').updateOne(
+          { userId: userId.toString() },
+          { $set: { role: role as UserRole, updatedAt: new Date() } }
+        );
+      }
+
+      return NextResponse.json({ success: true, message: 'ভূমিকা পরিবর্তন সম্পন্ন হয়েছে' });
+    }
+
+    // Update room rent
+    if (action === 'update_member') {
+      if (db && userId) {
+        await db.collection('member_cycles').updateOne(
+          { userId: userId.toString(), cycleId },
+          { $set: { roomRent: Number(roomRent), updatedAt: new Date() } }
+        );
       }
 
       return NextResponse.json({ success: true, message: 'সদস্যের তথ্য হালনাগাদ করা হয়েছে' });

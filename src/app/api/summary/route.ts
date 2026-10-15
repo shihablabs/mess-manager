@@ -3,10 +3,10 @@ import { getStore } from '@/lib/store';
 
 export async function GET(request: Request) {
   try {
-    const store = getStore();
+    const store = await getStore();
     const { searchParams } = new URL(request.url);
-    const cycleId = searchParams.get('cycleId') || store.cycles[0]._id as string;
-    const userId = searchParams.get('userId') || 'user_1';
+    const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
+    const userId = searchParams.get('userId') || (store.users[0]?._id as string);
 
     const calculation = store.computeCurrentCycleBilling(cycleId);
     const cycle = store.cycles.find((c) => c._id === cycleId);

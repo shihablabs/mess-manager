@@ -1,38 +1,19 @@
+import { UserRole } from '@/models/types';
+
 export interface AppUser {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'member';
+  role: UserRole;
   image: string;
 }
 
-export const DEMO_USERS: AppUser[] = [
-  {
-    id: 'user_admin',
-    name: 'মুহাম্মদ শিহাব উদ্দিন',
-    email: 'admin@mess.com',
-    role: 'admin',
-    image: 'https://api.dicebear.com/7.x/bottts/svg?seed=admin',
-  },
-  {
-    id: 'user_1',
-    name: 'সদস্য ক (রাফি)',
-    email: 'rafi@mess.com',
-    role: 'member',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=rafi',
-  },
-  {
-    id: 'user_2',
-    name: 'সদস্য খ (তানভীর)',
-    email: 'tanvir@mess.com',
-    role: 'member',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=tanvir',
-  },
-  {
-    id: 'user_3',
-    name: 'সদস্য গ (হাসান)',
-    email: 'hasan@mess.com',
-    role: 'member',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=hasan',
-  },
-];
+export const SUPER_ADMIN_EMAIL = 'shihab.warfaze@gmail.com';
+
+export const INITIAL_SUPER_ADMIN: AppUser = {
+  id: '6ad084c58790b3c278c86efa',
+  name: 'Shihab Uddin',
+  email: 'shihab.warfaze@gmail.com',
+  role: 'super_admin',
+  image: 'https://lh3.googleusercontent.com/a/ACg8ocJYyl_ytE7bX3w_IDsC1mzZRx63hG2MnjbhemMnBZ0rLUm47utI=s96-c',
+};

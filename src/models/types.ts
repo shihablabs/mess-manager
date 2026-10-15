@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb';
 
-export type UserRole = 'admin' | 'member';
+export type UserRole = 'super_admin' | 'admin' | 'member';
 export type MembershipStatus = 'pending' | 'active' | 'inactive';
 export type CycleStatus = 'open' | 'closed';
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
@@ -35,6 +35,7 @@ export interface UserDoc {
   _id?: ObjectId | string;
   name: string;
   email: string;
+  role?: UserRole;
   image?: string;
   phone?: string;
   createdAt: Date;
@@ -59,6 +60,7 @@ export interface CycleDoc {
   _id?: ObjectId | string;
   messId: string;
   name: string; // e.g. "অক্টোবর ২০২৬"
+  month?: string; // e.g. "2026-10"
   startDate: string; // YYYY-MM-DD (e.g. 2026-10-10)
   endDate: string; // YYYY-MM-DD (e.g. 2026-11-10)
   status: CycleStatus;
