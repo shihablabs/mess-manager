@@ -5,6 +5,9 @@ import { useDashboard } from '@/context/DashboardContext';
 import { MembersTab } from '@/components/MembersTab';
 import { GlobalLoader } from '@/components/GlobalLoader';
 
+import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
+import { getMemberBillingResultSafe } from '@/lib/safe-utils';
+
 export default function UserManagementPage() {
   const {
     currentUser,
@@ -28,21 +31,20 @@ export default function UserManagementPage() {
 
   return (
     <div className="space-y-6">
-      <MembersTab
-        currentUser={currentUser}
-        members={members}
-        cycle={summaryData?.cycle}
-        onRefresh={refreshData}
-        onOpenStatement={(m: any) => {
-          // Find matching calculation result
-          const calcResult = summaryData?.calculation?.memberResults?.find(
-            (r: any) => r.userId === m.userId
-          );
-          if (calcResult) {
-            openStatement(calcResult);
-          }
-        }}
-      />
+      <MasterErrorBoundary fallbackTitle="ইউজার ও সদস্য তালিকা লোড করতে সমস্যা হয়েছে">
+        <MembersTab
+          currentUser={currentUser}
+          members={members}
+          cycle={summaryData?.cycle}
+          onRefresh={refreshData}
+          onOpenStatement={(m: any) => {
+            const calcResult = getMemberBillingResultSafe(summaryData?.calculation, m.userId);
+            if (calcResult) {
+              openStatement(calcResult);
+            }
+          }}
+        />
+      </MasterErrorBoundary>
     </div>
   );
 }

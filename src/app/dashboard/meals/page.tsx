@@ -5,6 +5,8 @@ import { useDashboard } from '@/context/DashboardContext';
 import { MealsTab } from '@/components/MealsTab';
 import { GlobalLoader } from '@/components/GlobalLoader';
 
+import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
+
 export default function MealsManagementPage() {
   const {
     currentUser,
@@ -29,14 +31,16 @@ export default function MealsManagementPage() {
 
   return (
     <div className="space-y-6">
-      <MealsTab
-        currentUser={currentUser}
-        members={members}
-        cycle={summaryData?.cycle}
-        requests={mealRequests}
-        onRefresh={refreshData}
-        onOpenRequestModal={openMealRequest}
-      />
+      <MasterErrorBoundary fallbackTitle="মিল খাতা লোড করতে সমস্যা হয়েছে">
+        <MealsTab
+          currentUser={currentUser}
+          members={members}
+          cycle={summaryData?.cycle}
+          requests={mealRequests}
+          onRefresh={refreshData}
+          onOpenRequestModal={openMealRequest}
+        />
+      </MasterErrorBoundary>
     </div>
   );
 }

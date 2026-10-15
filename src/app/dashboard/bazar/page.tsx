@@ -5,6 +5,8 @@ import { useDashboard } from '@/context/DashboardContext';
 import { BazarTab } from '@/components/BazarTab';
 import { GlobalLoader } from '@/components/GlobalLoader';
 
+import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
+
 export default function BazarExpensesPage() {
   const {
     currentUser,
@@ -29,14 +31,16 @@ export default function BazarExpensesPage() {
 
   return (
     <div className="space-y-6">
-      <BazarTab
-        currentUser={currentUser}
-        bazars={bazars}
-        fixedEvents={fixedEvents}
-        onRefresh={refreshData}
-        onOpenNewBazarModal={openNewBazar}
-        onOpenFixedEventModal={openFixedEvent}
-      />
+      <MasterErrorBoundary fallbackTitle="বাজার খরচ ও ভাউচার লোড করতে সমস্যা হয়েছে">
+        <BazarTab
+          currentUser={currentUser}
+          bazars={bazars}
+          fixedEvents={fixedEvents}
+          onRefresh={refreshData}
+          onOpenNewBazarModal={openNewBazar}
+          onOpenFixedEventModal={openFixedEvent}
+        />
+      </MasterErrorBoundary>
     </div>
   );
 }

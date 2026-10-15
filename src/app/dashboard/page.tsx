@@ -7,6 +7,8 @@ import { DashboardTab } from '@/components/DashboardTab';
 import { GlobalLoader } from '@/components/GlobalLoader';
 import { Sparkles, Crown, Shield, ArrowRight, Utensils, ShoppingBag } from 'lucide-react';
 import Link from 'next/link';
+import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
+import { getMemberBillingResultSafe } from '@/lib/safe-utils';
 
 export default function DashboardOverviewPage() {
   const {
@@ -83,25 +85,29 @@ export default function DashboardOverviewPage() {
 
       {/* 2. KPI Summary Cards */}
       {summaryData?.calculation && currentUser && (
-        <KPICards
-          calculation={summaryData.calculation}
-          userBalance={
-            summaryData.calculation.memberResults?.find(
-              (m: any) => m.userId === currentUser.id
-            ) || null
-          }
-          pendingCounts={summaryData.pendingCounts || { mealRequests: 0, bazars: 0 }}
-          currentUser={currentUser}
-        />
+        <MasterErrorBoundary fallbackTitle="কেপিআই কার্ড লোড করতে সমস্যা হয়েছে">
+          <KPICards
+            calculation={summaryData.calculation}
+            userBalance={
+              getMemberBillingResultSafe(summaryData.calculation, currentUser.id) ||
+              summaryData?.userBalance ||
+              null
+            }
+            pendingCounts={summaryData.pendingCounts || { mealRequests: 0, bazars: 0 }}
+            currentUser={currentUser}
+          />
+        </MasterErrorBoundary>
       )}
 
       {/* 3. Dashboard Master Table & Activity */}
-      <DashboardTab
-        calculation={summaryData?.calculation || null}
-        currentUserId={currentUser?.id || ''}
-        onOpenStatement={openStatement}
-        auditLogs={summaryData?.auditLogs || []}
-      />
+      <MasterErrorBoundary fallbackTitle="মাস্টার ব্যালেন্স শিট লোড করতে সমস্যা হয়েছে">
+        <DashboardTab
+          calculation={summaryData?.calculation || null}
+          currentUserId={currentUser?.id || ''}
+          onOpenStatement={openStatement}
+          auditLogs={summaryData?.auditLogs || []}
+        />
+      </MasterErrorBoundary>
     </div>
   );
 }

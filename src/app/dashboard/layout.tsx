@@ -14,6 +14,8 @@ import { DepositModal } from '@/components/DepositModal';
 import { useSession, signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { ShieldAlert, Clock } from 'lucide-react';
+import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
+import { getMemberBillingResultSafe } from '@/lib/safe-utils';
 
 function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
   const { status, data: session } = useSession();
@@ -150,10 +152,11 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Find user's statement calculation for My Statement quick view
-  const myStatementResult = summaryData?.calculation?.memberResults?.find(
-    (m: any) => m.userId === currentUser.id
-  ) || null;
+  // Find user's statement calculation safely
+  const myStatementResult = getMemberBillingResultSafe(
+    summaryData?.calculation,
+    currentUser?.id
+  ) || summaryData?.userBalance || null;
 
   return (
     <div className="min-h-screen flex bg-slate-950 text-slate-100">
@@ -193,9 +196,11 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
           onOpenDeposit={openDeposit}
         />
 
-        {/* Dynamic Route Content */}
+        {/* Dynamic Route Content wrapped with MasterErrorBoundary */}
         <main className="flex-1 min-w-0 p-3 sm:p-6 lg:p-8 overflow-y-auto">
-          {children}
+          <MasterErrorBoundary onReset={refreshData}>
+            {children}
+          </MasterErrorBoundary>
         </main>
       </div>
 

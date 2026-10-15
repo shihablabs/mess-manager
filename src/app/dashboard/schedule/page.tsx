@@ -5,6 +5,8 @@ import { useDashboard } from '@/context/DashboardContext';
 import { RosterTab } from '@/components/RosterTab';
 import { GlobalLoader } from '@/components/GlobalLoader';
 
+import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
+
 export default function ScheduleRosterPage() {
   const {
     currentUser,
@@ -27,12 +29,14 @@ export default function ScheduleRosterPage() {
 
   return (
     <div className="space-y-6">
-      <RosterTab
-        currentUser={currentUser}
-        slots={slots}
-        requests={slotRequests}
-        onRefresh={refreshData}
-      />
+      <MasterErrorBoundary fallbackTitle="ডিউটি রোস্টার লোড করতে সমস্যা হয়েছে">
+        <RosterTab
+          currentUser={currentUser}
+          slots={slots}
+          requests={slotRequests}
+          onRefresh={refreshData}
+        />
+      </MasterErrorBoundary>
     </div>
   );
 }

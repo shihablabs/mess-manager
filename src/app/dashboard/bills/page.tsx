@@ -5,6 +5,8 @@ import { useDashboard } from '@/context/DashboardContext';
 import { UtilitiesTab } from '@/components/UtilitiesTab';
 import { GlobalLoader } from '@/components/GlobalLoader';
 
+import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
+
 export default function BillsUtilitiesPage() {
   const {
     currentUser,
@@ -28,14 +30,16 @@ export default function BillsUtilitiesPage() {
 
   return (
     <div className="space-y-6">
-      <UtilitiesTab
-        currentUser={currentUser}
-        bills={summaryData?.bills || []}
-        deposits={deposits}
-        cycle={summaryData?.cycle}
-        onRefresh={refreshData}
-        onOpenDepositModal={openDeposit}
-      />
+      <MasterErrorBoundary fallbackTitle="ইউটিলিটি বিল ও বড় বাজার ফান্ড লোড করতে সমস্যা হয়েছে">
+        <UtilitiesTab
+          currentUser={currentUser}
+          bills={summaryData?.bills || []}
+          deposits={deposits}
+          cycle={summaryData?.cycle}
+          onRefresh={refreshData}
+          onOpenDepositModal={openDeposit}
+        />
+      </MasterErrorBoundary>
     </div>
   );
 }
