@@ -234,4 +234,49 @@ describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
     expect(resWith.memberResults['u1'].fixedShare).toBe(300);
     expect(resWith.memberResults['u2'].fixedShare).toBe(300);
   });
+
+  it('correctly calculates utility bills for: all active, selected 2 members, and exempt member', () => {
+    const members = [
+      { userId: 'u1', name: 'User 1', roomRent: 2000, isActive: true, isUtilityExempt: false },
+      { userId: 'u2', name: 'User 2', roomRent: 2000, isActive: true, isUtilityExempt: false },
+      { userId: 'u3', name: 'User 3', roomRent: 2000, isActive: true, isUtilityExempt: true }, // exempt
+      { userId: 'u4', name: 'User 4', roomRent: 2000, isActive: true, isUtilityExempt: false },
+    ];
+
+    const utilityBills = [
+      // 1. Applies to all (empty applicableUserIds) -> split among u1, u2, u4 (3 non-exempt)
+      { id: 'b_all', name: 'WiFi', amount: 3000 },
+      // 2. Applies to selected 2 members (u1, u2) -> split between u1, u2 (500 each)
+      { id: 'b_two', name: 'AC Cleaning', amount: 1000, applicableUserIds: ['u1', 'u2'] },
+      // 3. Applies to u2 and exempt member u3 -> only u2 pays (600)
+      { id: 'b_exempt_test', name: 'Special Item', amount: 600, applicableUserIds: ['u2', 'u3'] },
+    ];
+
+    const result = calculateBilling({
+      members,
+      mealRecords: [],
+      fixedEvents: [],
+      bazarItems: [],
+      deposits: [],
+      utilityBills,
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+      options: { roundToInteger: true },
+    });
+
+    // u1: 1000 (from WiFi) + 500 (from AC) = 1500
+    expect(result.memberResults['u1'].utilityShare).toBe(1500);
+
+    // u2: 1000 (from WiFi) + 500 (from AC) + 600 (from Special Item) = 2100
+    expect(result.memberResults['u2'].utilityShare).toBe(2100);
+
+    // u3 (exempt): 0
+    expect(result.memberResults['u3'].utilityShare).toBe(0);
+
+    // u4: 1000 (from WiFi) = 1000
+    expect(result.memberResults['u4'].utilityShare).toBe(1000);
+
+    // Total utility across mess
+    expect(result.totalUtility).toBe(4600);
+  });
 });
+

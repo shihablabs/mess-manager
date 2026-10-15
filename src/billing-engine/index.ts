@@ -84,18 +84,35 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
   const rawMealRate = totalMealUnits > 0 ? mealPoolTotal / totalMealUnits : 0;
   const mealRate = Math.round(rawMealRate * 100) / 100; // 2 decimal places
 
-  // 4. Utility bills (distributed according to applicable headcount / non-exempt active members)
+  // 4. Utility bills (distributed according to applicableUserIds / headcount / non-exempt active members)
   const totalUtility = utilityBills.reduce((sum, u) => sum + u.amount, 0);
-  const nonExemptActiveMembers = activeMembers.filter((m) => !m.isUtilityExempt);
-  const nonExemptCount = nonExemptActiveMembers.length || 1;
-  let utilitySharePerActiveMember = 0;
-  if (nonExemptActiveMembers.length > 0) {
-    for (const bill of utilityBills) {
-      const divisor =
-        bill.applicableCount && bill.applicableCount > 0
-          ? bill.applicableCount
-          : nonExemptCount;
-      utilitySharePerActiveMember += bill.amount / divisor;
+  const memberUtilityShareMap = new Map<string, number>();
+  members.forEach((m) => memberUtilityShareMap.set(m.userId, 0));
+
+  for (const bill of utilityBills) {
+    if (!bill.amount || bill.amount <= 0) continue;
+
+    const isSpecific = bill.applicableUserIds && bill.applicableUserIds.length > 0;
+    const targetMembers = isSpecific
+      ? activeMembers.filter((m) => bill.applicableUserIds!.includes(m.userId))
+      : activeMembers;
+
+    // Apply utility exemption (m.isUtilityExempt)
+    const nonExemptTargets = targetMembers.filter((m) => !m.isUtilityExempt);
+
+    const divisor =
+      bill.applicableCount && bill.applicableCount > 0
+        ? bill.applicableCount
+        : nonExemptTargets.length;
+
+    if (divisor > 0 && nonExemptTargets.length > 0) {
+      const perMember = bill.amount / divisor;
+      for (const m of nonExemptTargets) {
+        if (memberUtilityShareMap.has(m.userId)) {
+          const current = memberUtilityShareMap.get(m.userId) || 0;
+          memberUtilityShareMap.set(m.userId, current + perMember);
+        }
+      }
     }
   }
 
@@ -186,7 +203,7 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
     const units = memberMealUnitsMap.get(member.userId) || 0;
     const rawMealCost = units * mealRate;
     const fixedShare = memberFixedShareMap.get(member.userId) || 0;
-    const utilShare = (member.isActive && !member.isUtilityExempt) ? utilitySharePerActiveMember : 0;
+    const utilShare = (member.isActive && !member.isUtilityExempt) ? (memberUtilityShareMap.get(member.userId) || 0) : 0;
     const extraNonPool = memberExtraNonPoolMap.get(member.userId) || 0;
     const rent = member.roomRent || 0;
 
@@ -269,4 +286,28 @@ export function calculateFixedEventPerPerson(cost: number, attendeeCount: number
   if (!cost || cost <= 0 || !attendeeCount || attendeeCount <= 0) return 0;
   return Math.round((cost / attendeeCount) * 100) / 100;
 }
+
+/**
+ * Calculates per person cost for a utility bill based on applicable members and exemptions (Pure Engine function)
+ * Avoids ad-hoc UI or API division and arbitrary Math.round
+ */
+export function calculateUtilityBillPerPerson(
+  bill: { amount: number; applicableUserIds?: string[]; applicableCount?: number | null },
+  members: Array<{ userId?: string; _id?: string; id?: string; isActive?: boolean; isUtilityExempt?: boolean }>
+): number {
+  if (!bill.amount || bill.amount <= 0) return 0;
+  if (bill.applicableCount && bill.applicableCount > 0) {
+    return Math.round((bill.amount / bill.applicableCount) * 100) / 100;
+  }
+  const getUid = (m: any) => String(m.userId || m._id || m.id || '');
+  const active = members.filter((m) => m.isActive !== false);
+  const isSpecific = bill.applicableUserIds && bill.applicableUserIds.length > 0;
+  const targets = isSpecific
+    ? active.filter((m) => bill.applicableUserIds!.includes(getUid(m)))
+    : active;
+  const nonExempt = targets.filter((m) => !m.isUtilityExempt);
+  if (nonExempt.length === 0) return 0;
+  return Math.round((bill.amount / nonExempt.length) * 100) / 100;
+}
+
 

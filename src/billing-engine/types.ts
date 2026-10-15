@@ -65,6 +65,7 @@ export interface UtilityBillInput {
   amount: number;
   splitMethod?: 'equal'; // default equal among active members
   applicableCount?: number | null; // headcount if divided among a specific number of members
+  applicableUserIds?: string[]; // Selected member userIds. If empty/omitted, applies to all active members
 }
 
 export interface BillingEngineInput {

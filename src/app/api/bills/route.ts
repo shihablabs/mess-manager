@@ -24,11 +24,14 @@ export async function POST(request: Request) {
       splitMethod = 'equal',
       paidByUserId,
       applicableCount,
+      applicableUserIds,
     } = body;
 
     if (!type || !amount || amount <= 0) {
       return NextResponse.json({ success: false, error: 'বিলের নাম ও টাকার পরিমাণ আবশ্যক' }, { status: 400 });
     }
+
+    const finalApplicableUserIds = Array.isArray(applicableUserIds) ? applicableUserIds : [];
 
     if (db) {
       await db.collection('bills').updateOne(
@@ -38,6 +41,7 @@ export async function POST(request: Request) {
             amount: Number(amount),
             splitMethod,
             applicableCount: applicableCount ? Math.max(1, Number(applicableCount)) : null,
+            applicableUserIds: finalApplicableUserIds,
             paidByUserId: paidByUserId && paidByUserId !== 'mess_fund' ? paidByUserId : null,
             updatedAt: new Date(),
           },

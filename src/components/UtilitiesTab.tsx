@@ -33,6 +33,7 @@ import {
 } from '@/components/icons';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
+import { calculateUtilityBillPerPerson } from '@/billing-engine';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
 import { confirmAction, promptRentPaymentModal, showRentSuccessModal } from '@/lib/alerts';
@@ -59,6 +60,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
   const [newBillType, setNewBillType] = useState('');
   const [newBillAmount, setNewBillAmount] = useState('');
   const [newBillApplicableCount, setNewBillApplicableCount] = useState<string>('');
+  const [newBillApplicableUserIds, setNewBillApplicableUserIds] = useState<string[]>([]);
   const [newBillPayer, setNewBillPayer] = useState<string>('mess_fund');
   const [isAddingBill, setIsAddingBill] = useState(false);
   const [processingDepositId, setProcessingDepositId] = useState<string | null>(null);
@@ -319,6 +321,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
           amount: Number(newBillAmount),
           paidByUserId: newBillPayer,
           applicableCount: newBillApplicableCount ? Number(newBillApplicableCount) : null,
+          applicableUserIds: newBillApplicableUserIds.length > 0 ? newBillApplicableUserIds : undefined,
         }),
       });
       const data = await res.json();
@@ -327,6 +330,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
         setNewBillType('');
         setNewBillAmount('');
         setNewBillApplicableCount('');
+        setNewBillApplicableUserIds([]);
         setNewBillPayer('mess_fund');
         if (newBillPayer !== 'mess_fund') {
           toast.success('বিল যুক্ত হয়েছে এবং পরিশোধকারী সদস্যের অ্যাকাউন্টে জমা হিসেবে ক্রেডিট করা হয়েছে!');
@@ -840,11 +844,9 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
               <p className="py-4 text-xs text-slate-500 text-center">কোনো ইউটিলিটি বিল যুক্ত করা হয়নি</p>
             ) : (
               bills.map((bill) => {
+                const perPerson = calculateUtilityBillPerPerson(bill, members);
+                const isCustomSelection = bill.applicableUserIds && bill.applicableUserIds.length > 0;
                 const activeNonExempt = members.filter((m) => !m.isUtilityExempt);
-                const divisor = bill.applicableCount && bill.applicableCount > 0
-                  ? bill.applicableCount
-                  : (activeNonExempt.length || 1);
-                const perPerson = Math.round(bill.amount / divisor);
 
                 return (
                   <div key={bill._id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1.5">
@@ -852,7 +854,9 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-slate-200 font-bold">{bill.type} বিল</span>
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                          {bill.applicableCount ? `${bill.applicableCount} জনের মাঝে ভাগ` : `সকল সদস্য (${activeNonExempt.length} জন)`}
+                          {isCustomSelection
+                            ? `নির্বাচিত ${bill.applicableUserIds.length} জনের মাঝে ভাগ`
+                            : `সকল সদস্য (${activeNonExempt.length} জন)`}
                         </span>
                         {bill.paidByUserId && (
                           <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-semibold">
@@ -901,7 +905,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="text-[11px] text-slate-400 block mb-1">বিলের নাম / ধরণ</label>
                     <input
@@ -924,18 +928,71 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                       required
                     />
                   </div>
-                  <div>
-                    <label className="text-[11px] text-slate-400 block mb-1">কয়জনের জন্য প্রযোজ্য</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      placeholder={`ডিফল্ট: ${members.filter((m) => !m.isUtilityExempt).length || members.length || 1} জন`}
-                      value={newBillApplicableCount}
-                      onChange={(e) => setNewBillApplicableCount(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 font-mono"
-                    />
+                </div>
+
+                {/* Member Selection Checkboxes */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] text-slate-300 font-medium">
+                      প্রযোজ্য সদস্য নির্বাচন (চিহ্নিত না করলে সবাই অন্তর্ভুক্ত)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setNewBillApplicableUserIds(members.map((m: any) => String(m.userId || m._id || m.id)))}
+                        className="text-[10px] text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+                      >
+                        সবাই
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewBillApplicableUserIds([])}
+                        className="text-[10px] text-slate-400 hover:text-slate-300 underline cursor-pointer"
+                      >
+                        রিসেট (সবাই)
+                      </button>
+                    </div>
                   </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-36 overflow-y-auto p-2 rounded-lg bg-slate-950 border border-slate-800">
+                    {members.map((m: any) => {
+                      const mId = String(m.userId || m._id || m.id);
+                      const isSelected = newBillApplicableUserIds.includes(mId);
+                      return (
+                        <label
+                          key={mId}
+                          className={`flex items-center gap-1.5 p-1.5 rounded border text-xs cursor-pointer transition-colors ${
+                            isSelected
+                              ? 'bg-indigo-950/40 border-indigo-500/50 text-indigo-200'
+                              : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:bg-slate-800/60'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setNewBillApplicableUserIds((prev) => [...prev, mId]);
+                              } else {
+                                setNewBillApplicableUserIds((prev) => prev.filter((id) => id !== mId));
+                              }
+                            }}
+                            className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="truncate">{m.name}</span>
+                          {m.isUtilityExempt && (
+                            <span className="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 shrink-0">
+                              মওকুফ
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {newBillApplicableUserIds.length > 0
+                      ? `নির্বাচিত ${newBillApplicableUserIds.length} জনের মধ্যে খরচ বণ্টিত হবে (মওকুফপ্রাপ্ত সদস্য ছাড়া)`
+                      : 'সকল সক্রিয় সদস্যের মধ্যে সমানভাবে বণ্টিত হবে (মওকুফপ্রাপ্ত সদস্য ছাড়া)'}
+                  </p>
                 </div>
 
                 {/* Who paid the bill */}

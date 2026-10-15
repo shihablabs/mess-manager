@@ -209,6 +209,7 @@ export class MessStore {
         amount: b.amount,
         splitMethod: b.splitMethod,
         applicableCount: b.applicableCount,
+        applicableUserIds: b.applicableUserIds || [],
       }));
 
     const bigBazarConfig = {

@@ -126,6 +126,7 @@ export interface BillDoc {
   amount: number;
   splitMethod: 'equal';
   applicableCount?: number | null; // headcount if divided among a specific number of members
+  applicableUserIds?: string[]; // Selected member userIds. If empty, applies to all active members
   paidByUserId?: string | null;
   createdAt: Date;
   updatedAt: Date;
