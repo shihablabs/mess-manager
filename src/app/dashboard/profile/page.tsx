@@ -1314,17 +1314,23 @@ function ProfileContent() {
                 <thead className="bg-slate-900/90 text-slate-400 border-b border-slate-800 text-[10px] uppercase">
                   <tr>
                     <th className="py-2.5 px-4 font-semibold">তারিখ</th>
-                    <th className="py-2.5 px-4 font-semibold">বিবরণ</th>
+                    <th className="py-2.5 px-4 font-semibold">বিবরণ ও ফর্দ</th>
                     <th className="py-2.5 px-4 font-semibold">ধরণ</th>
                     <th className="py-2.5 px-4 font-semibold text-right">পরিমাণ</th>
-                    <th className="py-2.5 px-4 font-semibold text-center">স্ট্যাটাস</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {filteredBazars.map((b) => (
                     <tr key={b._id} className="hover:bg-slate-800/30">
                       <td className="py-2.5 px-4 font-mono text-slate-400">{b.date}</td>
-                      <td className="py-2.5 px-4 font-semibold text-white">{b.description}</td>
+                      <td className="py-2.5 px-4">
+                        <span className="font-semibold text-white block">{b.description}</span>
+                        {b.items && b.items.length > 0 && (
+                          <span className="text-[10px] text-amber-300/80 font-mono">
+                            📋 {b.items.length}টি জিনিসের তালিকা
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2.5 px-4">
                         <span
                           className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
@@ -1340,19 +1346,6 @@ function ProfileContent() {
                       </td>
                       <td className="py-2.5 px-4 text-right font-mono font-bold text-amber-400">
                         {formatTaka(b.amount)}
-                      </td>
-                      <td className="py-2.5 px-4 text-center">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                            b.status === 'approved'
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : b.status === 'rejected'
-                              ? 'bg-rose-500/20 text-rose-400'
-                              : 'bg-amber-500/20 text-amber-300 animate-pulse'
-                          }`}
-                        >
-                          {b.status === 'approved' ? 'অনুমোদিত' : b.status === 'rejected' ? 'বাতিল' : 'অপেক্ষমান'}
-                        </span>
                       </td>
                     </tr>
                   ))}

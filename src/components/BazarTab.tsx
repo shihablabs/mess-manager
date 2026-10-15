@@ -4,8 +4,6 @@ import React, { useState, useMemo } from 'react';
 import {
   ShoppingBag,
   Plus,
-  CheckCircle,
-  XCircle,
   Sparkles,
   Search,
   Calendar,
@@ -13,22 +11,32 @@ import {
   Filter,
   RotateCcw,
   Tag,
-  DollarSign,
   ChevronDown,
   Trash2,
   Edit2,
   X,
   FileText,
+  Eye,
+  Printer,
+  Package,
+  Clock,
+  ArrowRight,
+  ExternalLink,
+  Receipt,
+  CheckCircle,
 } from 'lucide-react';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
+import Swal from 'sweetalert2';
+import Link from 'next/link';
 
 interface BazarTabProps {
   currentUser: AppUser;
   bazars: any[];
   fixedEvents: any[];
   members?: any[];
+  slots?: any[];
   onRefresh: () => void;
   onOpenNewBazarModal: () => void;
   onOpenFixedEventModal?: () => void;
@@ -36,79 +44,163 @@ interface BazarTabProps {
 
 export const BazarTab: React.FC<BazarTabProps> = ({
   currentUser,
-  bazars,
-  fixedEvents,
+  bazars = [],
+  fixedEvents = [],
   members = [],
+  slots = [],
   onRefresh,
   onOpenNewBazarModal,
   onOpenFixedEventModal,
 }) => {
+  // Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMemberId, setSelectedMemberId] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [activeTypeFilter, setActiveTypeFilter] = useState<'all' | 'regular' | 'big' | 'extra'>('all');
-  const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'approved' | 'pending' | 'rejected'>('all');
-  const [processingId, setProcessingId] = useState<string | null>(null);
-  const [viewingReceiptBazar, setViewingReceiptBazar] = useState<any | null>(null);
 
-  const isAdminOrSuper = currentUser.role === 'admin' || currentUser.role === 'super_admin';
+  // Popups & Modal states
+  const [viewingDetailsBazar, setViewingDetailsBazar] = useState<any | null>(null);
 
-  // Build unique member list from members prop and bazars
-  const memberOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    members.forEach((m: any) => {
-      if (m.userId && m.name) {
-        map.set(m.userId, m.name);
-      } else if (m._id && m.name) {
-        map.set(m._id, m.name);
-      }
-    });
-    bazars.forEach((b: any) => {
-      if (b.userId && b.userName && !map.has(b.userId)) {
-        map.set(b.userId, b.userName);
-      }
-    });
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [members, bazars]);
-
-  const handleReview = async (id: string, status: 'approved' | 'rejected') => {
-    try {
-      setProcessingId(id);
-      const res = await fetch('/api/bazars', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          status,
-          adminUserId: currentUser.id,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(status === 'approved' ? 'বাজার অনুমোদন করা হয়েছে' : 'বাজার প্রত্যাখ্যান করা হয়েছে');
-        onRefresh();
-      } else {
-        toast.error(data.error || 'ব্যর্থ হয়েছে');
-      }
-    } catch (e: any) {
-      toast.error(e.message || 'ত্রুটি ঘটেছে');
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  // Editing state for Super Admin / Manager
+  // Edit State
   const [editingBazar, setEditingBazar] = useState<any | null>(null);
   const [editAmount, setEditAmount] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editDate, setEditDate] = useState('');
+  const [editType, setEditType] = useState('regular');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
+  const isSuperAdmin = currentUser.role === 'super_admin';
+  const isManager = currentUser.role === 'admin' || isSuperAdmin;
+
+  // Today string YYYY-MM-DD
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  // Today's Active Bazar Duty Slot
+  const todaySlot = useMemo(() => {
+    return slots.find((s: any) => todayStr >= s.startDate && todayStr <= s.endDate);
+  }, [slots, todayStr]);
+
+  const todayDutyUser = useMemo(() => {
+    if (!todaySlot) return null;
+    if (todaySlot.assignedUsers && todaySlot.assignedUsers.length > 0) {
+      return todaySlot.assignedUsers[0];
+    }
+    const uid = todaySlot.assignedUserIds?.[0];
+    return members.find((m: any) => (m.userId || m._id) === uid);
+  }, [todaySlot, members]);
+
+  // Unique member options for filter
+  const memberOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; image?: string; role?: string }>();
+    members.forEach((m: any) => {
+      const id = m.userId || m._id;
+      if (id && m.name && !map.has(id)) {
+        map.set(id, { id, name: m.name, image: m.image, role: m.role });
+      }
+    });
+    bazars.forEach((b: any) => {
+      if (b.userId && !map.has(b.userId)) {
+        map.set(b.userId, {
+          id: b.userId,
+          name: b.userName || 'সদস্য',
+          image: b.userImage,
+          role: b.userRole,
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [members, bazars]);
+
+  // Helper to compute member's total bazar and fixed spending
+  const getMemberSpending = (userId: string) => {
+    const bazarTotal = bazars
+      .filter((b) => b.userId === userId)
+      .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+
+    const fixedTotal = fixedEvents
+      .filter((e) => e.attendeeUserIds?.includes(userId) || e.attendees?.some((a: any) => (a.id || a._id) === userId))
+      .reduce((acc, curr) => acc + (Number(curr.perPersonCost) || 0), 0);
+
+    return {
+      bazarTotal,
+      fixedTotal,
+      grandTotal: bazarTotal + fixedTotal,
+    };
+  };
+
+  // Filtered bazars list
+  const filteredBazars = useMemo(() => {
+    return bazars.filter((b) => {
+      // Type filter
+      if (activeTypeFilter !== 'all' && b.type !== activeTypeFilter) return false;
+
+      // Member filter
+      if (selectedMemberId !== 'all' && b.userId !== selectedMemberId) return false;
+
+      // Date filter
+      if (selectedDate && b.date !== selectedDate) return false;
+
+      // Search query (matches description, buyer name, or amount)
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const descMatch = (b.description || '').toLowerCase().includes(query);
+        const userMatch = (b.userName || '').toLowerCase().includes(query);
+        const amountMatch = String(b.amount || '').includes(query);
+        const itemMatch = b.items?.some((it: any) => (it.name || '').toLowerCase().includes(query));
+        if (!descMatch && !userMatch && !amountMatch && !itemMatch) return false;
+      }
+
+      return true;
+    });
+  }, [bazars, activeTypeFilter, selectedMemberId, selectedDate, searchQuery]);
+
+  // Aggregate stats across all bazars
+  const totalRegularBazar = useMemo(() => {
+    return bazars
+      .filter((b) => b.type === 'regular' || !b.type)
+      .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+  }, [bazars]);
+
+  const totalBigBazar = useMemo(() => {
+    return bazars
+      .filter((b) => b.type === 'big')
+      .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+  }, [bazars]);
+
+  const totalExtraBazar = useMemo(() => {
+    return bazars
+      .filter((b) => b.type === 'extra')
+      .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+  }, [bazars]);
+
+  const totalFixedEventsCost = useMemo(() => {
+    return fixedEvents.reduce((sum, e) => sum + (Number(e.cost) || 0), 0);
+  }, [fixedEvents]);
+
+  const totalFilteredAmount = useMemo(() => {
+    return filteredBazars.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+  }, [filteredBazars]);
+
+  const hasActiveFilters =
+    searchQuery.trim() !== '' ||
+    selectedMemberId !== 'all' ||
+    selectedDate !== '' ||
+    activeTypeFilter !== 'all';
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setSelectedMemberId('all');
+    setSelectedDate('');
+    setActiveTypeFilter('all');
+  };
+
+  // Start editing a bazar entry
   const startEdit = (b: any) => {
     setEditingBazar(b);
     setEditAmount(String(b.amount));
-    setEditDescription(b.description);
-    setEditDate(b.date);
+    setEditDescription(b.description || '');
+    setEditDate(b.date || todayStr);
+    setEditType(b.type || 'regular');
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -124,158 +216,314 @@ export const BazarTab: React.FC<BazarTabProps> = ({
           amount: Number(editAmount),
           description: editDescription,
           date: editDate,
+          type: editType,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('বাজারের তথ্য সফলভাবে সংশোধন করা হয়েছে!');
+        toast.success('বাজারের খরচ সফলভাবে হালনাগাদ করা হয়েছে!');
         setEditingBazar(null);
         onRefresh();
       } else {
         toast.error(data.error || 'আপডেট ব্যর্থ হয়েছে');
       }
     } catch (err: any) {
-      toast.error('নেটওয়ার্ক ত্রুটি');
+      toast.error('নেটওয়ার্ক ত্রুটি ঘটেছে');
     } finally {
       setIsSavingEdit(false);
     }
   };
 
+  // Delete bazar entry
   const handleDeleteBazar = async (id: string, desc: string) => {
-    if (!confirm(`আপনি কি নিশ্চিতভাবে "${desc}" এর বাজার এন্ট্রিটি ডাটাবেজ থেকে মুছে ফেলতে চান?`)) return;
+    const result = await Swal.fire({
+      title: 'বাজার এন্ট্রিটি মুছে ফেলতে চান?',
+      text: `"${desc || 'এই বাজার'}" তালিকা থেকে সম্পূর্ণ মুছে ফেলা হবে।`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelButtonText: 'বাতিল',
+      confirmButtonColor: '#e11d48',
+      cancelButtonColor: '#334155',
+      background: '#0f172a',
+      color: '#f8fafc',
+    });
+
+    if (!result.isConfirmed) return;
+
     try {
       const res = await fetch(`/api/bazars?id=${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
-        toast.success('বাজারের এন্ট্রি সফলভাবে মুছে ফেলা হয়েছে!');
+        toast.success('বাজার তালিকা থেকে মুছে ফেলা হয়েছে!');
         onRefresh();
       } else {
         toast.error(data.error || 'মুছে ফেলতে ব্যর্থ হয়েছে');
       }
     } catch (err: any) {
-      toast.error('নেটওয়ার্ক ত্রুটি');
+      toast.error('নেটওয়ার্ক ত্রুটি ঘটেছে');
     }
   };
 
-  // Filter bazars
-  const filteredBazars = useMemo(() => {
-    return bazars.filter((b) => {
-      // Type filter
-      if (activeTypeFilter !== 'all' && b.type !== activeTypeFilter) return false;
-
-      // Status filter
-      if (activeStatusFilter !== 'all' && b.status !== activeStatusFilter) return false;
-
-      // Member filter
-      if (selectedMemberId !== 'all' && b.userId !== selectedMemberId) return false;
-
-      // Date filter
-      if (selectedDate && b.date !== selectedDate) return false;
-
-      // Search query (matches description, buyer name, or amount)
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        const descMatch = (b.description || '').toLowerCase().includes(query);
-        const userMatch = (b.userName || '').toLowerCase().includes(query);
-        const amountMatch = String(b.amount || '').includes(query);
-        if (!descMatch && !userMatch && !amountMatch) return false;
-      }
-
-      return true;
-    });
-  }, [bazars, activeTypeFilter, activeStatusFilter, selectedMemberId, selectedDate, searchQuery]);
-
-  // Aggregate stats
-  const totalFilteredAmount = useMemo(() => {
-    return filteredBazars.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
-  }, [filteredBazars]);
-
-  const approvedAmount = useMemo(() => {
-    return filteredBazars
-      .filter((b) => b.status === 'approved')
-      .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
-  }, [filteredBazars]);
-
-  const hasActiveFilters =
-    searchQuery.trim() !== '' ||
-    selectedMemberId !== 'all' ||
-    selectedDate !== '' ||
-    activeTypeFilter !== 'all' ||
-    activeStatusFilter !== 'all';
-
-  const resetFilters = () => {
-    setSearchQuery('');
-    setSelectedMemberId('all');
-    setSelectedDate('');
-    setActiveTypeFilter('all');
-    setActiveStatusFilter('all');
-  };
-
   return (
-    <div className="space-y-5">
-      {/* Top Banner & Actions */}
-      <div className="glass-panel rounded-2xl p-5 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-amber-400" />
-            বাজার ভাউচার ও খরচ ব্যবস্থাপনা
-          </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            রেগুলার, ফিক্সড, এক্সট্রা ও বড় বাজারের হিসাব ফিল্টার ও অনুসন্ধান করুন।
-          </p>
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* 1. Header Banner & Actions */}
+      <div className="glass-panel rounded-3xl p-5 sm:p-6 border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30 text-amber-400 shadow-inner">
+              <ShoppingBag className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                বাজার তালিকা ও খরচের খাতা
+              </h2>
+              <p className="text-xs text-slate-400">
+                সকল সদস্যের সরাসরি যুক্তকৃত বাজার, আইটেম ফর্দ এবং ফিক্সড ভোজের স্বয়ংক্রিয় হিসাব
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {isAdminOrSuper && onOpenFixedEventModal && (
+        <div className="flex items-center gap-2.5 flex-wrap self-stretch sm:self-auto justify-end">
+          <Link
+            href="/dashboard/schedule"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer shadow-sm"
+          >
+            <Calendar className="w-4 h-4 text-indigo-400" />
+            <span>বাজার ডিউটি রোস্টার</span>
+          </Link>
+
+          {isManager && onOpenFixedEventModal && (
             <button
               onClick={onOpenFixedEventModal}
               className="flex items-center gap-1.5 bg-slate-800/90 hover:bg-slate-750 text-amber-300 text-xs font-semibold px-3.5 py-2.5 rounded-xl border border-amber-500/30 transition-all cursor-pointer shadow-sm"
             >
               <Sparkles className="w-4 h-4 text-amber-400" />
-              বিশেষ ভোজ শিডিউল
+              <span>ফিক্সড ভোজ শিডিউল</span>
             </button>
           )}
 
           <button
             onClick={onOpenNewBazarModal}
-            className="flex items-center gap-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-amber-500/25 transition-all cursor-pointer"
+            className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            নতুন বাজার এন্ট্রি করুন
+            <span>নতুন বাজার এন্ট্রি করুন</span>
           </button>
         </div>
       </div>
 
-      {/* Friday Special Feasts (Fixed Bazar Events) */}
-      {fixedEvents && fixedEvents.length > 0 && (
-        <div className="glass-panel rounded-2xl p-4 border border-slate-800 space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              ফিক্সড বাজার / বিশেষ ভোজ ইভেন্ট
-            </h4>
-            <span className="text-[11px] text-slate-400">
-              শুধুমাত্র উপস্থিত সদস্যদের মাঝে খরচ ভাগ হয়
+      {/* 2. Top 4 Summary Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Total Regular Bazar */}
+        <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 bg-gradient-to-b from-slate-900/90 to-slate-950 space-y-1.5 relative overflow-hidden">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span className="flex items-center gap-1.5 font-medium">
+              <ShoppingBag className="w-4 h-4 text-amber-400" />
+              মোট রেগুলার বাজার
+            </span>
+            <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-mono">
+              মিল পুল
             </span>
           </div>
+          <div className="text-2xl font-black text-white font-mono">
+            {formatTaka(totalRegularBazar)}
+          </div>
+          <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
+            <span>ভাউচার সংখ্যা: {bazars.filter((b) => b.type === 'regular' || !b.type).length} টি</span>
+            {totalExtraBazar > 0 && (
+              <span className="text-emerald-400">এক্সট্রা: {formatTaka(totalExtraBazar)}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Card 2: Big Bazar Cost */}
+        <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 bg-gradient-to-b from-slate-900/90 to-slate-950 space-y-1.5 relative overflow-hidden">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span className="flex items-center gap-1.5 font-medium">
+              <Package className="w-4 h-4 text-purple-400" />
+              বড় বাজার খরচ
+            </span>
+            <span className="text-[10px] bg-purple-500/10 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded-full font-mono">
+              মাসিক ফান্ড
+            </span>
+          </div>
+          <div className="text-2xl font-black text-white font-mono">
+            {formatTaka(totalBigBazar)}
+          </div>
+          <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
+            <span>চাল, তেল ও পাইকারি ভাউচার</span>
+            <span className="text-purple-300 font-bold">
+              {bazars.filter((b) => b.type === 'big').length} টি
+            </span>
+          </div>
+        </div>
+
+        {/* Card 3: Fixed Feasts & Events */}
+        <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 bg-gradient-to-b from-slate-900/90 to-slate-950 space-y-1.5 relative overflow-hidden">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span className="flex items-center gap-1.5 font-medium">
+              <Sparkles className="w-4 h-4 text-orange-400" />
+              ফিক্সড ভোজ ও বিশেষ মিল
+            </span>
+            <span className="text-[10px] bg-orange-500/10 text-orange-300 border border-orange-500/20 px-2 py-0.5 rounded-full font-mono">
+              উপস্থিতি ভাগ
+            </span>
+          </div>
+          <div className="text-2xl font-black text-white font-mono">
+            {formatTaka(totalFixedEventsCost)}
+          </div>
+          <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
+            <span>ইভেন্ট সংখ্যা: {fixedEvents.length} টি</span>
+            <span className="text-orange-300 font-medium">শুক্রবারের স্পেশাল</span>
+          </div>
+        </div>
+
+        {/* Card 4: Today's Active Bazar Duty (Live Slot) */}
+        <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-emerald-500/40 bg-gradient-to-b from-emerald-950/30 to-slate-950 space-y-1.5 relative overflow-hidden shadow-lg shadow-emerald-500/10">
+          <div className="flex items-center justify-between text-xs font-semibold">
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <Clock className="w-4 h-4 text-emerald-400" />
+              আজকের বাজার দায়িত্ব কার?
+            </span>
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              আজকের ডিউটি
+            </span>
+          </div>
+
+          {todayDutyUser ? (
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <img
+                  src={todayDutyUser.image || `https://api.dicebear.com/7.x/bottts/svg?seed=${todayDutyUser.id || todayDutyUser.userId}`}
+                  alt={todayDutyUser.name}
+                  className="w-10 h-10 rounded-xl object-cover border-2 border-emerald-500/50 shrink-0"
+                />
+                <div className="truncate">
+                  <span className="text-sm font-bold text-white block truncate">
+                    {todayDutyUser.name}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono block">
+                    স্লট #{todaySlot?.slotIndex} ({todaySlot?.startDate?.slice(5)} হতে {todaySlot?.endDate?.slice(5)})
+                  </span>
+                </div>
+              </div>
+              <Link
+                href="/dashboard/schedule"
+                className="p-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 shrink-0 transition-colors"
+                title="রোস্টার শিডিউল দেখুন"
+              >
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          ) : (
+            <div className="pt-2 text-xs text-slate-400 flex items-center justify-between">
+              <span>আজকের জন্য কোনো স্লট নির্ধারিত নেই</span>
+              <Link href="/dashboard/schedule" className="text-indigo-400 hover:underline">
+                রোস্টার দেখুন
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 3. Members Bazar Contribution Overview Bar */}
+      {memberOptions.length > 0 && (
+        <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 space-y-3 bg-slate-900/70">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-white flex items-center gap-2">
+              <User className="w-4 h-4 text-indigo-400" />
+              সদস্যদের চলতি মাসের মোট বাজার ও খরচ অবদান
+            </h4>
+            <span className="text-[11px] text-slate-400">
+              যেকোনো সদস্যের কার্ডে ক্লিক করে সরাসরি ফিল্টার করুন
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+            {memberOptions.map((m) => {
+              const spending = getMemberSpending(m.id);
+              const isSelected = selectedMemberId === m.id;
+
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setSelectedMemberId(isSelected ? 'all' : m.id)}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-2 group ${
+                    isSelected
+                      ? 'border-indigo-500 bg-indigo-950/40 shadow-md shadow-indigo-500/20'
+                      : 'border-slate-800 bg-slate-950/60 hover:bg-slate-900 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <img
+                      src={m.image || `https://api.dicebear.com/7.x/bottts/svg?seed=${m.id}`}
+                      alt={m.name}
+                      className="w-7 h-7 rounded-lg object-cover border border-slate-700 shrink-0"
+                    />
+                    <div className="truncate">
+                      <span className="text-xs font-bold text-white block truncate group-hover:text-indigo-300">
+                        {m.name}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-800/80 pt-1.5 space-y-0.5 text-[10px] font-mono">
+                    <div className="flex justify-between text-slate-400">
+                      <span>বাজার:</span>
+                      <span className="text-emerald-400 font-bold">{formatTaka(spending.bazarTotal)}</span>
+                    </div>
+                    {spending.fixedTotal > 0 && (
+                      <div className="flex justify-between text-slate-400">
+                        <span>ভোজ:</span>
+                        <span className="text-orange-400 font-bold">{formatTaka(spending.fixedTotal)}</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Friday Special Feasts (Fixed Bazar Events Section) */}
+      {fixedEvents && fixedEvents.length > 0 && (
+        <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 space-y-3 bg-slate-900/60">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <h4 className="text-xs font-bold text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              ফিক্সড বাজার / বিশেষ ভোজ ইভেন্ট ({fixedEvents.length} টি)
+            </h4>
+            <span className="text-[11px] text-slate-400">
+              শুধুমাত্র উপস্থিত সদস্যদের মাঝে এই খরচ বণ্টিত হয়
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {fixedEvents.map((evt) => (
               <div
                 key={evt._id}
-                className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5 relative overflow-hidden"
+                className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2 relative overflow-hidden"
               >
                 <div className="flex justify-between items-start">
                   <span className="text-xs font-bold text-amber-300">{evt.title}</span>
-                  <span className="text-[10px] font-mono text-slate-400">{evt.date}</span>
+                  <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                    {evt.date}
+                  </span>
                 </div>
                 <div className="flex items-baseline justify-between pt-0.5">
-                  <span className="text-xs font-extrabold text-white">{formatTaka(evt.cost)}</span>
-                  <span className="text-[11px] text-slate-400">
-                    জনপ্রতি: <strong className="text-emerald-400">{formatTaka(evt.perPersonCost)}</strong>
+                  <span className="text-xs font-black text-white font-mono">
+                    ইভেন্ট খরচ: {formatTaka(evt.cost)}
+                  </span>
+                  <span className="text-[11px] text-slate-300">
+                    জনপ্রতি: <strong className="text-emerald-400 font-mono">{formatTaka(evt.perPersonCost)}</strong>
                   </span>
                 </div>
                 <div className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-1.5 truncate">
-                  উপস্থিত ({evt.attendees?.length || 0} জন):{' '}
+                  উপস্থিত ({evt.attendees?.length || evt.attendeeUserIds?.length || 0} জন):{' '}
                   <span className="text-slate-300">
                     {evt.attendees?.map((a: any) => a.name).join(', ') || 'কেউ নেই'}
                   </span>
@@ -286,19 +534,18 @@ export const BazarTab: React.FC<BazarTabProps> = ({
         </div>
       )}
 
-      {/* Compact Bazar Filter Toolbar */}
-      <div className="glass-panel rounded-2xl p-4 border border-slate-800 space-y-3">
-        {/* Row 1: Search, Member, Date, Reset */}
+      {/* 5. Easy Search & Filter Toolbar */}
+      <div className="glass-panel rounded-2xl p-4 border border-slate-800 space-y-3 bg-slate-900/80">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {/* Search Box */}
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="পণ্যের নাম বা বিবরণ খুঁজুন..."
-              className="w-full pl-9 pr-3 py-2 bg-slate-900/90 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
+              placeholder="পণ্যের নাম, জিনিস বা বিবরণ দিয়ে খুঁজুন..."
+              className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
             />
             {searchQuery && (
               <button
@@ -317,7 +564,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
               value={selectedMemberId}
               onChange={(e) => setSelectedMemberId(e.target.value)}
               aria-label="সদস্য দ্বারা ফিল্টার"
-              className="w-full pl-9 pr-8 py-2 bg-slate-900/90 border border-slate-800 rounded-xl text-xs text-white appearance-none focus:outline-none focus:border-amber-500 transition-colors cursor-pointer"
+              className="w-full pl-9 pr-8 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white appearance-none focus:outline-none focus:border-amber-500 transition-colors cursor-pointer"
             >
               <option value="all">সকল সদস্য (ক্রেতা)</option>
               {memberOptions.map((m) => (
@@ -337,7 +584,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               aria-label="তারিখ দ্বারা ফিল্টার"
-              className="w-full pl-9 pr-3 py-2 bg-slate-900/90 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500 transition-colors cursor-pointer"
+              className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500 transition-colors cursor-pointer font-mono"
             />
           </div>
 
@@ -349,34 +596,37 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                 className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white text-xs border border-slate-700 transition-colors cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                রিসেট ফিল্টার
+                <span>রিসেট ফিল্টার</span>
               </button>
             )}
-            <div className={`text-xs text-slate-400 px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-800/80 ${hasActiveFilters ? '' : 'w-full text-center'}`}>
-              মোট: <span className="font-bold text-amber-400">{filteredBazars.length}</span> টি
+            <div
+              className={`text-xs text-slate-300 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 ${
+                hasActiveFilters ? '' : 'w-full text-center'
+              }`}
+            >
+              মোট ভাউচার: <strong className="font-bold text-amber-400 font-mono">{filteredBazars.length}</strong> টি
             </div>
           </div>
         </div>
 
-        {/* Row 2: Type Chips & Status Chips */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
-          {/* Type filters */}
+        {/* Row 2: Type Filter Chips & Total Filtered Amount */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60">
           <div className="flex items-center gap-1.5 overflow-x-auto text-xs py-0.5">
-            <span className="text-[11px] text-slate-500 font-medium mr-1 flex items-center gap-1">
+            <span className="text-[11px] text-slate-400 font-medium mr-1 flex items-center gap-1">
               <Tag className="w-3 h-3" /> ধরণ:
             </span>
             {[
-              { id: 'all', label: 'সব' },
-              { id: 'regular', label: 'রেগুলার' },
+              { id: 'all', label: 'সব বাজার' },
+              { id: 'regular', label: 'রেগুলার বাজার' },
               { id: 'big', label: 'বড় বাজার' },
-              { id: 'extra', label: 'এক্সট্রা' },
+              { id: 'extra', label: 'এক্সট্রা বাজার' },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTypeFilter(tab.id as any)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   activeTypeFilter === tab.id
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
                 }`}
               >
@@ -385,57 +635,32 @@ export const BazarTab: React.FC<BazarTabProps> = ({
             ))}
           </div>
 
-          {/* Status filters */}
-          <div className="flex items-center gap-1.5 overflow-x-auto text-xs py-0.5">
-            <span className="text-[11px] text-slate-500 font-medium mr-1 flex items-center gap-1">
-              <Filter className="w-3 h-3" /> স্ট্যাটাস:
-            </span>
-            {[
-              { id: 'all', label: 'সব' },
-              { id: 'approved', label: 'অনুমোদিত' },
-              { id: 'pending', label: 'অপেক্ষমান' },
-              { id: 'rejected', label: 'বাতিল' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveStatusFilter(tab.id as any)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                  activeStatusFilter === tab.id
-                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Aggregate Mini Bar */}
-        <div className="flex items-center justify-between text-xs bg-slate-900/40 px-3 py-2 rounded-xl border border-slate-800/60 text-slate-400">
-          <div>
+          <div className="text-xs text-slate-300 bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-800">
             ফিল্টারকৃত মোট খরচ:{' '}
-            <strong className="text-white font-mono">{formatTaka(totalFilteredAmount)}</strong>
-          </div>
-          <div>
-            অনুমোদিত:{' '}
-            <strong className="text-emerald-400 font-mono">{formatTaka(approvedAmount)}</strong>
+            <strong className="text-emerald-400 font-mono font-bold">{formatTaka(totalFilteredAmount)}</strong>
           </div>
         </div>
       </div>
 
-      {/* Compact Bazar Table / List */}
-      <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
+      {/* 6. Clean Bazar DataTable & Mobile Cards */}
+      <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden bg-slate-900/60">
         {filteredBazars.length === 0 ? (
-          <div className="py-12 text-center space-y-2">
-            <ShoppingBag className="w-8 h-8 text-slate-600 mx-auto" />
-            <p className="text-xs text-slate-400">কোনো বাজার এন্ট্রি খুঁজে পাওয়া যায়নি</p>
+          <div className="py-16 text-center space-y-3">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-slate-500">
+              <ShoppingBag className="w-7 h-7" />
+            </div>
+            <h4 className="text-sm font-bold text-slate-300">কোনো বাজার এন্ট্রি পাওয়া যায়নি</h4>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              {hasActiveFilters
+                ? 'আপনার দেওয়া ফিল্টারে কোনো বাজার মিলছে না। অনুগ্রহ করে ফিল্টার রিসেট করুন।'
+                : 'চলতি মাসে এখনো কোনো বাজার যুক্ত করা হয়নি। উপরে "নতুন বাজার এন্ট্রি করুন" বাটনে ক্লিক করে যুক্ত করুন।'}
+            </p>
             {hasActiveFilters && (
               <button
                 onClick={resetFilters}
-                className="text-xs text-amber-400 hover:underline cursor-pointer"
+                className="text-xs text-amber-400 hover:underline cursor-pointer font-semibold"
               >
-                ফিল্টার রিসেট করে আবার দেখুন
+                ফিল্টার রিসেট করুন
               </button>
             )}
           </div>
@@ -444,269 +669,406 @@ export const BazarTab: React.FC<BazarTabProps> = ({
             {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-900/90 text-slate-400 border-b border-slate-800 uppercase text-[10px] tracking-wider">
+                <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase text-[10px] tracking-wider font-bold">
                   <tr>
-                    <th className="py-2.5 px-4 font-semibold">তারিখ</th>
-                    <th className="py-2.5 px-4 font-semibold">বিবরণ ও ধরণ</th>
-                    <th className="py-2.5 px-4 font-semibold">ক্রেতা</th>
-                    <th className="py-2.5 px-4 font-semibold text-right">পরিমাণ</th>
-                    <th className="py-2.5 px-4 font-semibold text-center">স্ট্যাটাস</th>
-                    {isAdminOrSuper && (
-                      <th className="py-2.5 px-4 font-semibold text-center">অ্যাকশন</th>
-                    )}
+                    <th className="py-3 px-4">তারিখ</th>
+                    <th className="py-3 px-4">বিবরণ ও ফর্দ</th>
+                    <th className="py-3 px-4">ধরণ</th>
+                    <th className="py-3 px-4">ক্রেতার নাম</th>
+                    <th className="py-3 px-4 text-right">টাকার পরিমাণ</th>
+                    <th className="py-3 px-4 text-center">অ্যাকশন</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {filteredBazars.map((b) => (
-                    <tr
-                      key={b._id}
-                      className="hover:bg-slate-800/40 transition-colors group"
-                    >
-                      {/* Date */}
-                      <td className="py-3 px-4 font-mono text-slate-400 whitespace-nowrap">
-                        {b.date}
-                      </td>
+                <tbody className="divide-y divide-slate-800/60 font-sans">
+                  {filteredBazars.map((b) => {
+                    const isCreator = b.userId === currentUser.id;
+                    const canEditOrDelete = isManager || isCreator;
+                    const hasItems = b.items && b.items.length > 0;
 
-                      {/* Description & Type */}
-                      <td className="py-3 px-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-white">{b.description}</span>
-                            <span
-                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                                b.type === 'regular'
-                                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                  : b.type === 'big'
-                                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                              }`}
-                            >
-                              {b.type === 'regular'
-                                ? 'রেগুলার'
-                                : b.type === 'big'
-                                ? 'বড় বাজার'
-                                : 'এক্সট্রা'}
+                    return (
+                      <tr key={b._id} className="hover:bg-slate-800/40 transition-colors group">
+                        {/* Date */}
+                        <td className="py-3 px-4 font-mono text-slate-300 whitespace-nowrap font-medium">
+                          {b.date}
+                        </td>
+
+                        {/* Description & Item Overview */}
+                        <td className="py-3 px-4 max-w-xs">
+                          <div className="space-y-1">
+                            <span className="font-semibold text-white block truncate" title={b.description}>
+                              {b.description}
                             </span>
-                            {b.paidFromBigBazarFund && (
-                              <span className="text-[10px] text-purple-400 font-medium bg-purple-950/40 px-1.5 py-0.5 rounded border border-purple-800/40">
-                                ফান্ড থেকে
+                            {hasItems && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-amber-300/90 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                📋 {b.items.length}টি আইটেমের ফর্দ যুক্ত
                               </span>
                             )}
                           </div>
+                        </td>
 
-                          {/* Itemized receipt button if items exist or multiple items in description */}
-                          {((b.items && b.items.length > 0) || (b.description && b.description.includes(','))) && (
-                            <button
-                              type="button"
-                              onClick={() => setViewingReceiptBazar(b)}
-                              className="text-[10px] text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/20 transition-all cursor-pointer w-fit"
-                            >
-                              <FileText className="w-3 h-3" />
-                              {b.items && b.items.length > 0
-                                ? `📋 ${b.items.length}টি জিনিসের ফর্দ/রসিদ দেখুন`
-                                : '📋 বিস্তারিত ফর্দ দেখুন'}
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                        {/* Type Badge */}
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                              b.type === 'regular'
+                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                : b.type === 'big'
+                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            }`}
+                          >
+                            {b.type === 'regular' ? 'রেগুলার' : b.type === 'big' ? 'বড় বাজার' : 'এক্সট্রা'}
+                          </span>
+                        </td>
 
-                      {/* Buyer */}
-                      <td className="py-3 px-4 text-slate-200 whitespace-nowrap">
-                        <span className="font-medium">{b.userName || 'অজানা'}</span>
-                      </td>
-
-                      {/* Amount */}
-                      <td className="py-3 px-4 text-right font-mono font-bold text-amber-400 whitespace-nowrap">
-                        {formatTaka(b.amount)}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded ${
-                            b.status === 'approved'
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                              : b.status === 'rejected'
-                              ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
-                          }`}
-                        >
-                          {b.status === 'approved'
-                            ? 'অনুমোদিত'
-                            : b.status === 'rejected'
-                            ? 'বাতিল'
-                            : 'অপেক্ষমান'}
-                        </span>
-                      </td>
-
-                      {/* Admin Actions: Review, Edit & Delete */}
-                      {isAdminOrSuper && (
-                        <td className="py-3 px-4 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1.5">
-                            {b.status === 'pending' && (
-                              <>
-                                <button
-                                  onClick={() => handleReview(b._id, 'approved')}
-                                  disabled={processingId === b._id}
-                                  className="p-1 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
-                                  title="অনুমোদন করুন"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleReview(b._id, 'rejected')}
-                                  disabled={processingId === b._id}
-                                  className="p-1 rounded-lg bg-rose-600/80 hover:bg-rose-500 text-white transition-colors cursor-pointer"
-                                  title="বাতিল করুন"
-                                >
-                                  <XCircle className="w-3.5 h-3.5" />
-                                </button>
-                              </>
-                            )}
-
-                            <button
-                              onClick={() => startEdit(b)}
-                              className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 transition-colors cursor-pointer"
-                              title="বাজার এডিট বা সংশোধন করুন"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-
-                            <button
-                              onClick={() => handleDeleteBazar(b._id, b.description)}
-                              className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
-                              title="বাজার এন্ট্রি মুছে ফেলুন"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                        {/* Buyer */}
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={b.userImage || `https://api.dicebear.com/7.x/bottts/svg?seed=${b.userId}`}
+                              alt={b.userName || 'ক্রেতা'}
+                              className="w-7 h-7 rounded-lg object-cover border border-slate-700"
+                            />
+                            <div>
+                              <span className="font-bold text-white text-xs block">{b.userName || 'অজানা'}</span>
+                              <span className="text-[10px] text-slate-400 block capitalize">
+                                {b.userRole === 'super_admin'
+                                  ? 'সুপার এডমিন'
+                                  : b.userRole === 'admin'
+                                  ? 'ম্যানেজার'
+                                  : 'সদস্য'}
+                              </span>
+                            </div>
                           </div>
                         </td>
-                      )}
-                    </tr>
-                  ))}
+
+                        {/* Amount */}
+                        <td className="py-3 px-4 text-right font-mono font-black text-amber-400 text-sm whitespace-nowrap">
+                          {formatTaka(b.amount)}
+                        </td>
+
+                        {/* Actions: View Details, Edit, Delete */}
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {/* View Details Button */}
+                            <button
+                              onClick={() => setViewingDetailsBazar(b)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/35 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all cursor-pointer shadow-sm"
+                              title="পূর্ণাঙ্গ ফর্দ ও ক্রেতার খরচ বিবরণী দেখুন"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>বিস্তারিত দেখুন</span>
+                            </button>
+
+                            {/* Edit Button */}
+                            {canEditOrDelete && (
+                              <button
+                                onClick={() => startEdit(b)}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                                title="বাজার এডিট বা সংশোধন করুন"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {/* Delete Button */}
+                            {canEditOrDelete && (
+                              <button
+                                onClick={() => handleDeleteBazar(b._id, b.description)}
+                                className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/35 text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
+                                title="বাজার এন্ট্রি মুছে ফেলুন"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
-            {/* Mobile Compact List View */}
+            {/* Mobile Compact Cards View */}
             <div className="md:hidden divide-y divide-slate-800/60">
-              {filteredBazars.map((b) => (
-                <div key={b._id} className="p-3.5 space-y-2 hover:bg-slate-800/30 transition-colors">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-0.5">
-                      <div className="font-semibold text-white text-xs flex items-center gap-1.5 flex-wrap">
-                        <span>{b.description}</span>
-                        <span
-                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
-                            b.type === 'regular'
-                              ? 'bg-blue-500/20 text-blue-300'
-                              : b.type === 'big'
-                              ? 'bg-purple-500/20 text-purple-300'
-                              : 'bg-emerald-500/20 text-emerald-300'
-                          }`}
-                        >
-                          {b.type === 'regular'
-                            ? 'রেগুলার'
-                            : b.type === 'big'
-                            ? 'বড় বাজার'
-                            : 'এক্সট্রা'}
-                        </span>
+              {filteredBazars.map((b) => {
+                const isCreator = b.userId === currentUser.id;
+                const canEditOrDelete = isManager || isCreator;
+                const hasItems = b.items && b.items.length > 0;
+
+                return (
+                  <div key={b._id} className="p-4 space-y-3 hover:bg-slate-800/30 transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-white text-xs">{b.description}</span>
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                              b.type === 'regular'
+                                ? 'bg-blue-500/20 text-blue-300'
+                                : b.type === 'big'
+                                ? 'bg-purple-500/20 text-purple-300'
+                                : 'bg-emerald-500/20 text-emerald-300'
+                            }`}
+                          >
+                            {b.type === 'regular' ? 'রেগুলার' : b.type === 'big' ? 'বড় বাজার' : 'এক্সট্রা'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                          <img
+                            src={b.userImage || `https://api.dicebear.com/7.x/bottts/svg?seed=${b.userId}`}
+                            alt={b.userName}
+                            className="w-4 h-4 rounded-full"
+                          />
+                          <span>{b.userName}</span>
+                          <span>•</span>
+                          <span className="font-mono">{b.date}</span>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                        <span>{b.userName}</span>
-                        <span>•</span>
-                        <span className="font-mono">{b.date}</span>
+
+                      <div className="text-right">
+                        <div className="font-mono font-black text-amber-400 text-sm">
+                          {formatTaka(b.amount)}
+                        </div>
+                        {hasItems && (
+                          <span className="text-[10px] text-amber-300/80 block font-mono">
+                            {b.items.length}টি জিনিস
+                          </span>
+                        )}
                       </div>
-                      {((b.items && b.items.length > 0) || (b.description && b.description.includes(','))) && (
-                        <button
-                          type="button"
-                          onClick={() => setViewingReceiptBazar(b)}
-                          className="text-[10px] text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 transition-all cursor-pointer w-fit mt-1"
-                        >
-                          <FileText className="w-3 h-3" />
-                          {b.items && b.items.length > 0
-                            ? `📋 ${b.items.length}টি জিনিসের ফর্দ দেখুন`
-                            : '📋 ফর্দ দেখুন'}
-                        </button>
-                      )}
                     </div>
 
-                    <div className="text-right">
-                      <div className="font-mono font-bold text-amber-400 text-xs">
-                        {formatTaka(b.amount)}
-                      </div>
-                      <span
-                        className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded mt-0.5 ${
-                          b.status === 'approved'
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : b.status === 'rejected'
-                            ? 'bg-rose-500/20 text-rose-400'
-                            : 'bg-amber-500/20 text-amber-300'
-                        }`}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/50">
+                      <button
+                        onClick={() => setViewingDetailsBazar(b)}
+                        className="flex items-center gap-1 text-[11px] font-bold bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 px-3 py-1.5 rounded-lg cursor-pointer"
                       >
-                        {b.status === 'approved'
-                          ? 'অনুমোদিত'
-                          : b.status === 'rejected'
-                          ? 'বাতিল'
-                          : 'অপেক্ষমান'}
-                      </span>
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>বিস্তারিত দেখুন</span>
+                      </button>
+
+                      {canEditOrDelete && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => startEdit(b)}
+                            className="p-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 text-xs cursor-pointer"
+                            title="এডিট"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBazar(b._id, b.description)}
+                            className="p-1.5 rounded-lg bg-rose-600/20 text-rose-300 border border-rose-500/30 text-xs cursor-pointer"
+                            title="মুছুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  {/* Admin action button on mobile */}
-                  {isAdminOrSuper && (
-                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-800/50">
-                      {b.status === 'pending' && (
-                        <>
-                          <button
-                            onClick={() => handleReview(b._id, 'approved')}
-                            disabled={processingId === b._id}
-                            className="flex items-center gap-1 text-[11px] font-medium bg-emerald-600/80 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" /> অনুমোদন
-                          </button>
-                          <button
-                            onClick={() => handleReview(b._id, 'rejected')}
-                            disabled={processingId === b._id}
-                            className="flex items-center gap-1 text-[11px] font-medium bg-rose-600/80 hover:bg-rose-500 text-white px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <XCircle className="w-3.5 h-3.5" /> বাতিল
-                          </button>
-                        </>
-                      )}
-
-                      <button
-                        onClick={() => startEdit(b)}
-                        className="p-1 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 text-xs cursor-pointer"
-                        title="এডিট"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => handleDeleteBazar(b._id, b.description)}
-                        className="p-1 rounded-lg bg-rose-600/20 text-rose-300 border border-rose-500/30 text-xs cursor-pointer"
-                        title="মুছুন"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
       </div>
 
-      {/* Edit Bazar Modal for Super Admin / Manager */}
+      {/* 7. POPUP MODAL: VIEW DETAILS (আইটেমওয়ারী ফর্দ ও ক্রেতার খরচ বিবরণী) */}
+      {viewingDetailsBazar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/70 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-white">বাজার ভাউচার ও খরচের বিস্তারিত রসিদ</h4>
+                  <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
+                    <span>{viewingDetailsBazar.date}</span>
+                    <span>•</span>
+                    <span className="uppercase text-amber-300 font-bold">
+                      {viewingDetailsBazar.type === 'regular'
+                        ? 'রেগুলার বাজার'
+                        : viewingDetailsBazar.type === 'big'
+                        ? 'বড় বাজার'
+                        : 'এক্সট্রা বাজার'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingDetailsBazar(null)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Modal Content */}
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto text-xs">
+              {/* Buyer Profile & Live Spending Card */}
+              {(() => {
+                const buyerSpending = getMemberSpending(viewingDetailsBazar.userId);
+                return (
+                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={
+                            viewingDetailsBazar.userImage ||
+                            `https://api.dicebear.com/7.x/bottts/svg?seed=${viewingDetailsBazar.userId}`
+                          }
+                          alt={viewingDetailsBazar.userName}
+                          className="w-11 h-11 rounded-xl object-cover border-2 border-indigo-500/40"
+                        />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-white text-sm">{viewingDetailsBazar.userName}</span>
+                            <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.2 rounded capitalize">
+                              {viewingDetailsBazar.userRole === 'super_admin'
+                                ? 'সুপার এডমিন'
+                                : viewingDetailsBazar.userRole === 'admin'
+                                ? 'ম্যানেজার'
+                                : 'সদস্য'}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-400">এই ভাউচারের ক্রেতা / পরিশোধকারী</span>
+                        </div>
+                      </div>
+
+                      <Link
+                        href={`/dashboard/profile?userId=${viewingDetailsBazar.userId}`}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                      >
+                        <span>প্রোফাইল</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+
+                    {/* Buyer's Total Bazar & Fixed Feast Breakdown */}
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/80 font-mono text-center">
+                      <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                        <span className="text-[10px] text-slate-400 block font-sans">চলতি মাসে বাজার</span>
+                        <span className="text-xs font-bold text-emerald-400">
+                          {formatTaka(buyerSpending.bazarTotal)}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                        <span className="text-[10px] text-slate-400 block font-sans">ফিক্সড ভোজ খরচ</span>
+                        <span className="text-xs font-bold text-orange-400">
+                          {formatTaka(buyerSpending.fixedTotal)}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                        <span className="text-[10px] text-slate-400 block font-sans">মোট মেস খরচ</span>
+                        <span className="text-xs font-bold text-amber-400">
+                          {formatTaka(buyerSpending.grandTotal)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Itemized Receipt Table */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-amber-400" />
+                    বাজারের জিনিসপত্রের ফর্দ ও মূল্যের হিসাব
+                  </span>
+                  {viewingDetailsBazar.items && (
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      মোট {viewingDetailsBazar.items.length} টি আইটেম
+                    </span>
+                  )}
+                </div>
+
+                {viewingDetailsBazar.items && viewingDetailsBazar.items.length > 0 ? (
+                  <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-950">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase font-bold border-b border-slate-800">
+                        <tr>
+                          <th className="py-2.5 px-3">#</th>
+                          <th className="py-2.5 px-3">জিনিসের নাম</th>
+                          <th className="py-2.5 px-3">পরিমাণ</th>
+                          <th className="py-2.5 px-3 text-right">মূল্য (টাকা)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono">
+                        {viewingDetailsBazar.items.map((it: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-900/40">
+                            <td className="py-2.5 px-3 text-slate-500 font-mono">{idx + 1}</td>
+                            <td className="py-2.5 px-3 font-semibold text-white font-sans">{it.name}</td>
+                            <td className="py-2.5 px-3 text-slate-300 font-sans">{it.qty || '—'}</td>
+                            <td className="py-2.5 px-3 text-right font-bold text-amber-400">
+                              {formatTaka(it.price)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-1.5">
+                    <span className="text-[11px] text-slate-400 block font-semibold">বিবরণ ও আইটেম:</span>
+                    <p className="text-slate-200 leading-relaxed font-sans whitespace-pre-wrap">
+                      {viewingDetailsBazar.description}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Total Paid Amount Box */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/40 via-slate-950 to-slate-950 border border-amber-500/40 flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-amber-300 font-bold block">সর্বমোট ভাউচার মূল্য</span>
+                  <span className="text-[11px] text-slate-400">
+                    {viewingDetailsBazar.paidFromBigBazarFund
+                      ? 'বড় বাজার ফান্ড থেকে পরিশোধ করা হয়েছে'
+                      : 'ক্রেতার নিজ পকেট থেকে পরিশোধিত'}
+                  </span>
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-amber-400 font-mono">
+                  {formatTaka(viewingDetailsBazar.amount)}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-800 flex items-center justify-between bg-slate-950/70 shrink-0">
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 cursor-pointer transition-colors"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>প্রিন্ট রসিদ</span>
+              </button>
+
+              <button
+                onClick={() => setViewingDetailsBazar(null)}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/25 cursor-pointer transition-all"
+              >
+                বন্ধ করুন
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. MODAL: EDIT BAZAR ENTRY */}
       {editingBazar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <Edit2 className="w-4 h-4 text-indigo-400" />
-                বাজারের এন্ট্রি সংশোধন করুন
+                বাজারের খরচ ও বিবরণ সংশোধন
               </h3>
               <button
                 onClick={() => setEditingBazar(null)}
@@ -740,15 +1102,30 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-400 mb-1">তারিখ</label>
-                <input
-                  type="date"
-                  required
-                  value={editDate}
-                  onChange={(e) => setEditDate(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 font-mono outline-none focus:border-indigo-500 cursor-pointer"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-slate-400 mb-1">তারিখ</label>
+                  <input
+                    type="date"
+                    required
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 font-mono outline-none focus:border-indigo-500 cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1">বাজারের ধরণ</label>
+                  <select
+                    value={editType}
+                    onChange={(e) => setEditType(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="regular">রেগুলার</option>
+                    <option value="big">বড় বাজার</option>
+                    <option value="extra">এক্সট্রা</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
@@ -768,101 +1145,6 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Itemized Voucher Details Modal */}
-      {viewingReceiptBazar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                  <ShoppingBag className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white">বাজারের আইটেম ফর্দ ও রসিদ</h4>
-                  <p className="text-[11px] text-slate-400 font-mono">
-                    {viewingReceiptBazar.date} • {viewingReceiptBazar.userName}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setViewingReceiptBazar(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3 text-xs max-h-[70vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-                <span className="text-slate-400">বাজারের ধরণ:</span>
-                <span className="font-bold text-white uppercase text-[11px]">
-                  {viewingReceiptBazar.type === 'regular'
-                    ? 'রেগুলার বাজার'
-                    : viewingReceiptBazar.type === 'big'
-                    ? 'বড় বাজার'
-                    : 'এক্সট্রা বাজার'}
-                </span>
-              </div>
-
-              {/* If items array exists */}
-              {viewingReceiptBazar.items && viewingReceiptBazar.items.length > 0 ? (
-                <div className="border border-slate-800 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-950 text-slate-400 text-[10px] uppercase font-bold border-b border-slate-800">
-                      <tr>
-                        <th className="py-2 px-3">#</th>
-                        <th className="py-2 px-3">জিনিসের নাম</th>
-                        <th className="py-2 px-3">পরিমাণ</th>
-                        <th className="py-2 px-3 text-right">মূল্য</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
-                      {viewingReceiptBazar.items.map((it: any, idx: number) => (
-                        <tr key={idx} className="text-slate-300">
-                          <td className="py-2 px-3 font-mono text-slate-500">{idx + 1}</td>
-                          <td className="py-2 px-3 font-semibold text-white">{it.name}</td>
-                          <td className="py-2 px-3 text-slate-400 font-mono">{it.qty || '—'}</td>
-                          <td className="py-2 px-3 text-right font-mono font-bold text-amber-400">
-                            {formatTaka(it.price)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
-                  <span className="text-[11px] text-slate-400 block font-semibold">সম্পূর্ণ বিবরণ ও জিনিস:</span>
-                  <p className="text-slate-200 leading-relaxed font-mono whitespace-pre-wrap">
-                    {viewingReceiptBazar.description}
-                  </p>
-                </div>
-              )}
-
-              {/* Total Summary */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/30 to-slate-950 border border-amber-500/30 flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-amber-300 font-bold block">মোট পরিশোধিত টাকা</span>
-                  <span className="text-[10px] text-slate-400">ক্রেতা: {viewingReceiptBazar.userName}</span>
-                </div>
-                <span className="text-lg font-black text-amber-400 font-mono">
-                  {formatTaka(viewingReceiptBazar.amount)}
-                </span>
-              </div>
-            </div>
-
-            <div className="p-3 border-t border-slate-800 flex justify-end bg-slate-950/60">
-              <button
-                onClick={() => setViewingReceiptBazar(null)}
-                className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-white font-semibold text-xs cursor-pointer"
-              >
-                বন্ধ করুন
-              </button>
-            </div>
           </div>
         </div>
       )}

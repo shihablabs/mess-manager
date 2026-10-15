@@ -13,6 +13,7 @@ export default function BazarExpensesPage() {
     bazars,
     fixedEvents,
     members,
+    slots,
     refreshData,
     openNewBazar,
     openFixedEvent,
@@ -22,8 +23,8 @@ export default function BazarExpensesPage() {
   if (isLoading && (!bazars || bazars.length === 0)) {
     return (
       <GlobalLoader
-        message="বাজার ভাউচার ও খরচ লোড হচ্ছে..."
-        subMessage="মেসের অনুমোদিত ও অপেক্ষমাণ ভাউচার প্রস্তুত করা হচ্ছে"
+        message="বাজার তালিকা ও খরচ লোড হচ্ছে..."
+        subMessage="মেসের সকল নিয়মিত, বড় ও ফিক্সড ভোজের বাজার প্রস্তুত করা হচ্ছে"
       />
     );
   }
@@ -38,6 +39,7 @@ export default function BazarExpensesPage() {
           bazars={bazars}
           fixedEvents={fixedEvents}
           members={members}
+          slots={slots}
           onRefresh={refreshData}
           onOpenNewBazarModal={openNewBazar}
           onOpenFixedEventModal={openFixedEvent}

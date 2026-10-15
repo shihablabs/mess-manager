@@ -14,9 +14,6 @@ export async function GET(request: Request) {
     const pendingMealRequests = store.mealRequests.filter(
       (r) => r.cycleId === cycleId && r.status === 'pending'
     );
-    const pendingBazars = store.bazars.filter(
-      (b) => b.cycleId === cycleId && b.status === 'pending'
-    );
 
     return NextResponse.json({
       success: true,
@@ -27,7 +24,7 @@ export async function GET(request: Request) {
       userBalance: calculation.memberResults[userId] || null,
       pendingCounts: {
         mealRequests: pendingMealRequests.length,
-        bazars: pendingBazars.length,
+        bazars: 0,
       },
       auditLogs: store.auditLogs.slice(-10),
     });

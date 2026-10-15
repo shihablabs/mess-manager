@@ -14,13 +14,14 @@ export async function GET(request: Request) {
   let list = store.bazars.filter((b) => b.cycleId === cycleId);
   if (userId) list = list.filter((b) => b.userId === userId);
   if (type) list = list.filter((b) => b.type === type);
-  if (status) list = list.filter((b) => b.status === status);
 
   const enriched = list.map((b) => {
     const user = store.users.find((u) => u._id === b.userId);
     return {
       ...b,
       userName: user ? user.name : 'সদস্য',
+      userImage: user?.image || `https://api.dicebear.com/7.x/bottts/svg?seed=${b.userId}`,
+      userRole: user?.role || 'member',
     };
   });
 
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       bazar: newEntry,
-      message: 'বাজার সফলভাবে সরাসরি যুক্ত ও অনুমোদিত হয়েছে',
+      message: 'বাজারের খরচ সফলভাবে সরাসরি যুক্ত হয়েছে',
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

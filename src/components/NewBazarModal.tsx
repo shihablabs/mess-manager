@@ -133,7 +133,7 @@ export const NewBazarModal: React.FC<NewBazarModalProps> = ({
         setExtraNote('');
         onSuccess();
         onClose();
-        toast.success(data.message || 'বাজার সফলভাবে সরাসরি যুক্ত ও অনুমোদিত হয়েছে!');
+        toast.success(data.message || 'বাজার সফলভাবে সরাসরি যুক্ত হয়েছে!');
       } else {
         toast.error(data.error || 'বাজার যুক্ত করতে ব্যর্থ হয়েছে');
       }

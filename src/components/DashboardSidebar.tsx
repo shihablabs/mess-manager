@@ -114,15 +114,14 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     },
     {
       id: 'bazar',
-      label: 'বাজার খরচ ও ভাউচার',
+      label: 'বাজার তালিকা ও খরচ',
       href: '/dashboard/bazar',
       icon: ShoppingBag,
-      badge: pendingCounts.bazars > 0 ? `${pendingCounts.bazars} নতুন` : null,
       isActive: pathname.startsWith('/dashboard/bazar'),
       subItems: [
         {
           id: 'bazar_list',
-          label: 'বাজার তালিকা ও অনুমোদন',
+          label: 'বাজার তালিকা ও ফর্দ',
           href: '/dashboard/bazar',
           isActive: pathname === '/dashboard/bazar',
         },
