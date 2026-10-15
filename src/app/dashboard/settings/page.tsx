@@ -21,6 +21,8 @@ import {
   User,
   Info,
   Layers,
+  Plus,
+  Trash2,
 } from '@/components/icons';
 import { formatTaka } from '@/lib/money';
 import { toast } from 'sonner';
@@ -38,6 +40,22 @@ function SettingsContent() {
   );
   const [isSavingBigBazar, setIsSavingBigBazar] = useState(false);
 
+  // Meal Slots settings state (Task 9)
+  const defaultSlots = [
+    { id: 'morning', name: 'সকাল', weight: 0.5, cutoffTime: '22:00' },
+    { id: 'night', name: 'রাত', weight: 1.0, cutoffTime: '16:00' },
+  ];
+  const [mealSlots, setMealSlots] = useState<any[]>(() => {
+    return summaryData?.mess?.mealSlots?.length ? summaryData.mess.mealSlots : defaultSlots;
+  });
+  const [isSavingMealSlots, setIsSavingMealSlots] = useState(false);
+
+  React.useEffect(() => {
+    if (summaryData?.mess?.mealSlots?.length) {
+      setMealSlots(summaryData.mess.mealSlots);
+    }
+  }, [summaryData?.mess?.mealSlots]);
+
   // Member notification preference state
   const [mealReminderMorning, setMealReminderMorning] = useState(true);
   const [mealReminderNight, setMealReminderNight] = useState(true);
@@ -48,6 +66,56 @@ function SettingsContent() {
   }
 
   const isSuperAdmin = currentUser.role === 'super_admin';
+  const isManagerOrAdmin = currentUser.role === 'super_admin' || currentUser.role === 'admin';
+
+  const handleSlotChange = (index: number, field: string, value: any) => {
+    setMealSlots((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const handleAddSlot = () => {
+    const nextId = `slot_${mealSlots.length + 1}`;
+    setMealSlots((prev) => [
+      ...prev,
+      { id: nextId, name: 'নতুন মিল', weight: 1.0, cutoffTime: '12:00' },
+    ]);
+  };
+
+  const handleRemoveSlot = (index: number) => {
+    if (mealSlots.length <= 1) {
+      toast.error('কমপক্ষে একটি মিল স্লট থাকতে হবে');
+      return;
+    }
+    setMealSlots((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveMealSlots = async () => {
+    try {
+      setIsSavingMealSlots(true);
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_meal_slots',
+          mealSlots,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'মিল স্লট সফলভাবে সংরক্ষিত হয়েছে!');
+        refreshData();
+      } else {
+        toast.error(data.error || 'সংরক্ষণ ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error('নেটওয়ার্ক ত্রুটি ঘটেছে');
+    } finally {
+      setIsSavingMealSlots(false);
+    }
+  };
 
   // Save Big Bazar Settings (Super Admin only)
   const handleSaveBigBazarSettings = async () => {
@@ -220,6 +288,146 @@ function SettingsContent() {
           </div>
         </div>
       )}
+
+      {/* SECTION: MEAL SLOTS CONFIGURATION (Task 9 & SRS 4.5) */}
+      <div className="glass-panel rounded-2xl p-5 border border-indigo-500/30 bg-slate-900/60 space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-sm">মিল স্লট কনফিগারেশন (নাম, ওজন ও বন্ধের সময়)</h3>
+              <p className="text-xs text-slate-400">
+                মিল স্লটের নাম, মিল গণনা ওজন (Weight) ও মিল অন/অফের ডেডলাইন (Cutoff Time)
+              </p>
+            </div>
+          </div>
+          {isManagerOrAdmin && (
+            <button
+              type="button"
+              onClick={handleAddSlot}
+              className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              নতুন স্লট যোগ করুন
+            </button>
+          )}
+        </div>
+
+        {/* Meal Slots Table / Card Grid */}
+        <div className="space-y-3">
+          <div className="hidden md:grid grid-cols-12 gap-3 px-3 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-950/60 rounded-xl border border-slate-800">
+            <div className="col-span-3">স্লট আইডি / কোড</div>
+            <div className="col-span-3">স্লটের নাম</div>
+            <div className="col-span-2">মিল ওজন (Weight)</div>
+            <div className="col-span-3">বন্ধের সময় (Cutoff)</div>
+            <div className="col-span-1 text-center">একশন</div>
+          </div>
+
+          {mealSlots.map((slot: any, index: number) => (
+            <div
+              key={slot.id || index}
+              className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col md:grid md:grid-cols-12 gap-3 items-center"
+            >
+              <div className="w-full md:col-span-3 flex items-center justify-between md:justify-start gap-2">
+                <span className="text-[11px] text-slate-400 md:hidden">আইডি:</span>
+                <input
+                  type="text"
+                  disabled={!isManagerOrAdmin || slot.id === 'morning' || slot.id === 'night'}
+                  value={slot.id}
+                  onChange={(e) => handleSlotChange(index, 'id', e.target.value)}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 font-mono w-full md:w-32 disabled:opacity-75 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="w-full md:col-span-3 flex items-center justify-between md:justify-start gap-2">
+                <span className="text-[11px] text-slate-400 md:hidden">নাম:</span>
+                <input
+                  type="text"
+                  disabled={!isManagerOrAdmin}
+                  value={slot.name}
+                  onChange={(e) => handleSlotChange(index, 'name', e.target.value)}
+                  placeholder="যেমন: সকাল, রাত"
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white font-medium w-full focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="w-full md:col-span-2 flex items-center justify-between md:justify-start gap-2">
+                <span className="text-[11px] text-slate-400 md:hidden">ওজন:</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  max="5"
+                  disabled={!isManagerOrAdmin}
+                  value={slot.weight}
+                  onChange={(e) => handleSlotChange(index, 'weight', parseFloat(e.target.value) || 0)}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-amber-300 font-mono font-bold w-full md:w-24 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="w-full md:col-span-3 flex items-center justify-between md:justify-start gap-2">
+                <span className="text-[11px] text-slate-400 md:hidden">বন্ধের সময়:</span>
+                <div className="relative w-full">
+                  <input
+                    type="time"
+                    disabled={!isManagerOrAdmin}
+                    value={slot.cutoffTime || '16:00'}
+                    onChange={(e) => handleSlotChange(index, 'cutoffTime', e.target.value)}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-emerald-300 font-mono font-bold w-full focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="w-full md:col-span-1 flex justify-end md:justify-center">
+                {isManagerOrAdmin && mealSlots.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveSlot(index)}
+                    className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-all cursor-pointer"
+                    title="স্লট মুছুন"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Helpful instructions for deadlines */}
+        <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+          <p className="flex items-center gap-1.5 font-medium text-slate-300">
+            <Info className="w-3.5 h-3.5 text-indigo-400" />
+            মিল বন্ধের সময় (Cutoff Time) সহায়িকা:
+          </p>
+          <p className="pl-5 text-slate-400">
+            • <strong className="text-slate-300">সকালের মিল:</strong> ডেডলাইন আগের রাতের জন্য প্রযোজ্য (যেমন রাত ১০:০০ / ২২:০০)।
+          </p>
+          <p className="pl-5 text-slate-400">
+            • <strong className="text-slate-300">দুপুর ও রাতের মিল:</strong> ডেডলাইন ওই দিনের নির্দিষ্ট সময়ের পূর্বে প্রযোজ্য (যেমন দুপুর ০৯:০০ ও বিকাল ১৬:০০)।
+          </p>
+          <p className="pl-5 text-slate-400">
+            • সদস্য মিল রিকোয়েস্ট পাঠালে এই ডেডলাইনের পর স্বয়ংক্রিয়ভাবে বিলম্বিত (Late) হিসেবে চিহ্নিত হবে।
+          </p>
+        </div>
+
+        {/* Save button */}
+        {isManagerOrAdmin && (
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={handleSaveMealSlots}
+              disabled={isSavingMealSlots}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {isSavingMealSlots ? 'সংরক্ষণ হচ্ছে...' : 'মিল স্লট কনফিগারেশন সংরক্ষণ করুন'}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* MEMBER & GENERAL SETTINGS */}
       <div className="space-y-5">

@@ -187,3 +187,45 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const store = await getStore();
+    const db = await getDb();
+    const body = await request.json();
+    const { cycleId = store.cycles[0]?._id as string, isBigBazarEnabled, bigBazarContributionPerMember } = body;
+
+    const cycle = store.cycles.find((c) => c._id === cycleId);
+    if (!cycle) {
+      return NextResponse.json({ success: false, error: 'চক্র পাওয়া যায়নি' }, { status: 404 });
+    }
+
+    if (typeof isBigBazarEnabled === 'boolean') {
+      cycle.isBigBazarEnabled = isBigBazarEnabled;
+    }
+    if (typeof bigBazarContributionPerMember === 'number') {
+      cycle.bigBazarContributionPerMember = bigBazarContributionPerMember;
+    }
+
+    if (db) {
+      await db.collection('cycles').updateOne(
+        { _id: cycleId },
+        {
+          $set: {
+            isBigBazarEnabled: cycle.isBigBazarEnabled,
+            bigBazarContributionPerMember: cycle.bigBazarContributionPerMember,
+            updatedAt: new Date(),
+          },
+        }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'বড় বাজার ও মেস সেটিংস সফলভাবে আপডেট করা হয়েছে!',
+    });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
