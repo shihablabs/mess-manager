@@ -1226,13 +1226,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                   return (
                     <tr key={d._id} className="hover:bg-slate-900/60 transition-colors">
                       <td className="py-3 px-3.5 font-medium text-slate-200">
-                        {d.userId === 'mess_fund' ? (
-                          <span className="text-amber-400 font-bold flex items-center gap-1">
-                            🏦 মেস সাধারণ তহবিল
-                          </span>
-                        ) : (
-                          d.userName
-                        )}
+                        {d.userName}
                       </td>
                       <td className="py-3 px-3.5">
                         <div className="font-mono text-slate-300 text-xs">{d.date}</div>

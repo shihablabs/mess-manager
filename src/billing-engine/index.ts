@@ -159,23 +159,17 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
     }
   }
 
-  // 7. Credits: deposits & approved personal bazar spending
+  // 7. Credits: deposits & approved personal bazar spending (strictly member-attributed per SRS)
   const memberDepositsMap = new Map<string, { general: number; bigBazar: number }>();
   members.forEach((m) => memberDepositsMap.set(m.userId, { general: 0, bigBazar: 0 }));
 
-  let messFundDepositsTotal = 0;
-
   for (const dep of deposits) {
-    if (dep.isPaid) {
-      if (dep.userId === 'mess_fund') {
-        messFundDepositsTotal += dep.amount;
-      } else if (memberDepositsMap.has(dep.userId)) {
-        const entry = memberDepositsMap.get(dep.userId)!;
-        if (dep.type === 'big_bazar') {
-          entry.bigBazar += dep.amount;
-        } else {
-          entry.general += dep.amount;
-        }
+    if (dep.isPaid && memberDepositsMap.has(dep.userId)) {
+      const entry = memberDepositsMap.get(dep.userId)!;
+      if (dep.type === 'big_bazar') {
+        entry.bigBazar += dep.amount;
+      } else {
+        entry.general += dep.amount;
       }
     }
   }
@@ -270,9 +264,8 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
     allMembersSummary,
     totals: {
       totalDues: sumRoundedDues,
-      totalCredits: sumCredits + messFundDepositsTotal,
-      totalMessFundDeposits: messFundDepositsTotal,
-      netBalance: (sumCredits + messFundDepositsTotal) - sumRoundedDues,
+      totalCredits: sumCredits,
+      netBalance: sumCredits - sumRoundedDues,
       roundingDifference,
     },
   };

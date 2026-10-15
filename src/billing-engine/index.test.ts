@@ -339,6 +339,36 @@ describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
     expect(approvedResult.memberResults['u1'].approvedBazarSpentOwnMoney).toBe(5000);
     expect(approvedResult.memberResults['u1'].totalCredits).toBe(5000);
   });
+
+  it('strictly attributes deposits to individual members and rejects unassigned/mess_fund deposits', () => {
+    const members = [
+      { userId: 'u1', name: 'User 1', roomRent: 2000, isActive: true },
+      { userId: 'u2', name: 'User 2', roomRent: 2000, isActive: true },
+    ];
+
+    const deposits = [
+      { userId: 'u1', amount: 3000, type: 'general' as const, isPaid: true },
+      { userId: 'u2', amount: 2000, type: 'general' as const, isPaid: true },
+      { userId: 'mess_fund', amount: 5000, type: 'general' as const, isPaid: true }, // Should be ignored
+    ];
+
+    const result = calculateBilling({
+      members,
+      mealRecords: [],
+      fixedEvents: [],
+      bazarItems: [],
+      deposits,
+      utilityBills: [],
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+    });
+
+    expect(result.memberResults['u1'].generalDeposits).toBe(3000);
+    expect(result.memberResults['u1'].totalCredits).toBe(3000);
+    expect(result.memberResults['u2'].generalDeposits).toBe(2000);
+    expect(result.memberResults['u2'].totalCredits).toBe(2000);
+    // Total credits should strictly be 3000 + 2000 = 5000 (mess_fund is not added)
+    expect(result.totals.totalCredits).toBe(5000);
+  });
 });
 
 

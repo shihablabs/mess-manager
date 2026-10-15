@@ -19,12 +19,6 @@ export async function GET(request: Request) {
     if (userId) list = list.filter((d) => d.userId === userId);
 
     const enriched = list.map((d) => {
-      if (d.userId === 'mess_fund') {
-        return {
-          ...d,
-          userName: '🏦 মেস সাধারণ তহবিল (অব্যবহৃত)',
-        };
-      }
       const user = store.users.find((u) => u._id === d.userId);
       const userDetails = (user as any)?.userDetails || {};
       const effectiveName = (user as any)?.displayName || userDetails.displayName || user?.name || 'সদস্য';

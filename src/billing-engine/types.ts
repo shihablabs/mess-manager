@@ -120,7 +120,6 @@ export interface BillingEngineOutput {
   totals: {
     totalDues: number;
     totalCredits: number;
-    totalMessFundDeposits?: number;
     netBalance: number;
     roundingDifference: number;
   };

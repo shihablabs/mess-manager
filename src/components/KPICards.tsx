@@ -80,11 +80,6 @@ export const KPICards: React.FC<KPICardsProps> = ({
             <div>
               <span>মোট জমা: </span>
               <strong className="text-emerald-400 font-mono">{formatTaka(calculation.totals.totalCredits)}</strong>
-              {(calculation.totals.totalMessFundDeposits || 0) > 0 && (
-                <span className="text-[10px] text-slate-500 block">
-                  (তহবিল: {formatTaka(calculation.totals.totalMessFundDeposits || 0)})
-                </span>
-              )}
             </div>
             <div className="text-right">
               <span>মোট খরচ: </span>
