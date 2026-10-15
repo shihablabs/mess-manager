@@ -6,7 +6,7 @@ import { useDashboard } from '@/context/DashboardContext';
 import { GlobalLoader } from '@/components/GlobalLoader';
 import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
 import { getMemberBillingResultSafe } from '@/lib/safe-utils';
-import { formatTaka } from '@/lib/money';
+import { formatTaka, formatMealUnits } from '@/lib/money';
 import {
   User,
   Shield,
@@ -877,7 +877,7 @@ function ProfileContent() {
                         {/* Total Units */}
                         <td className="py-3 px-4 text-right">
                           <span className="font-extrabold text-amber-400">
-                            {row.totalUnits.toFixed(1)} ইউনিট
+                            {formatMealUnits(row.totalUnits)} ইউনিট
                           </span>
                           <span className="text-[10px] text-slate-500 block">
                             ({row.totalCount} টি মিল)

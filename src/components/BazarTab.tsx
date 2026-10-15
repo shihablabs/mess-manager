@@ -15,6 +15,9 @@ import {
   Tag,
   DollarSign,
   ChevronDown,
+  Trash2,
+  Edit2,
+  X,
 } from 'lucide-react';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
@@ -89,6 +92,66 @@ export const BazarTab: React.FC<BazarTabProps> = ({
       toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  // Editing state for Super Admin / Manager
+  const [editingBazar, setEditingBazar] = useState<any | null>(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const startEdit = (b: any) => {
+    setEditingBazar(b);
+    setEditAmount(String(b.amount));
+    setEditDescription(b.description);
+    setEditDate(b.date);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBazar) return;
+    try {
+      setIsSavingEdit(true);
+      const res = await fetch('/api/bazars', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingBazar._id,
+          amount: Number(editAmount),
+          description: editDescription,
+          date: editDate,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('বাজারের তথ্য সফলভাবে সংশোধন করা হয়েছে!');
+        setEditingBazar(null);
+        onRefresh();
+      } else {
+        toast.error(data.error || 'আপডেট ব্যর্থ হয়েছে');
+      }
+    } catch (err: any) {
+      toast.error('নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeleteBazar = async (id: string, desc: string) => {
+    if (!confirm(`আপনি কি নিশ্চিতভাবে "${desc}" এর বাজার এন্ট্রিটি ডাটাবেজ থেকে মুছে ফেলতে চান?`)) return;
+    try {
+      const res = await fetch(`/api/bazars?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('বাজারের এন্ট্রি সফলভাবে মুছে ফেলা হয়েছে!');
+        onRefresh();
+      } else {
+        toast.error(data.error || 'মুছে ফেলতে ব্যর্থ হয়েছে');
+      }
+    } catch (err: any) {
+      toast.error('নেটওয়ার্ক ত্রুটি');
     }
   };
 
@@ -458,31 +521,47 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                         </span>
                       </td>
 
-                      {/* Admin Actions */}
+                      {/* Admin Actions: Review, Edit & Delete */}
                       {isAdminOrSuper && (
                         <td className="py-3 px-4 text-center whitespace-nowrap">
-                          {b.status === 'pending' ? (
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                onClick={() => handleReview(b._id, 'approved')}
-                                disabled={processingId === b._id}
-                                className="p-1 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
-                                title="অনুমোদন করুন"
-                              >
-                                <CheckCircle className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleReview(b._id, 'rejected')}
-                                disabled={processingId === b._id}
-                                className="p-1 rounded-lg bg-rose-600/80 hover:bg-rose-500 text-white transition-colors cursor-pointer"
-                                title="বাতিল করুন"
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-[11px] text-slate-500">—</span>
-                          )}
+                          <div className="flex items-center justify-center gap-1.5">
+                            {b.status === 'pending' && (
+                              <>
+                                <button
+                                  onClick={() => handleReview(b._id, 'approved')}
+                                  disabled={processingId === b._id}
+                                  className="p-1 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
+                                  title="অনুমোদন করুন"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleReview(b._id, 'rejected')}
+                                  disabled={processingId === b._id}
+                                  className="p-1 rounded-lg bg-rose-600/80 hover:bg-rose-500 text-white transition-colors cursor-pointer"
+                                  title="বাতিল করুন"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+
+                            <button
+                              onClick={() => startEdit(b)}
+                              className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 transition-colors cursor-pointer"
+                              title="বাজার এডিট বা সংশোধন করুন"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteBazar(b._id, b.description)}
+                              className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
+                              title="বাজার এন্ট্রি মুছে ফেলুন"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -544,22 +623,42 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                     </div>
                   </div>
 
-                  {/* Admin action button on mobile if pending */}
-                  {isAdminOrSuper && b.status === 'pending' && (
+                  {/* Admin action button on mobile */}
+                  {isAdminOrSuper && (
                     <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-800/50">
+                      {b.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleReview(b._id, 'approved')}
+                            disabled={processingId === b._id}
+                            className="flex items-center gap-1 text-[11px] font-medium bg-emerald-600/80 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" /> অনুমোদন
+                          </button>
+                          <button
+                            onClick={() => handleReview(b._id, 'rejected')}
+                            disabled={processingId === b._id}
+                            className="flex items-center gap-1 text-[11px] font-medium bg-rose-600/80 hover:bg-rose-500 text-white px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <XCircle className="w-3.5 h-3.5" /> বাতিল
+                          </button>
+                        </>
+                      )}
+
                       <button
-                        onClick={() => handleReview(b._id, 'approved')}
-                        disabled={processingId === b._id}
-                        className="flex items-center gap-1 text-[11px] font-medium bg-emerald-600/80 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                        onClick={() => startEdit(b)}
+                        className="p-1 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 text-xs cursor-pointer"
+                        title="এডিট"
                       >
-                        <CheckCircle className="w-3.5 h-3.5" /> অনুমোদন
+                        <Edit2 className="w-3.5 h-3.5" />
                       </button>
+
                       <button
-                        onClick={() => handleReview(b._id, 'rejected')}
-                        disabled={processingId === b._id}
-                        className="flex items-center gap-1 text-[11px] font-medium bg-rose-600/80 hover:bg-rose-500 text-white px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                        onClick={() => handleDeleteBazar(b._id, b.description)}
+                        className="p-1 rounded-lg bg-rose-600/20 text-rose-300 border border-rose-500/30 text-xs cursor-pointer"
+                        title="মুছুন"
                       >
-                        <XCircle className="w-3.5 h-3.5" /> বাতিল
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -569,6 +668,79 @@ export const BazarTab: React.FC<BazarTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* Edit Bazar Modal for Super Admin / Manager */}
+      {editingBazar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                <Edit2 className="w-4 h-4 text-indigo-400" />
+                বাজারের এন্ট্রি সংশোধন করুন
+              </h3>
+              <button
+                onClick={() => setEditingBazar(null)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1">বাজারের বিবরণ / আইটেম</label>
+                <input
+                  type="text"
+                  required
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1">টাকার পরিমাণ (৳)</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 font-mono font-bold text-sm outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1">তারিখ</label>
+                <input
+                  type="date"
+                  required
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 font-mono outline-none focus:border-indigo-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingBazar(null)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isSavingEdit ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

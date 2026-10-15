@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { MemberBillingResult, BillingEngineOutput } from '@/billing-engine/types';
-import { formatTaka } from '@/lib/money';
+import { formatTaka, formatMealUnits } from '@/lib/money';
 import { Printer, X, CheckCircle, FileText, UserMinus, Clock, AlertTriangle } from 'lucide-react';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
@@ -152,7 +152,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
             <div className="p-3 bg-slate-950/50 border border-slate-800/80 rounded-xl print:border-gray-300">
               <span className="text-[11px] text-slate-400 block">মোট মিল ইউনিট</span>
               <span className="text-base font-bold text-white print:text-black font-mono">
-                {member.mealUnits.toFixed(1)}
+                {formatMealUnits(member.mealUnits)}
               </span>
             </div>
             <div className="p-3 bg-slate-950/50 border border-slate-800/80 rounded-xl print:border-gray-300">
@@ -182,7 +182,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
             </h4>
             <div className="space-y-2 text-xs border border-slate-800 rounded-xl p-3 bg-slate-950/40 print:border-gray-300 print:bg-white">
               <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
-                <span>মিল বাবদ খরচ ({member.mealUnits.toFixed(1)} × {formatTaka(calculation.mealRate)})</span>
+                <span>মিল বাবদ খরচ ({formatMealUnits(member.mealUnits)} × {formatTaka(calculation.mealRate)})</span>
                 <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.regularMealCost)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">

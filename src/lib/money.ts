@@ -38,3 +38,12 @@ export function formatTaka(
   }
   return `${symbol}${result}`;
 }
+
+/**
+ * Formats meal units cleanly without confusing rounding (e.g. 2.25 stays 2.25 instead of rounding to 2.3)
+ */
+export function formatMealUnits(units: number): string {
+  if (units === undefined || units === null || isNaN(units)) return '0';
+  const rounded = Math.round(units * 100) / 100;
+  return rounded.toString();
+}

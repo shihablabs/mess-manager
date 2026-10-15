@@ -101,3 +101,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const db = await getDb();
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get('date');
+    const userId = searchParams.get('userId');
+    const cycleId = searchParams.get('cycleId');
+
+    if (!date) {
+      return NextResponse.json({ success: false, error: 'তারিখ আবশ্যক' }, { status: 400 });
+    }
+
+    if (db) {
+      const query: any = { date };
+      if (userId) query.userId = userId;
+      if (cycleId) query.cycleId = cycleId;
+
+      await db.collection('meals').deleteMany(query);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `${date} তারিখের মিল সফলভাবে মুছে ফেলা হয়েছে / ০ করা হয়েছে`,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}

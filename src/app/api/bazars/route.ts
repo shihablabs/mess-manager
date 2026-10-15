@@ -126,28 +126,52 @@ export async function PATCH(request: Request) {
     const store = await getStore();
     const db = await getDb();
     const body = await request.json();
-    const { id, status, adminUserId } = body;
+    const { id, status, adminUserId, amount, description, type, date } = body;
 
     const item = store.bazars.find((b) => b._id === id);
-    if (!item) {
+    if (!item && !db) {
       return NextResponse.json({ success: false, error: 'বাজারের এন্ট্রি পাওয়া যায়নি' }, { status: 404 });
     }
 
     if (db) {
-      await db.collection('bazars').updateOne(
-        { _id: id },
-        {
-          $set: {
-            status,
-            reviewedBy: adminUserId || 'admin',
-            reviewedAt: new Date(),
-            updatedAt: new Date(),
-          },
-        }
-      );
+      const updateDoc: any = { updatedAt: new Date() };
+      if (status) {
+        updateDoc.status = status;
+        updateDoc.reviewedBy = adminUserId || 'admin';
+        updateDoc.reviewedAt = new Date();
+      }
+      if (typeof amount === 'number' && amount > 0) updateDoc.amount = Number(amount);
+      if (description) updateDoc.description = description;
+      if (type) updateDoc.type = type;
+      if (date) updateDoc.date = date;
+
+      await db.collection('bazars').updateOne({ _id: id as any }, { $set: updateDoc });
     }
 
-    return NextResponse.json({ success: true, message: 'বাজার অনুমোদিত / প্রত্যাখ্যাত হয়েছে' });
+    return NextResponse.json({ success: true, message: 'বাজারের তথ্য সফলভাবে আপডেট করা হয়েছে' });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const db = await getDb();
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'বাজারের আইডি আবশ্যক' }, { status: 400 });
+    }
+
+    if (db) {
+      await db.collection('bazars').deleteOne({ _id: id as any });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'বাজারের এন্ট্রি সফলভাবে মুছে ফেলা হয়েছে',
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

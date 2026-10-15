@@ -27,9 +27,12 @@ import {
   FileText,
   User,
   Zap,
+  Edit2,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { AppUser } from '@/lib/session';
-import { formatTaka } from '@/lib/money';
+import { formatTaka, formatMealUnits } from '@/lib/money';
 import { toast } from 'sonner';
 
 interface MealsTabProps {
@@ -83,6 +86,72 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
   const canEditMeals = currentUser.role === 'admin' || currentUser.role === 'super_admin';
   const liveMealRate = calculation?.mealRate || 0;
+
+  // Quick Edit Modal state for Daily Logs
+  const [editingLogItem, setEditingLogItem] = useState<{
+    date: string;
+    userId: string;
+    name: string;
+    morning: number;
+    night: number;
+  } | null>(null);
+  const [isSavingLogEdit, setIsSavingLogEdit] = useState(false);
+
+  const handleSaveLogEdit = async () => {
+    if (!editingLogItem) return;
+    try {
+      setIsSavingLogEdit(true);
+      const res = await fetch('/api/meals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: editingLogItem.date,
+          cycleId: cycle?._id || 'cycle_1',
+          entries: [
+            {
+              userId: editingLogItem.userId,
+              morning: editingLogItem.morning,
+              night: editingLogItem.night,
+            },
+          ],
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`${editingLogItem.date} তারিখের মিল সফলভাবে সংশোধন করা হয়েছে!`);
+        setEditingLogItem(null);
+        await fetchAllCycleMeals();
+        onRefresh();
+      } else {
+        toast.error(data.error || 'মিল সংশোধন ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error('নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setIsSavingLogEdit(false);
+    }
+  };
+
+  const handleDeleteMealLog = async (date: string, userId: string, memberName: string) => {
+    if (!confirm(`আপনি কি নিশ্চিত যে ${memberName} এর ${date} তারিখের মিল ০/বাতিল করতে চান?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/meals?date=${date}&userId=${userId}&cycleId=${cycle?._id || 'cycle_1'}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`${memberName} এর ${date} তারিখের মিল ০/বাতিল করা হয়েছে!`);
+        await fetchAllCycleMeals();
+        onRefresh();
+      } else {
+        toast.error(data.error || 'মুছে ফেলতে ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error('নেটওয়ার্ক ত্রুটি');
+    }
+  };
 
   // 1. Fetch All Meals for the Cycle (Full month)
   const fetchAllCycleMeals = useCallback(async () => {
@@ -417,7 +486,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           `"${(m.email || '').replace(/"/g, '""')}"`,
           m.morningTotal,
           m.nightTotal,
-          m.totalUnits.toFixed(1),
+          formatMealUnits(m.totalUnits),
           liveMealRate,
           m.estimatedCost,
           m.attendedDaysCount,
@@ -548,7 +617,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 <Utensils className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono mt-1">
-                {totalMonthUnits.toFixed(1)} <span className="text-xs font-normal text-slate-400">ইউনিট</span>
+                {formatMealUnits(totalMonthUnits)} <span className="text-xs font-normal text-slate-400">ইউনিট</span>
               </div>
               <div className="text-[10px] text-slate-400 mt-1">
                 সকাল: {totalMonthMorning} | রাত: {totalMonthNight}
@@ -564,7 +633,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 {memberMonthlyStats.length} <span className="text-xs font-normal text-slate-400">জন</span>
               </div>
               <div className="text-[10px] text-slate-400 mt-1">
-                সদস্য প্রতি গড়: {memberMonthlyStats.length > 0 ? (totalMonthUnits / memberMonthlyStats.length).toFixed(1) : 0} মিল
+                সদস্য প্রতি গড়: {memberMonthlyStats.length > 0 ? formatMealUnits(totalMonthUnits / memberMonthlyStats.length) : 0} মিল
               </div>
             </div>
 
@@ -773,7 +842,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
                         <td className="py-3 px-3 text-center">
                           <span className="inline-block px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono font-extrabold text-xs">
-                            {m.totalUnits.toFixed(1)}
+                            {formatMealUnits(m.totalUnits)}
                           </span>
                         </td>
 
@@ -813,7 +882,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                       {filteredRegister.reduce((sum, m) => sum + m.nightTotal, 0)} টি
                     </td>
                     <td className="py-3 px-3 text-center font-mono text-emerald-400 font-extrabold">
-                      {filteredRegister.reduce((sum, m) => sum + m.totalUnits, 0).toFixed(1)}
+                      {formatMealUnits(filteredRegister.reduce((sum, m) => sum + m.totalUnits, 0))}
                     </td>
                     <td className="py-3 px-3 text-right font-mono text-emerald-400 font-black">
                       {formatTaka(filteredRegister.reduce((sum, m) => sum + m.estimatedCost, 0))}
@@ -919,14 +988,17 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                 <span className="text-[11px] text-slate-400">সকালের মিল (০.৫)</span>
                 <p className="text-base font-bold text-white mt-0.5">{totalMorningMeals} টি</p>
+                <span className="text-[10px] text-slate-500 font-mono">({formatMealUnits(totalMorningMeals * 0.5)} ইউনিট)</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                 <span className="text-[11px] text-slate-400">রাতের মিল (১.০)</span>
                 <p className="text-base font-bold text-white mt-0.5">{totalNightMeals} টি</p>
+                <span className="text-[10px] text-slate-500 font-mono">({formatMealUnits(totalNightMeals * 1.0)} ইউনিট)</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                 <span className="text-[11px] text-indigo-400">মোট মিল ইউনিট</span>
-                <p className="text-base font-bold text-indigo-300 mt-0.5 font-mono">{totalMealUnits.toFixed(1)}</p>
+                <p className="text-base font-bold text-indigo-300 mt-0.5 font-mono">{formatMealUnits(totalMealUnits)}</p>
+                <span className="text-[10px] text-indigo-400/80 font-mono">সকাল×০.৫ + রাত×১.০</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                 <span className="text-[11px] text-slate-400">ডাইনিং সদস্য সংখ্যা</span>
@@ -988,7 +1060,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                           <div className="text-right shrink-0">
                             <span className="text-[10px] text-slate-400 block">মোট ইউনিট</span>
                             <span className="font-mono font-bold text-indigo-300 text-xs">
-                              {userTotal.toFixed(1)}
+                              {formatMealUnits(userTotal)}
                             </span>
                           </div>
                         </div>
@@ -1145,13 +1217,16 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     <th className="py-2.5 px-3 text-center">সকালের মিল</th>
                     <th className="py-2.5 px-3 text-center">রাতের মিল</th>
                     <th className="py-2.5 px-3 text-center">মোট মিল ইউনিট</th>
-                    <th className="py-2.5 px-3 text-right">স্ট্যাটাস</th>
+                    <th className="py-2.5 px-3 text-center">স্ট্যাটাস</th>
+                    {canEditMeals && (
+                      <th className="py-2.5 px-3 text-center">অ্যাকশন</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
                   {filteredDailyLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-500">
+                      <td colSpan={canEditMeals ? 7 : 6} className="py-8 text-center text-slate-500">
                         কোনো মিল লগ পাওয়া যায়নি
                       </td>
                     </tr>
@@ -1178,9 +1253,9 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                           {row.night}
                         </td>
                         <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-400">
-                          {row.total.toFixed(1)}
+                          {formatMealUnits(row.total)}
                         </td>
-                        <td className="py-2.5 px-3 text-right">
+                        <td className="py-2.5 px-3 text-center">
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                               row.total > 0
@@ -1191,11 +1266,189 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                             {row.total > 0 ? 'খাবার চালু' : 'মিল অফ'}
                           </span>
                         </td>
+                        {canEditMeals && (
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() =>
+                                  setEditingLogItem({
+                                    date: row.date,
+                                    userId: row.userId,
+                                    name: row.name,
+                                    morning: row.morning,
+                                    night: row.night,
+                                  })
+                                }
+                                className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 transition-colors cursor-pointer"
+                                title="মিল সংশোধন বা এডিট করুন"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteMealLog(row.date, row.userId, row.name)}
+                                className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
+                                title="মিল ০ বা ডিলিট করুন"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Edit Modal for Past Meal Corrections */}
+      {editingLogItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  <Utensils className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">মিল সংশোধন</h4>
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    {editingLogItem.date} • {editingLogItem.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingLogItem(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {/* Morning Meal Input */}
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-slate-300 block">সকালের মিল</span>
+                  <span className="text-[10px] text-slate-500 block">ওয়েট ০.৫ ইউনিট</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      setEditingLogItem({
+                        ...editingLogItem,
+                        morning: Math.max(0, Number((editingLogItem.morning - 0.5).toFixed(1))),
+                      })
+                    }
+                    className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm flex items-center justify-center cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={editingLogItem.morning}
+                    onChange={(e) =>
+                      setEditingLogItem({
+                        ...editingLogItem,
+                        morning: Math.max(0, parseFloat(e.target.value) || 0),
+                      })
+                    }
+                    className="w-14 text-center bg-slate-900 border border-slate-750 rounded-lg py-1 text-xs text-white font-mono font-bold"
+                  />
+                  <button
+                    onClick={() =>
+                      setEditingLogItem({
+                        ...editingLogItem,
+                        morning: Number((editingLogItem.morning + 0.5).toFixed(1)),
+                      })
+                    }
+                    className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm flex items-center justify-center cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Night Meal Input */}
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-slate-300 block">রাতের মিল</span>
+                  <span className="text-[10px] text-slate-500 block">ওয়েট ১.০ ইউনিট</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      setEditingLogItem({
+                        ...editingLogItem,
+                        night: Math.max(0, Number((editingLogItem.night - 0.5).toFixed(1))),
+                      })
+                    }
+                    className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm flex items-center justify-center cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={editingLogItem.night}
+                    onChange={(e) =>
+                      setEditingLogItem({
+                        ...editingLogItem,
+                        night: Math.max(0, parseFloat(e.target.value) || 0),
+                      })
+                    }
+                    className="w-14 text-center bg-slate-900 border border-slate-750 rounded-lg py-1 text-xs text-white font-mono font-bold"
+                  />
+                  <button
+                    onClick={() =>
+                      setEditingLogItem({
+                        ...editingLogItem,
+                        night: Number((editingLogItem.night + 0.5).toFixed(1)),
+                      })
+                    }
+                    className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm flex items-center justify-center cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Real-time Units Calculation Preview */}
+              <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/30 flex items-center justify-between">
+                <span className="text-xs text-indigo-300">হিসাবকৃত মিল ইউনিট:</span>
+                <span className="font-mono font-bold text-sm text-indigo-200">
+                  {formatMealUnits(editingLogItem.morning * 0.5 + editingLogItem.night * 1.0)} ইউনিট
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditingLogItem(null)}
+                className="px-3 py-1.5 rounded-xl text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                বাতিল
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveLogEdit}
+                disabled={isSavingLogEdit}
+                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isSavingLogEdit ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                {isSavingLogEdit ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
+              </button>
             </div>
           </div>
         </div>
