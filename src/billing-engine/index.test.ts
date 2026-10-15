@@ -369,6 +369,235 @@ describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
     // Total credits should strictly be 3000 + 2000 = 5000 (mess_fund is not added)
     expect(result.totals.totalCredits).toBe(5000);
   });
+
+  it('correctly calculates big bazar: enabled vs disabled, and with vs without carry-over', () => {
+    const members = [
+      { userId: 'u1', name: 'User 1', roomRent: 2000, isActive: true },
+      { userId: 'u2', name: 'User 2', roomRent: 2000, isActive: true },
+    ];
+    const mealRecords = [
+      { userId: 'u1', date: '2026-10-01', slotId: 'all', weight: 10, consumed: true },
+      { userId: 'u2', date: '2026-10-01', slotId: 'all', weight: 10, consumed: true },
+    ];
+    const bigBazarItem = {
+      id: 'bb_1',
+      userId: 'u1',
+      amount: 2400,
+      type: 'big' as const,
+      isApproved: true,
+      paidFromBigBazarFund: true,
+    };
+    const deposits = [
+      { userId: 'u1', amount: 1400, type: 'big_bazar' as const, isPaid: true },
+      { userId: 'u2', amount: 1400, type: 'big_bazar' as const, isPaid: true },
+    ];
+
+    // Case 1: Big bazar enabled WITH carry-over (e.g. 200 leftover from previous cycle)
+    const resEnabledWithCarry = calculateBilling({
+      members,
+      mealRecords,
+      fixedEvents: [],
+      bazarItems: [bigBazarItem],
+      deposits,
+      utilityBills: [],
+      bigBazarConfig: {
+        isEnabled: true,
+        perMemberContribution: 1400,
+        leftoverValueCarry: 200,
+      },
+    });
+
+    // Per SRS formula 5.2: Meal Pool includes (S_big - L_carry) = 2400 - 200 = 2200
+    expect(resEnabledWithCarry.totalBigBazarCost).toBe(2400);
+    expect(resEnabledWithCarry.mealPoolTotal).toBe(2200);
+    expect(resEnabledWithCarry.mealRate).toBe(110); // 2200 / 20 meal units
+    expect(resEnabledWithCarry.bigBazarCarryToNextCycle).toBe(200);
+
+    // Case 2: Big bazar enabled WITHOUT carry-over
+    const resEnabledNoCarry = calculateBilling({
+      members,
+      mealRecords,
+      fixedEvents: [],
+      bazarItems: [bigBazarItem],
+      deposits,
+      utilityBills: [],
+      bigBazarConfig: {
+        isEnabled: true,
+        perMemberContribution: 1400,
+        leftoverValueCarry: 0,
+      },
+    });
+
+    expect(resEnabledNoCarry.totalBigBazarCost).toBe(2400);
+    expect(resEnabledNoCarry.mealPoolTotal).toBe(2400);
+    expect(resEnabledNoCarry.mealRate).toBe(120); // 2400 / 20
+    expect(resEnabledNoCarry.bigBazarCarryToNextCycle).toBe(0);
+
+    // Case 3: Big bazar disabled
+    const resDisabled = calculateBilling({
+      members,
+      mealRecords,
+      fixedEvents: [],
+      bazarItems: [bigBazarItem],
+      deposits,
+      utilityBills: [],
+      bigBazarConfig: {
+        isEnabled: false,
+        perMemberContribution: 0,
+        leftoverValueCarry: 0,
+      },
+    });
+
+    // When disabled, big bazar cost is 0, item is treated as regular bazar
+    expect(resDisabled.totalBigBazarCost).toBe(0);
+    expect(resDisabled.totalRegularBazar).toBe(2400);
+    expect(resDisabled.mealPoolTotal).toBe(2400);
+    expect(resDisabled.bigBazarCarryToNextCycle).toBe(0);
+  });
+
+  it('handles member leaving mid-cycle or inactive members accurately', () => {
+    const members = [
+      { userId: 'u1', name: 'Active Member', roomRent: 3000, isActive: true },
+      { userId: 'u2', name: 'Departed Member', roomRent: 1500, isActive: false, leftDate: '2026-10-15' },
+    ];
+
+    // Departed member only consumed 5 meals before leaving, Active consumed 25
+    const mealRecords = [
+      { userId: 'u1', date: '2026-10-10', slotId: 'all', weight: 25, consumed: true },
+      { userId: 'u2', date: '2026-10-05', slotId: 'all', weight: 5, consumed: true },
+    ];
+
+    const bazarItems = [
+      { id: 'b1', userId: 'u1', amount: 3000, type: 'regular' as const, isApproved: true },
+    ];
+
+    // Utility bill: applies to active members (u1)
+    const utilityBills = [
+      { id: 'util_1', name: 'Gas', amount: 1000 },
+    ];
+
+    const result = calculateBilling({
+      members,
+      mealRecords,
+      fixedEvents: [],
+      bazarItems,
+      deposits: [
+        { userId: 'u2', amount: 2000, type: 'general' as const, isPaid: true },
+      ],
+      utilityBills,
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+      options: { roundToInteger: true },
+    });
+
+    // Meal rate: 3000 / 30 units = 100
+    expect(result.mealRate).toBe(100);
+
+    // Active member u1: 25 * 100 = 2500 meal + 1000 utility (active only) + 3000 rent = 6500
+    expect(result.memberResults['u1'].utilityShare).toBe(1000);
+    expect(result.memberResults['u1'].regularMealCost).toBe(2500);
+    expect(result.memberResults['u1'].totalDues).toBe(6500);
+
+    // Departed member u2: 5 * 100 = 500 meal + 0 utility (inactive) + 1500 rent = 2000 dues
+    expect(result.memberResults['u2'].utilityShare).toBe(0);
+    expect(result.memberResults['u2'].regularMealCost).toBe(500);
+    expect(result.memberResults['u2'].totalDues).toBe(2000);
+    // Deposited 2000 -> net balance = 2000 - 2000 = 0
+    expect(result.memberResults['u2'].netBalance).toBe(0);
+  });
+
+  it('ensures the sum of all members net balances matches mess totals within rounding difference', () => {
+    const members = [
+      { userId: 'u1', name: 'Member 1', roomRent: 3100, isActive: true },
+      { userId: 'u2', name: 'Member 2', roomRent: 3000, isActive: true },
+      { userId: 'u3', name: 'Member 3', roomRent: 2800, isActive: true },
+      { userId: 'u4', name: 'Member 4', roomRent: 2900, isActive: true },
+      { userId: 'u5', name: 'Member 5', roomRent: 2700, isActive: true },
+    ];
+
+    const mealRecords = [
+      { userId: 'u1', date: '2026-10-01', slotId: 'all', weight: 33.3, consumed: true },
+      { userId: 'u2', date: '2026-10-01', slotId: 'all', weight: 28.5, consumed: true },
+      { userId: 'u3', date: '2026-10-01', slotId: 'all', weight: 41.2, consumed: true },
+      { userId: 'u4', date: '2026-10-01', slotId: 'all', weight: 19.7, consumed: true },
+      { userId: 'u5', date: '2026-10-01', slotId: 'all', weight: 35.1, consumed: true },
+    ];
+
+    const bazarItems = [
+      { id: 'b1', userId: 'u1', amount: 8735, type: 'regular' as const, isApproved: true },
+      { id: 'b2', userId: 'u3', amount: 5640, type: 'regular' as const, isApproved: true },
+    ];
+
+    const utilityBills = [
+      { id: 'u1', name: 'Electricity', amount: 3777 },
+      { id: 'u2', name: 'WiFi', amount: 1250 },
+    ];
+
+    const deposits = [
+      { userId: 'u1', amount: 5000, type: 'general' as const, isPaid: true },
+      { userId: 'u2', amount: 8000, type: 'general' as const, isPaid: true },
+      { userId: 'u3', amount: 4000, type: 'general' as const, isPaid: true },
+      { userId: 'u4', amount: 6500, type: 'general' as const, isPaid: true },
+      { userId: 'u5', amount: 7000, type: 'general' as const, isPaid: true },
+    ];
+
+    const result = calculateBilling({
+      members,
+      mealRecords,
+      fixedEvents: [],
+      bazarItems,
+      deposits,
+      utilityBills,
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+      options: { roundToInteger: true },
+    });
+
+    const sumMemberNet = result.allMembersSummary.reduce((sum, m) => sum + m.netBalance, 0);
+    const expectedNet = result.totals.totalCredits - result.totals.totalDues;
+
+    expect(result.totals.netBalance).toBe(expectedNet);
+    // Integer rounding difference per member is at most 1 Tk per member
+    expect(Math.abs(sumMemberNet - expectedNet)).toBeLessThanOrEqual(members.length);
+  });
+
+  it('correctly accounts for room rent and rent deposits without double-counting', () => {
+    const members = [
+      { userId: 'u1', name: 'User 1', roomRent: 3000, isActive: true },
+    ];
+
+    // Case 1: Rent not yet paid -> totalDues includes roomRent, netBalance is -3000
+    const unpaidResult = calculateBilling({
+      members,
+      mealRecords: [],
+      fixedEvents: [],
+      bazarItems: [],
+      deposits: [],
+      utilityBills: [],
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+    });
+
+    expect(unpaidResult.memberResults['u1'].roomRent).toBe(3000);
+    expect(unpaidResult.memberResults['u1'].totalDues).toBe(3000);
+    expect(unpaidResult.memberResults['u1'].totalCredits).toBe(0);
+    expect(unpaidResult.memberResults['u1'].netBalance).toBe(-3000);
+
+    // Case 2: Rent paid once via single deposit -> roomRent dues 3000 offset by deposit 3000 -> netBalance 0
+    const paidResult = calculateBilling({
+      members,
+      mealRecords: [],
+      fixedEvents: [],
+      bazarItems: [],
+      deposits: [
+        { userId: 'u1', amount: 3000, type: 'rent' as const, isPaid: true },
+      ],
+      utilityBills: [],
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+    });
+
+    expect(paidResult.memberResults['u1'].roomRent).toBe(3000);
+    expect(paidResult.memberResults['u1'].totalDues).toBe(3000);
+    expect(paidResult.memberResults['u1'].totalCredits).toBe(3000);
+    expect(paidResult.memberResults['u1'].netBalance).toBe(0);
+  });
 });
 
 

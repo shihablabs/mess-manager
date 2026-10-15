@@ -1,16 +1,17 @@
 import {
-  BazarItemInput,
   BillingEngineInput,
   BillingEngineOutput,
   MemberBillingResult,
-} from './types';
+} from "./types";
 
 /**
  * Pure Billing Engine function
  * Computes meal rates, dues, credits, and net balances according to SRS Section 5.
  * Strictly pure with no DB or side-effects.
  */
-export function calculateBilling(input: BillingEngineInput): BillingEngineOutput {
+export function calculateBilling(
+  input: BillingEngineInput,
+): BillingEngineOutput {
   const {
     members,
     mealRecords,
@@ -29,21 +30,32 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
   const approvedBazars = bazarItems.filter((b) => b.isApproved);
 
   const regularBazarTotal = approvedBazars
-    .filter((b) => b.type === 'regular')
+    .filter(
+      (b) =>
+        b.type === "regular" || (!bigBazarConfig.isEnabled && b.type === "big"),
+    )
     .reduce((sum, b) => sum + b.amount, 0);
 
   const extraBazarPoolTotal = approvedBazars
-    .filter((b) => b.type === 'extra' && (b.splitType === 'meal_pool' || !b.splitType))
+    .filter(
+      (b) =>
+        b.type === "extra" && (b.splitType === "meal_pool" || !b.splitType),
+    )
     .reduce((sum, b) => sum + b.amount, 0);
 
   const bigBazarTotalCost = bigBazarConfig.isEnabled
-    ? approvedBazars.filter((b) => b.type === 'big').reduce((sum, b) => sum + b.amount, 0)
+    ? approvedBazars
+        .filter((b) => b.type === "big")
+        .reduce((sum, b) => sum + b.amount, 0)
     : 0;
 
-  const carryOver = bigBazarConfig.isEnabled ? (bigBazarConfig.leftoverValueCarry || 0) : 0;
+  const carryOver = bigBazarConfig.isEnabled
+    ? bigBazarConfig.leftoverValueCarry || 0
+    : 0;
   const bigBazarUsedInPool = Math.max(0, bigBazarTotalCost - carryOver);
 
-  const mealPoolTotal = regularBazarTotal + extraBazarPoolTotal + bigBazarUsedInPool;
+  const mealPoolTotal =
+    regularBazarTotal + extraBazarPoolTotal + bigBazarUsedInPool;
 
   // 2. Calculate Meal Units per member
   // Base meals consumed
@@ -53,7 +65,12 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
   for (const record of mealRecords) {
     if (record.consumed && memberMealUnitsMap.has(record.userId)) {
       const current = memberMealUnitsMap.get(record.userId) || 0;
-      const count = typeof (record as any).consumed === 'number' ? (record as any).consumed : (record.consumed ? 1 : 0);
+      const count =
+        typeof (record as any).consumed === "number"
+          ? (record as any).consumed
+          : record.consumed
+            ? 1
+            : 0;
       memberMealUnitsMap.set(record.userId, current + record.weight * count);
     }
   }
@@ -74,9 +91,9 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
     }
   }
 
-  // Calculate total meal units among active members
+  // Calculate total meal units across all participating members in this cycle
   let totalMealUnits = 0;
-  for (const m of activeMembers) {
+  for (const m of members) {
     totalMealUnits += memberMealUnitsMap.get(m.userId) || 0;
   }
 
@@ -92,7 +109,8 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
   for (const bill of utilityBills) {
     if (!bill.amount || bill.amount <= 0) continue;
 
-    const isSpecific = bill.applicableUserIds && bill.applicableUserIds.length > 0;
+    const isSpecific =
+      bill.applicableUserIds && bill.applicableUserIds.length > 0;
     const targetMembers = isSpecific
       ? activeMembers.filter((m) => bill.applicableUserIds!.includes(m.userId))
       : activeMembers;
@@ -138,17 +156,20 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
   members.forEach((m) => memberExtraNonPoolMap.set(m.userId, 0));
 
   const extraNonPoolBazars = approvedBazars.filter(
-    (b) => b.type === 'extra' && b.splitType && b.splitType !== 'meal_pool'
+    (b) => b.type === "extra" && b.splitType && b.splitType !== "meal_pool",
   );
 
   for (const item of extraNonPoolBazars) {
-    if (item.splitType === 'all_equal') {
+    if (item.splitType === "all_equal") {
       const perMember = item.amount / activeCount;
       for (const m of activeMembers) {
         const current = memberExtraNonPoolMap.get(m.userId) || 0;
         memberExtraNonPoolMap.set(m.userId, current + perMember);
       }
-    } else if (item.splitType === 'custom_members' && item.customMemberIds?.length) {
+    } else if (
+      item.splitType === "custom_members" &&
+      item.customMemberIds?.length
+    ) {
       const perMember = item.amount / item.customMemberIds.length;
       for (const uid of item.customMemberIds) {
         if (memberExtraNonPoolMap.has(uid)) {
@@ -160,13 +181,18 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
   }
 
   // 7. Credits: deposits & approved personal bazar spending (strictly member-attributed per SRS)
-  const memberDepositsMap = new Map<string, { general: number; bigBazar: number }>();
-  members.forEach((m) => memberDepositsMap.set(m.userId, { general: 0, bigBazar: 0 }));
+  const memberDepositsMap = new Map<
+    string,
+    { general: number; bigBazar: number }
+  >();
+  members.forEach((m) =>
+    memberDepositsMap.set(m.userId, { general: 0, bigBazar: 0 }),
+  );
 
   for (const dep of deposits) {
     if (dep.isPaid && memberDepositsMap.has(dep.userId)) {
       const entry = memberDepositsMap.get(dep.userId)!;
-      if (dep.type === 'big_bazar') {
+      if (dep.type === "big_bazar") {
         entry.bigBazar += dep.amount;
       } else {
         entry.general += dep.amount;
@@ -178,8 +204,8 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
   members.forEach((m) => memberApprovedBazarSpendingMap.set(m.userId, 0));
 
   for (const item of approvedBazars) {
-    // If it's not paid from big bazar fund, it counts as personal out-of-pocket spending
-    if (!item.paidFromBigBazarFund && memberApprovedBazarSpendingMap.has(item.userId)) {
+    const isBigFundPaid = bigBazarConfig.isEnabled && item.paidFromBigBazarFund;
+    if (!isBigFundPaid && memberApprovedBazarSpendingMap.has(item.userId)) {
       const current = memberApprovedBazarSpendingMap.get(item.userId) || 0;
       memberApprovedBazarSpendingMap.set(item.userId, current + item.amount);
     }
@@ -197,25 +223,45 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
     const units = memberMealUnitsMap.get(member.userId) || 0;
     const rawMealCost = units * mealRate;
     const fixedShare = memberFixedShareMap.get(member.userId) || 0;
-    const utilShare = (member.isActive && !member.isUtilityExempt) ? (memberUtilityShareMap.get(member.userId) || 0) : 0;
+    const utilShare =
+      member.isActive && !member.isUtilityExempt
+        ? memberUtilityShareMap.get(member.userId) || 0
+        : 0;
     const extraNonPool = memberExtraNonPoolMap.get(member.userId) || 0;
     const rent = member.roomRent || 0;
 
-    const rawTotalDues = rent + utilShare + rawMealCost + fixedShare + extraNonPool;
+    const rawTotalDues =
+      rent + utilShare + rawMealCost + fixedShare + extraNonPool;
 
-    const dep = memberDepositsMap.get(member.userId) || { general: 0, bigBazar: 0 };
+    const dep = memberDepositsMap.get(member.userId) || {
+      general: 0,
+      bigBazar: 0,
+    };
     const bazarSpent = memberApprovedBazarSpendingMap.get(member.userId) || 0;
     const openingCredit = member.openingCarryCredit || 0;
 
-    const totalCredits = dep.general + dep.bigBazar + bazarSpent + openingCredit;
+    const totalCredits =
+      dep.general + dep.bigBazar + bazarSpent + openingCredit;
 
-    const finalMealCost = options.roundToInteger ? Math.round(rawMealCost) : Number(rawMealCost.toFixed(2));
-    const finalFixedShare = options.roundToInteger ? Math.round(fixedShare) : Number(fixedShare.toFixed(2));
-    const finalUtilShare = options.roundToInteger ? Math.round(utilShare) : Number(utilShare.toFixed(2));
-    const finalExtraNonPool = options.roundToInteger ? Math.round(extraNonPool) : Number(extraNonPool.toFixed(2));
+    const finalMealCost = options.roundToInteger
+      ? Math.round(rawMealCost)
+      : Number(rawMealCost.toFixed(2));
+    const finalFixedShare = options.roundToInteger
+      ? Math.round(fixedShare)
+      : Number(fixedShare.toFixed(2));
+    const finalUtilShare = options.roundToInteger
+      ? Math.round(utilShare)
+      : Number(utilShare.toFixed(2));
+    const finalExtraNonPool = options.roundToInteger
+      ? Math.round(extraNonPool)
+      : Number(extraNonPool.toFixed(2));
 
     const computedDues = options.roundToInteger
-      ? rent + finalUtilShare + finalMealCost + finalFixedShare + finalExtraNonPool
+      ? rent +
+        finalUtilShare +
+        finalMealCost +
+        finalFixedShare +
+        finalExtraNonPool
       : Number(rawTotalDues.toFixed(2));
 
     const netBalance = totalCredits - computedDues;
@@ -275,7 +321,10 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
  * Calculates per person cost for a fixed event (Pure Engine function)
  * Avoids ad-hoc UI or API division and arbitrary Math.round
  */
-export function calculateFixedEventPerPerson(cost: number, attendeeCount: number): number {
+export function calculateFixedEventPerPerson(
+  cost: number,
+  attendeeCount: number,
+): number {
   if (!cost || cost <= 0 || !attendeeCount || attendeeCount <= 0) return 0;
   return Math.round((cost / attendeeCount) * 100) / 100;
 }
@@ -285,16 +334,27 @@ export function calculateFixedEventPerPerson(cost: number, attendeeCount: number
  * Avoids ad-hoc UI or API division and arbitrary Math.round
  */
 export function calculateUtilityBillPerPerson(
-  bill: { amount: number; applicableUserIds?: string[]; applicableCount?: number | null },
-  members: Array<{ userId?: string; _id?: string; id?: string; isActive?: boolean; isUtilityExempt?: boolean }>
+  bill: {
+    amount: number;
+    applicableUserIds?: string[];
+    applicableCount?: number | null;
+  },
+  members: Array<{
+    userId?: string;
+    _id?: string;
+    id?: string;
+    isActive?: boolean;
+    isUtilityExempt?: boolean;
+  }>,
 ): number {
   if (!bill.amount || bill.amount <= 0) return 0;
   if (bill.applicableCount && bill.applicableCount > 0) {
     return Math.round((bill.amount / bill.applicableCount) * 100) / 100;
   }
-  const getUid = (m: any) => String(m.userId || m._id || m.id || '');
+  const getUid = (m: any) => String(m.userId || m._id || m.id || "");
   const active = members.filter((m) => m.isActive !== false);
-  const isSpecific = bill.applicableUserIds && bill.applicableUserIds.length > 0;
+  const isSpecific =
+    bill.applicableUserIds && bill.applicableUserIds.length > 0;
   const targets = isSpecific
     ? active.filter((m) => bill.applicableUserIds!.includes(getUid(m)))
     : active;
@@ -302,5 +362,3 @@ export function calculateUtilityBillPerPerson(
   if (nonExempt.length === 0) return 0;
   return Math.round((bill.amount / nonExempt.length) * 100) / 100;
 }
-
-

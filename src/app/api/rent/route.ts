@@ -147,6 +147,15 @@ export async function POST(request: Request) {
     // 1. MARK RENT AS PAID (Interactive modal action)
     if (action === 'mark_rent_paid') {
       const existingMc = await db.collection('member_cycles').findOne(mcFilter);
+      if (existingMc?.rentPaid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'এই সদস্যের বাসা ভাড়া ইতিমধ্যে পরিশোধিত হিসেবে রেকর্ড করা হয়েছে (দ্বৈত জমা রোধ করা হয়েছে)।',
+          },
+          { status: 400 }
+        );
+      }
       const roomRent = amount ? Number(amount) : (existingMc?.roomRent || 3000);
 
       // Determine payment date & timestamp

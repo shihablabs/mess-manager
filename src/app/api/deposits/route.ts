@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getStore } from '@/lib/store';
-import { getDb, idFilter } from '@/lib/db';
+import { getDb, idFilter, userKeyFilter } from '@/lib/db';
 import { DepositDoc } from '@/models/types';
 
 export async function GET(request: Request) {
@@ -111,7 +111,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'জমা আইডি প্রয়োজন' }, { status: 400 });
       }
 
-      const updateResult = await db.collection('deposits').updateOne(idFilter(depositId), {
+      const targetDeposit = await db.collection('deposits').findOne(idFilter(depositId));
+      if (!targetDeposit) {
+        return NextResponse.json({ success: false, error: 'জমার রেকর্ড খুঁজে পাওয়া যায়নি' }, { status: 404 });
+      }
+
+      await db.collection('deposits').updateOne(idFilter(depositId), {
         $set: {
           isPaid: true,
           status: 'approved',
@@ -121,8 +126,20 @@ export async function POST(request: Request) {
         },
       });
 
-      if (updateResult.matchedCount === 0) {
-        return NextResponse.json({ success: false, error: 'জমার রেকর্ড খুঁজে পাওয়া যায়নি' }, { status: 404 });
+      // If this was a rent deposit, mark member's rent as paid to prevent duplicate collection
+      if (targetDeposit.type === 'rent') {
+        await db.collection('member_cycles').updateOne(
+          { cycleId: targetDeposit.cycleId, ...userKeyFilter('userId', targetDeposit.userId) },
+          {
+            $set: {
+              rentPaid: true,
+              rentPaidAt: new Date(),
+              rentDepositId: targetDeposit._id.toString(),
+              rentPaidMethod: targetDeposit.paymentMethod || 'cash',
+              updatedAt: new Date(),
+            },
+          }
+        );
       }
 
       return NextResponse.json({
@@ -210,6 +227,22 @@ export async function POST(request: Request) {
 
     const insertResult = await db.collection('deposits').insertOne(newDeposit as any);
     newDeposit._id = insertResult.insertedId.toString();
+
+    // If manager created an approved rent deposit directly, link with member_cycles to prevent double counting
+    if (type === 'rent' && isPaid) {
+      await db.collection('member_cycles').updateOne(
+        { cycleId: String(cycleId), ...userKeyFilter('userId', effectiveUserId) },
+        {
+          $set: {
+            rentPaid: true,
+            rentPaidAt: new Date(),
+            rentDepositId: newDeposit._id,
+            rentPaidMethod: paymentMethod,
+            updatedAt: new Date(),
+          },
+        }
+      );
+    }
 
     return NextResponse.json({
       success: true,
