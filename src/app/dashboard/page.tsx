@@ -14,6 +14,8 @@ import { NewBazarModal } from '@/components/NewBazarModal';
 import { NewFixedEventModal } from '@/components/NewFixedEventModal';
 import { MealRequestModal } from '@/components/MealRequestModal';
 import { DepositModal } from '@/components/DepositModal';
+import { DashboardSidebar } from '@/components/DashboardSidebar';
+import { DashboardHeader } from '@/components/DashboardHeader';
 import { AppUser } from '@/lib/session';
 import {
   LayoutDashboard,
@@ -35,7 +37,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { GlobalLoader } from '@/components/GlobalLoader';
 import { toast } from 'sonner';
-import { SuperAdminLoginModal } from '@/components/SuperAdminLoginModal';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -44,7 +45,7 @@ export default function DashboardPage() {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isSuperAdminModalOpen, setIsSuperAdminModalOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   // Sync authenticated user strictly when session is active
   useEffect(() => {
@@ -202,7 +203,7 @@ export default function DashboardPage() {
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full pt-2">
             <button
               onClick={() => signIn('google')}
-              className="w-full sm:flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm py-3.5 px-6 rounded-2xl shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.02] cursor-pointer"
+              className="w-full sm:flex-1 flex items-center justify-center gap-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm py-3.5 px-6 rounded-2xl shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.02] cursor-pointer"
             >
               <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                 <path
@@ -222,30 +223,17 @@ export default function DashboardPage() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span>গুগল দিয়ে লগইন (মেম্বার)</span>
-            </button>
-
-            <button
-              onClick={() => setIsSuperAdminModalOpen(true)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-200 font-semibold text-sm py-3.5 px-6 rounded-2xl transition-all cursor-pointer"
-            >
-              <Crown className="w-4 h-4 text-purple-400" />
-              <span>সুপার অ্যাডমিন</span>
+              <span>গুগল দিয়ে লগইন করুন (মেম্বার)</span>
             </button>
 
             <Link
               href="/"
-              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-sm py-3.5 px-5 rounded-2xl transition-all"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-sm py-3.5 px-6 rounded-2xl transition-all"
             >
               হোম পেজ
             </Link>
           </div>
         </div>
-
-        <SuperAdminLoginModal
-          isOpen={isSuperAdminModalOpen}
-          onClose={() => setIsSuperAdminModalOpen(false)}
-        />
       </div>
     );
   }
@@ -260,146 +248,133 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
-      {/* Top Navbar */}
-      <Navbar
+    <div className="min-h-screen flex bg-slate-950 text-slate-100">
+      {/* 1. Left Sidebar (Sticky on Desktop, Drawer on Mobile) */}
+      <DashboardSidebar
         currentUser={currentUser}
-        cycleName={summaryData?.cycle?.name || 'চলমান চক্র'}
-        isCycleClosed={summaryData?.cycle?.status === 'closed'}
-        onRefresh={fetchData}
-        isLoading={isLoading}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        pendingCounts={summaryData?.pendingCounts || { mealRequests: 0, bazars: 0 }}
+        cycleName={summaryData?.cycle?.name || 'অক্টোবর ২০২৬'}
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={() => setIsMobileSidebarOpen(false)}
+        onOpenMealRequest={() => setIsMealRequestOpen(true)}
+        onOpenNewBazar={() => setIsNewBazarOpen(true)}
+        onOpenFixedEvent={() => setIsFixedEventOpen(true)}
+        onOpenDeposit={() => setIsDepositOpen(true)}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
-        {/* Quick Guide Link Banner for mobile and desktop */}
-        <div className="mb-4 flex items-center justify-between bg-slate-900/60 border border-slate-800/80 rounded-xl px-3 sm:px-4 py-2 text-xs">
-          <span className="text-slate-400 truncate mr-2">
-            হিসাবের সূত্র বা নিয়মাবলী দেখতে চান?
-          </span>
-          <Link
-            href="/#calculation-guide"
-            className="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            গাইড ও নিয়ম দেখুন
-          </Link>
-        </div>
-
-        {/* Top KPIs Row */}
-        <KPICards
-          calculation={summaryData?.calculation || null}
-          userBalance={summaryData?.userBalance || null}
-          pendingCounts={summaryData?.pendingCounts || { mealRequests: 0, bazars: 0 }}
+      {/* 2. Main Column */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        {/* Top Header with Profile Dropdown Menu & Mobile Toggle */}
+        <DashboardHeader
           currentUser={currentUser}
-          onNavigateToTab={setActiveTab}
+          activeTab={activeTab}
+          cycleName={summaryData?.cycle?.name || 'অক্টোবর ২০২৬'}
+          isCycleClosed={summaryData?.cycle?.status === 'closed'}
+          isLoading={isLoading}
+          onRefresh={fetchData}
+          onToggleMobileMenu={() => setIsMobileSidebarOpen(true)}
+          onOpenMyStatement={() => {
+            const billingResult =
+              summaryData?.calculation?.allMembersSummary?.find((res: any) => res.userId === currentUser?.id) ||
+              summaryData?.calculation?.memberResults?.[currentUser?.id || ''];
+            if (billingResult) {
+              setStatementMember(billingResult);
+            } else {
+              toast.info('আপনার চলতি চক্রের হিসাব বিবরণী তৈরি হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন');
+            }
+          }}
+          onOpenMealRequest={() => setIsMealRequestOpen(true)}
+          onOpenNewBazar={() => setIsNewBazarOpen(true)}
+          onOpenDeposit={() => setIsDepositOpen(true)}
         />
 
-        {/* Tab Navigation Menu (Horizontal scrollable on mobile with smooth scrolling) */}
-        <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto pb-2 mb-4 sm:mb-6 border-b border-slate-800 scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+        {/* Main Content Area */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
+          {/* Top KPIs Row */}
+          <KPICards
+            calculation={summaryData?.calculation || null}
+            userBalance={summaryData?.userBalance || null}
+            pendingCounts={summaryData?.pendingCounts || { mealRequests: 0, bazars: 0 }}
+            currentUser={currentUser}
+            onNavigateToTab={setActiveTab}
+          />
 
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
-                  isActive
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/25'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                }`}
-              >
-                <Icon className={`w-3.5 sm:w-4 h-3.5 sm:h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                <span>{tab.label}</span>
-                {Boolean(tab.badge && tab.badge > 0) && (
-                  <span
-                    className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      isActive ? 'bg-white text-indigo-700' : 'bg-indigo-500 text-white'
-                    }`}
-                  >
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+          {/* Dynamic Tab Contents */}
+          <div className="transition-all duration-200">
+            {activeTab === 'dashboard' && (
+              <DashboardTab
+                calculation={summaryData?.calculation || null}
+                currentUserId={currentUser?.id || ''}
+                onOpenStatement={(m) => setStatementMember(m)}
+                auditLogs={summaryData?.auditLogs || []}
+              />
+            )}
 
-        {/* Dynamic Tab Contents */}
-        <div className="transition-all duration-200">
-          {activeTab === 'dashboard' && (
-            <DashboardTab
-              calculation={summaryData?.calculation || null}
-              currentUserId={currentUser.id}
-              onOpenStatement={(m) => setStatementMember(m)}
-              auditLogs={summaryData?.auditLogs || []}
-            />
-          )}
+            {activeTab === 'meals' && (
+              <MealsTab
+                currentUser={currentUser}
+                members={members}
+                cycle={summaryData?.cycle}
+                requests={mealRequests}
+                onRefresh={fetchData}
+                onOpenRequestModal={() => setIsMealRequestOpen(true)}
+              />
+            )}
 
-          {activeTab === 'meals' && (
-            <MealsTab
-              currentUser={currentUser}
-              members={members}
-              cycle={summaryData?.cycle}
-              requests={mealRequests}
-              onRefresh={fetchData}
-              onOpenRequestModal={() => setIsMealRequestOpen(true)}
-            />
-          )}
+            {activeTab === 'bazar' && (
+              <BazarTab
+                currentUser={currentUser}
+                bazars={bazars}
+                fixedEvents={fixedEvents}
+                onRefresh={fetchData}
+                onOpenNewBazarModal={() => setIsNewBazarOpen(true)}
+                onOpenFixedEventModal={() => setIsFixedEventOpen(true)}
+              />
+            )}
 
-          {activeTab === 'bazar' && (
-            <BazarTab
-              currentUser={currentUser}
-              bazars={bazars}
-              fixedEvents={fixedEvents}
-              onRefresh={fetchData}
-              onOpenNewBazarModal={() => setIsNewBazarOpen(true)}
-              onOpenFixedEventModal={() => setIsFixedEventOpen(true)}
-            />
-          )}
+            {activeTab === 'roster' && (
+              <RosterTab
+                currentUser={currentUser}
+                slots={slots}
+                requests={slotRequests}
+                onRefresh={fetchData}
+              />
+            )}
 
-          {activeTab === 'roster' && (
-            <RosterTab
-              currentUser={currentUser}
-              slots={slots}
-              requests={slotRequests}
-              onRefresh={fetchData}
-            />
-          )}
+            {activeTab === 'utilities' && (
+              <UtilitiesTab
+                currentUser={currentUser}
+                bills={summaryData?.bills || []}
+                deposits={deposits}
+                cycle={summaryData?.cycle}
+                onRefresh={fetchData}
+                onOpenDepositModal={() => setIsDepositOpen(true)}
+              />
+            )}
 
-          {activeTab === 'utilities' && (
-            <UtilitiesTab
-              currentUser={currentUser}
-              bills={summaryData?.bills || []}
-              deposits={deposits}
-              cycle={summaryData?.cycle}
-              onRefresh={fetchData}
-              onOpenDepositModal={() => setIsDepositOpen(true)}
-            />
-          )}
-
-          {activeTab === 'members' && (
-            <MembersTab
-              currentUser={currentUser}
-              members={members}
-              cycle={summaryData?.cycle}
-              onRefresh={fetchData}
-              onOpenStatement={(m) => {
-                const billingResult =
-                  summaryData?.calculation?.allMembersSummary?.find((res: any) => res.userId === m.userId) ||
-                  summaryData?.calculation?.memberResults?.[m.userId];
-                if (billingResult) {
-                  setStatementMember(billingResult);
-                } else {
-                  toast.info('এই সদস্যের চলতি চক্রের হিসাব বিবরণী তৈরি হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন');
-                }
-              }}
-            />
-          )}
-        </div>
-      </main>
+            {activeTab === 'members' && (
+              <MembersTab
+                currentUser={currentUser}
+                members={members}
+                cycle={summaryData?.cycle}
+                onRefresh={fetchData}
+                onOpenStatement={(m) => {
+                  const billingResult =
+                    summaryData?.calculation?.allMembersSummary?.find((res: any) => res.userId === m.userId) ||
+                    summaryData?.calculation?.memberResults?.[m.userId];
+                  if (billingResult) {
+                    setStatementMember(billingResult);
+                  } else {
+                    toast.info('এই সদস্যের চলতি চক্রের হিসাব বিবরণী তৈরি হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন');
+                  }
+                }}
+              />
+            )}
+          </div>
+        </main>
+      </div>
 
       {/* Modals */}
       {statementMember && (
@@ -407,14 +382,14 @@ export default function DashboardPage() {
           member={statementMember}
           calculation={summaryData?.calculation || null}
           cycleName={summaryData?.cycle?.name || 'চলমান চক্র'}
-          currentUser={currentUser}
+          currentUser={currentUser || undefined}
           onRefresh={fetchData}
           onClose={() => setStatementMember(null)}
         />
       )}
 
       <NewBazarModal
-        currentUser={currentUser}
+        currentUser={currentUser!}
         members={members}
         isOpen={isNewBazarOpen}
         onClose={() => setIsNewBazarOpen(false)}
@@ -435,7 +410,7 @@ export default function DashboardPage() {
       />
 
       <MealRequestModal
-        currentUser={currentUser}
+        currentUser={currentUser!}
         isOpen={isMealRequestOpen}
         onClose={() => setIsMealRequestOpen(false)}
         onSuccess={() => {
@@ -452,11 +427,6 @@ export default function DashboardPage() {
           setIsDepositOpen(false);
           fetchData();
         }}
-      />
-
-      <SuperAdminLoginModal
-        isOpen={isSuperAdminModalOpen}
-        onClose={() => setIsSuperAdminModalOpen(false)}
       />
     </div>
   );

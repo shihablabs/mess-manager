@@ -26,11 +26,9 @@ import {
 } from 'lucide-react';
 import { formatTaka } from '@/lib/money';
 import { useSession, signIn } from 'next-auth/react';
-import { SuperAdminLoginModal } from '@/components/SuperAdminLoginModal';
 
 export default function HomePage() {
   const { data: session, status } = useSession();
-  const [isSuperAdminModalOpen, setIsSuperAdminModalOpen] = useState(false);
   // Interactive Live Calculator state
   const [calcBazar, setCalcBazar] = useState<number>(12000);
   const [calcMeals, setCalcMeals] = useState<number>(200);
@@ -115,19 +113,6 @@ export default function HomePage() {
               <span>হিসাবের নিয়ম ও গাইড দেখুন</span>
             </a>
           </div>
-
-          {/* Super Admin Login Link */}
-          {status !== 'authenticated' && (
-            <div className="mt-4 flex items-center justify-center">
-              <button
-                onClick={() => setIsSuperAdminModalOpen(true)}
-                className="inline-flex items-center gap-1.5 text-xs text-purple-300 hover:text-purple-200 font-medium bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 px-3.5 py-1.5 rounded-full transition-all cursor-pointer shadow-sm"
-              >
-                <Crown className="w-3.5 h-3.5 text-purple-400" />
-                <span>সুপার অ্যাডমিন লগইন (আইডি ও পাসওয়ার্ড)</span>
-              </button>
-            </div>
-          )}
 
           {/* Quick Stats Highlights */}
           <div className="mt-12 sm:mt-16 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto text-left">
@@ -576,11 +561,6 @@ export default function HomePage() {
           সর্বস্বত্ব সংরক্ষিত © ২০২৬ Developer Zone
         </p>
       </footer>
-      {/* Super Admin Login Modal */}
-      <SuperAdminLoginModal
-        isOpen={isSuperAdminModalOpen}
-        onClose={() => setIsSuperAdminModalOpen(false)}
-      />
     </div>
   );
 }
