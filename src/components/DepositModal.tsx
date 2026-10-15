@@ -19,7 +19,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 }) => {
   const [selectedUser, setSelectedUser] = useState('');
   const [amount, setAmount] = useState('');
-  const [type, setType] = useState<'general' | 'big_bazar'>('general');
+  const [type, setType] = useState<'general' | 'big_bazar' | 'utility'>('general');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -121,6 +121,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 outline-none focus:border-emerald-500 cursor-pointer"
             >
               <option value="general">সাধারণ মেস জমা (General Deposit)</option>
+              <option value="utility">ইউটিলিটি ও খালা বিল পরিশোধ (Utility / Khala Bill)</option>
               <option value="big_bazar">বড় বাজারের কন্ট্রিবিউশন (Big Bazar Fund)</option>
             </select>
           </div>

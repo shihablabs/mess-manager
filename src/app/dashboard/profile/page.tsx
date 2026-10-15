@@ -27,6 +27,14 @@ import {
   Info,
   ChevronDown,
   Plus,
+  Printer,
+  Search,
+  Filter,
+  ArrowUpDown,
+  Tag,
+  Moon,
+  Sun,
+  Coffee,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -44,6 +52,7 @@ function ProfileContent() {
     deposits,
     refreshData,
     openDeposit,
+    openStatement,
     isLoading,
   } = useDashboard();
 
@@ -56,6 +65,19 @@ function ProfileContent() {
   // Specific meal records state
   const [userMeals, setUserMeals] = useState<any[]>([]);
   const [isLoadingMeals, setIsLoadingMeals] = useState(false);
+
+  // DataTable filter states for meals
+  const [mealSearchQuery, setMealSearchQuery] = useState('');
+  const [mealStatusFilter, setMealStatusFilter] = useState<'all' | 'active' | 'off'>('all');
+  const [mealSortAsc, setMealSortAsc] = useState(false); // default desc (newest first)
+
+  // DataTable filter states for bazars
+  const [bazarSearchQuery, setBazarSearchQuery] = useState('');
+  const [bazarTypeFilter, setBazarTypeFilter] = useState<'all' | 'regular' | 'big' | 'extra'>('all');
+
+  // DataTable filter states for deposits
+  const [depSearchQuery, setDepSearchQuery] = useState('');
+  const [depTypeFilter, setDepTypeFilter] = useState<'all' | 'general' | 'utility' | 'big_bazar'>('all');
 
   const isSuperAdmin = currentUser?.role === 'super_admin';
   const isManager = currentUser?.role === 'admin';
@@ -122,6 +144,106 @@ function ProfileContent() {
       isMounted = false;
     };
   }, [effectiveUserId]);
+
+  // 1-LINE PER DATE: Aggregate daily meals by date
+  const aggregatedDailyMeals = useMemo(() => {
+    const dateMap = new Map<string, {
+      date: string;
+      morning: number;
+      lunch: number;
+      night: number;
+      totalUnits: number;
+      totalCount: number;
+    }>();
+
+    userMeals.forEach((m) => {
+      if (!dateMap.has(m.date)) {
+        dateMap.set(m.date, {
+          date: m.date,
+          morning: 0,
+          lunch: 0,
+          night: 0,
+          totalUnits: 0,
+          totalCount: 0,
+        });
+      }
+      const entry = dateMap.get(m.date)!;
+      const count = typeof m.consumed === 'number' ? m.consumed : (m.consumed ? 1 : 0);
+      const weight = m.weight || (m.slotId === 'morning' ? 0.5 : 1.0);
+
+      if (m.slotId === 'morning') {
+        entry.morning += count;
+      } else if (m.slotId === 'lunch') {
+        entry.lunch += count;
+      } else if (m.slotId === 'night') {
+        entry.night += count;
+      }
+      entry.totalCount += count;
+      entry.totalUnits += count * weight;
+    });
+
+    let list = Array.from(dateMap.values());
+
+    // Search filter
+    if (mealSearchQuery.trim()) {
+      const q = mealSearchQuery.trim().toLowerCase();
+      list = list.filter((r) => r.date.toLowerCase().includes(q));
+    }
+
+    // Status filter
+    if (mealStatusFilter === 'active') {
+      list = list.filter((r) => r.totalCount > 0);
+    } else if (mealStatusFilter === 'off') {
+      list = list.filter((r) => r.totalCount === 0);
+    }
+
+    // Sort by date
+    list.sort((a, b) => {
+      const cmp = a.date.localeCompare(b.date);
+      return mealSortAsc ? cmp : -cmp;
+    });
+
+    return list;
+  }, [userMeals, mealSearchQuery, mealStatusFilter, mealSortAsc]);
+
+  // Filtered bazars DataTable
+  const filteredBazars = useMemo(() => {
+    let list = [...memberBazars];
+    if (bazarTypeFilter !== 'all') {
+      list = list.filter((b) => b.type === bazarTypeFilter);
+    }
+    if (bazarSearchQuery.trim()) {
+      const q = bazarSearchQuery.toLowerCase().trim();
+      list = list.filter(
+        (b) =>
+          (b.description || '').toLowerCase().includes(q) ||
+          String(b.amount || '').includes(q) ||
+          b.date.includes(q)
+      );
+    }
+    return list;
+  }, [memberBazars, bazarTypeFilter, bazarSearchQuery]);
+
+  // Filtered deposits DataTable
+  const filteredDeposits = useMemo(() => {
+    let list = [...memberDeposits];
+    if (depTypeFilter !== 'all') {
+      list = list.filter((d) => {
+        if (depTypeFilter === 'utility') return d.type === 'utility' || (d.notes && d.notes.includes('বিল'));
+        return d.type === depTypeFilter;
+      });
+    }
+    if (depSearchQuery.trim()) {
+      const q = depSearchQuery.toLowerCase().trim();
+      list = list.filter(
+        (d) =>
+          (d.notes || '').toLowerCase().includes(q) ||
+          String(d.amount || '').includes(q) ||
+          (d.date || '').includes(q)
+      );
+    }
+    return list;
+  }, [memberDeposits, depTypeFilter, depSearchQuery]);
 
   // If Super Admin with no target selected and no self billing result
   if (isSuperAdmin && !requestedUserId) {
@@ -236,7 +358,7 @@ function ProfileContent() {
             <img
               src={targetMember?.image || '/default-avatar.png'}
               alt={targetMember?.name || 'সদস্য'}
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-indigo-500/40 shadow-xl"
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-indigo-500/40 shadow-xl shrink-0"
             />
             <div className="space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
@@ -269,8 +391,19 @@ function ProfileContent() {
             </div>
           </div>
 
-          {/* Quick Action Button */}
-          <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+          {/* Action Buttons: Print Statement & Deposit */}
+          <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end flex-wrap">
+            {calculationResult && (
+              <button
+                onClick={() => openStatement(calculationResult)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer shadow-sm"
+                title="এক পাতার স্টেটমেন্ট প্রিন্ট বা PDF সেভ করুন"
+              >
+                <Printer className="w-4 h-4 text-indigo-400" />
+                প্রিন্ট / PDF স্টেটমেন্ট
+              </button>
+            )}
+
             <button
               onClick={openDeposit}
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
@@ -400,7 +533,7 @@ function ProfileContent() {
       <div className="glass-panel rounded-2xl p-2 border border-slate-800 flex items-center gap-1.5 overflow-x-auto text-xs">
         {[
           { id: 'overview', label: 'আর্থিক বিবরণী ও লেজার', icon: FileText, count: null },
-          { id: 'meals', label: 'মিলের ইতিহাস', icon: Utensils, count: userMeals.length },
+          { id: 'meals', label: 'মিলের ইতিহাস (তারিখ অনুযায়ী)', icon: Utensils, count: aggregatedDailyMeals.length },
           { id: 'fixed', label: 'ফিক্সড মিল / ভোজ', icon: Sparkles, count: memberFixedEvents.length },
           { id: 'bazar', label: 'বাজার ভাউচার', icon: ShoppingBag, count: memberBazars.length },
           { id: 'deposits', label: 'জমা ও পেমেন্ট ইতিহাস', icon: Wallet, count: memberDeposits.length },
@@ -437,10 +570,21 @@ function ProfileContent() {
       {activeHistoryTab === 'overview' && (
         <div className="space-y-4">
           <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
-            <h4 className="text-sm font-bold text-white flex items-center gap-2">
-              <FileText className="w-4 h-4 text-indigo-400" />
-              ব্যক্তিগত হিসাব খাতার পূর্ণাঙ্গ লেজার (SRS সেকশন ৫ অনুয়ায়ী)
-            </h4>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <FileText className="w-4 h-4 text-indigo-400" />
+                ব্যক্তিগত হিসাব খাতার পূর্ণাঙ্গ লেজার (SRS সেকশন ৫ অনুয়ায়ী)
+              </h4>
+              {calculationResult && (
+                <button
+                  onClick={() => openStatement(calculationResult)}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  স্টেটমেন্ট প্রিন্ট / PDF
+                </button>
+              )}
+            </div>
 
             <div className="divide-y divide-slate-800/80 text-xs">
               {/* Row 1 */}
@@ -572,63 +716,189 @@ function ProfileContent() {
         </div>
       )}
 
-      {/* Tab 2: Daily Meal History */}
+      {/* Tab 2: Daily Meal History (1 ROW PER DATE DataTable) */}
       {activeHistoryTab === 'meals' && (
-        <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
-          <div className="p-4 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between">
-            <h4 className="text-xs font-bold text-white flex items-center gap-2">
-              <Utensils className="w-4 h-4 text-amber-400" />
-              দৈনিক মিল খাওয়ার খাতা ও তারিখ
-            </h4>
-            <span className="text-xs text-slate-400 font-mono">
-              মোট মিল: <strong className="text-amber-400">{calculationResult?.mealUnits || 0}</strong> টি
-            </span>
+        <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden space-y-3 p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+            <div>
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Utensils className="w-4 h-4 text-amber-400" />
+                দৈনিক মিল খাতা (তারিখ প্রতি একক সারি)
+              </h4>
+              <p className="text-[11px] text-slate-400">
+                একই তারিখের সকাল, দুপুর ও রাতের মিল এক লাইনে প্রদর্শিত হচ্ছে।
+              </p>
+            </div>
+            <div className="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+              মোট মিল ইউনিট: <strong className="text-amber-400">{calculationResult?.mealUnits || 0}</strong>
+            </div>
           </div>
 
+          {/* DataTable Filters */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={mealSearchQuery}
+                onChange={(e) => setMealSearchQuery(e.target.value)}
+                placeholder="তারিখ দিয়ে খুঁজুন (YYYY-MM-DD)..."
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              />
+              {mealSearchQuery && (
+                <button
+                  onClick={() => setMealSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 text-xs flex-wrap">
+              <button
+                onClick={() => setMealStatusFilter('all')}
+                className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  mealStatusFilter === 'all'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                সব দিন ({aggregatedDailyMeals.length})
+              </button>
+              <button
+                onClick={() => setMealStatusFilter('active')}
+                className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  mealStatusFilter === 'active'
+                    ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                চালু দিন
+              </button>
+              <button
+                onClick={() => setMealStatusFilter('off')}
+                className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  mealStatusFilter === 'off'
+                    ? 'bg-slate-700 text-white'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                বন্ধ দিন
+              </button>
+              <button
+                onClick={() => setMealSortAsc(!mealSortAsc)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
+                title="তারিখ অনুসারে সাজান"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+                <span>{mealSortAsc ? 'পুরাতন আগে' : 'নতুন আগে'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Table Container */}
           {isLoadingMeals ? (
             <div className="p-8 text-center text-xs text-slate-400">মিল রেকর্ড লোড হচ্ছে...</div>
-          ) : userMeals.length === 0 ? (
+          ) : aggregatedDailyMeals.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-500">
-              এই চক্রে এখনও কোনো মিল খাওয়ার রেকর্ড পাওয়া যায়নি।
+              কোনো মিলের রেকর্ড পাওয়া যায়নি।
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-slate-800">
               <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 text-[10px] uppercase">
+                <thead className="bg-slate-900/90 text-slate-400 border-b border-slate-800 text-[10px] uppercase">
                   <tr>
                     <th className="py-2.5 px-4 font-semibold">তারিখ</th>
-                    <th className="py-2.5 px-4 font-semibold">স্লট (বেলা)</th>
-                    <th className="py-2.5 px-4 font-semibold text-center">পরিমাণ / ওয়েট</th>
+                    <th className="py-2.5 px-3 font-semibold text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Sun className="w-3.5 h-3.5 text-amber-400" />
+                        <span>সকাল (0.5)</span>
+                      </div>
+                    </th>
+                    <th className="py-2.5 px-3 font-semibold text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Coffee className="w-3.5 h-3.5 text-orange-400" />
+                        <span>দুপুর</span>
+                      </div>
+                    </th>
+                    <th className="py-2.5 px-3 font-semibold text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>রাত / সন্ধ্যা (1.0)</span>
+                      </div>
+                    </th>
+                    <th className="py-2.5 px-4 font-semibold text-right">মোট মিল ইউনিট</th>
                     <th className="py-2.5 px-4 font-semibold text-center">স্ট্যাটাস</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-mono">
-                  {userMeals.map((meal) => (
-                    <tr key={meal._id} className="hover:bg-slate-800/30">
-                      <td className="py-2.5 px-4 text-slate-300">{meal.date}</td>
-                      <td className="py-2.5 px-4">
-                        <span className="capitalize font-sans text-white">
-                          {meal.slotId === 'morning' ? 'সকালের মিল (0.5)' : 'রাতের মিল (1.0)'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-4 text-center">
-                        <span className="text-amber-400 font-bold">
-                          {meal.consumed ? (typeof meal.consumed === 'number' ? meal.consumed : 1) : 0} মিল
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-4 text-center">
-                        <span
-                          className={`text-[10px] font-sans px-2 py-0.5 rounded font-bold ${
-                            meal.consumed
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'bg-slate-800 text-slate-500'
-                          }`}
-                        >
-                          {meal.consumed ? 'অন (খাওয়া হয়েছে)' : 'বন্ধ ছিল'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {aggregatedDailyMeals.map((row) => {
+                    const isAnyConsumed = row.totalCount > 0;
+                    return (
+                      <tr key={row.date} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 px-4 text-white font-bold whitespace-nowrap">
+                          {row.date}
+                        </td>
+
+                        {/* Morning */}
+                        <td className="py-3 px-3 text-center">
+                          {row.morning > 0 ? (
+                            <span className="inline-block px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                              {row.morning} টি
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 text-[11px]">বন্ধ</span>
+                          )}
+                        </td>
+
+                        {/* Lunch */}
+                        <td className="py-3 px-3 text-center">
+                          {row.lunch > 0 ? (
+                            <span className="inline-block px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 font-bold">
+                              {row.lunch} টি
+                            </span>
+                          ) : (
+                            <span className="text-slate-600">—</span>
+                          )}
+                        </td>
+
+                        {/* Night */}
+                        <td className="py-3 px-3 text-center">
+                          {row.night > 0 ? (
+                            <span className="inline-block px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold">
+                              {row.night} টি
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 text-[11px]">বন্ধ</span>
+                          )}
+                        </td>
+
+                        {/* Total Units */}
+                        <td className="py-3 px-4 text-right">
+                          <span className="font-extrabold text-amber-400">
+                            {row.totalUnits.toFixed(1)} ইউনিট
+                          </span>
+                          <span className="text-[10px] text-slate-500 block">
+                            ({row.totalCount} টি মিল)
+                          </span>
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3 px-4 text-center">
+                          <span
+                            className={`inline-block text-[10px] font-sans px-2 py-0.5 rounded font-bold ${
+                              isAnyConsumed
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-slate-800 text-slate-500'
+                            }`}
+                          >
+                            {isAnyConsumed ? 'মিল চালু' : 'বন্ধ ছিল'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -639,8 +909,8 @@ function ProfileContent() {
       {/* Tab 3: Fixed Feasts & Events */}
       {activeHistoryTab === 'fixed' && (
         <div className="glass-panel rounded-2xl border border-slate-800 p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-white flex items-center gap-2">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <h4 className="text-sm font-bold text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400" />
               উপস্থিত ফিক্সড বাজার ও বিশেষ ভোজ ({memberFixedEvents.length} টি)
             </h4>
@@ -682,27 +952,67 @@ function ProfileContent() {
         </div>
       )}
 
-      {/* Tab 4: Bazar History */}
+      {/* Tab 4: Bazar History (DataTable) */}
       {activeHistoryTab === 'bazar' && (
-        <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
-          <div className="p-4 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between">
-            <h4 className="text-xs font-bold text-white flex items-center gap-2">
-              <ShoppingBag className="w-4 h-4 text-blue-400" />
-              ব্যক্তিগত বাজার ভাউচারের ইতিহাস ({memberBazars.length} টি)
-            </h4>
-            <span className="text-xs text-slate-400 font-mono">
-              অনুমোদিত ক্রেডিট: <strong className="text-emerald-400">{formatTaka(calculationResult?.approvedBazarSpentOwnMoney || 0)}</strong>
+        <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden space-y-3 p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+            <div>
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-blue-400" />
+                ব্যক্তিগত বাজার ভাউচারের ইতিহাস
+              </h4>
+              <p className="text-[11px] text-slate-400">
+                অনুমোদিত বাজার সরাসরি আপনার অ্যাকাউন্টে ক্রেডিট (পাওনা) হিসেবে যোগ হয়।
+              </p>
+            </div>
+            <span className="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+              অনুমোদিত মোট ক্রেডিট: <strong className="text-emerald-400">{formatTaka(calculationResult?.approvedBazarSpentOwnMoney || 0)}</strong>
             </span>
           </div>
 
-          {memberBazars.length === 0 ? (
+          {/* DataTable Filters */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={bazarSearchQuery}
+                onChange={(e) => setBazarSearchQuery(e.target.value)}
+                placeholder="পণ্যের বিবরণ বা টাকা দিয়ে খুঁজুন..."
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 text-xs overflow-x-auto">
+              {[
+                { id: 'all', label: 'সব বাজার' },
+                { id: 'regular', label: 'রেগুলার' },
+                { id: 'big', label: 'বড় বাজার' },
+                { id: 'extra', label: 'এক্সট্রা' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setBazarTypeFilter(tab.id as any)}
+                  className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                    bazarTypeFilter === tab.id
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {filteredBazars.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-500">
-              আপনি এই চক্রে এখনও কোনো বাজার এন্ট্রি করেননি।
+              কোনো বাজার রেকর্ড খুঁজে পাওয়া যায়নি।
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-slate-800">
               <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 text-[10px] uppercase">
+                <thead className="bg-slate-900/90 text-slate-400 border-b border-slate-800 text-[10px] uppercase">
                   <tr>
                     <th className="py-2.5 px-4 font-semibold">তারিখ</th>
                     <th className="py-2.5 px-4 font-semibold">বিবরণ</th>
@@ -712,7 +1022,7 @@ function ProfileContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {memberBazars.map((b) => (
+                  {filteredBazars.map((b) => (
                     <tr key={b._id} className="hover:bg-slate-800/30">
                       <td className="py-2.5 px-4 font-mono text-slate-400">{b.date}</td>
                       <td className="py-2.5 px-4 font-semibold text-white">{b.description}</td>
@@ -754,27 +1064,67 @@ function ProfileContent() {
         </div>
       )}
 
-      {/* Tab 5: Deposit History */}
+      {/* Tab 5: Deposit History (DataTable) */}
       {activeHistoryTab === 'deposits' && (
-        <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
-          <div className="p-4 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between">
-            <h4 className="text-xs font-bold text-white flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-emerald-400" />
-              জমা ও পরিশোধের ইতিহাস ({memberDeposits.length} টি)
-            </h4>
-            <span className="text-xs text-slate-400 font-mono">
+        <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden space-y-3 p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+            <div>
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-emerald-400" />
+                জমা ও বিল পরিশোধের ইতিহাস
+              </h4>
+              <p className="text-[11px] text-slate-400">
+                সাধারণ জমা, খালা বিল পরিশোধ বা বড় বাজারের সকল নগদ লেনদেনের খাতা।
+              </p>
+            </div>
+            <span className="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
               মোট জমা: <strong className="text-emerald-400">{formatTaka((calculationResult?.generalDeposits || 0) + (calculationResult?.bigBazarDeposits || 0))}</strong>
             </span>
           </div>
 
-          {memberDeposits.length === 0 ? (
+          {/* DataTable Filters */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={depSearchQuery}
+                onChange={(e) => setDepSearchQuery(e.target.value)}
+                placeholder="নোট বা বিবরণ দিয়ে খুঁজুন (যেমন: Buwa)..."
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 text-xs overflow-x-auto">
+              {[
+                { id: 'all', label: 'সব জমা' },
+                { id: 'general', label: 'সাধারণ জমা' },
+                { id: 'utility', label: 'ইউটিলিটি ও খালা বিল' },
+                { id: 'big_bazar', label: 'বড় বাজার ফান্ড' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setDepTypeFilter(tab.id as any)}
+                  className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                    depTypeFilter === tab.id
+                      ? 'bg-emerald-600 text-white'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {filteredDeposits.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-500">
               কোনো জমার রেকর্ড খুঁজে পাওয়া যায়নি।
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-slate-800">
               <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 text-[10px] uppercase">
+                <thead className="bg-slate-900/90 text-slate-400 border-b border-slate-800 text-[10px] uppercase">
                   <tr>
                     <th className="py-2.5 px-4 font-semibold">তারিখ</th>
                     <th className="py-2.5 px-4 font-semibold">বিবরণ / নোট</th>
@@ -784,7 +1134,7 @@ function ProfileContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {memberDeposits.map((dep) => (
+                  {filteredDeposits.map((dep) => (
                     <tr key={dep._id} className="hover:bg-slate-800/30">
                       <td className="py-2.5 px-4 font-mono text-slate-400">{dep.date || '২০২৬-১০-১৫'}</td>
                       <td className="py-2.5 px-4 font-medium text-white">{dep.notes || 'সাধারণ জমা'}</td>
@@ -793,10 +1143,16 @@ function ProfileContent() {
                           className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                             dep.type === 'big_bazar'
                               ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                              : dep.type === 'utility' || (dep.notes && dep.notes.includes('বিল'))
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                               : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                           }`}
                         >
-                          {dep.type === 'big_bazar' ? 'বড় বাজার ফান্ড' : 'সাধারণ মেস জমা'}
+                          {dep.type === 'big_bazar'
+                            ? 'বড় বাজার ফান্ড'
+                            : dep.type === 'utility' || (dep.notes && dep.notes.includes('বিল'))
+                            ? 'ইউটিলিটি ও বিল পরিশোধ'
+                            : 'সাধারণ মেস জমা'}
                         </span>
                       </td>
                       <td className="py-2.5 px-4 text-right font-mono font-bold text-emerald-400">

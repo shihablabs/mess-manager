@@ -14,6 +14,7 @@ export default function DashboardOverviewPage() {
   const {
     currentUser,
     summaryData,
+    members,
     isLoading,
     openStatement,
     openMealRequest,
@@ -106,6 +107,7 @@ export default function DashboardOverviewPage() {
           currentUserId={currentUser?.id || ''}
           onOpenStatement={openStatement}
           auditLogs={summaryData?.auditLogs || []}
+          members={members}
         />
       </MasterErrorBoundary>
     </div>

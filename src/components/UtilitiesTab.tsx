@@ -220,89 +220,104 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
             )}
           </div>
 
-          {/* Add Bill Form */}
-          {isManager && (
-            <div className="border-t border-slate-800 pt-3">
-              {!isAddingBill ? (
-                <button
-                  onClick={() => setIsAddingBill(true)}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  নতুন বিল যুক্ত করুন (বুয়া, কারেন্ট, গ্যাস, ইন্টারনেট)
-                </button>
-              ) : (
-                <form onSubmit={handleAddBill} className="space-y-3 p-3 rounded-xl bg-slate-900/60 border border-slate-700 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-200">নতুন বিল এন্ট্রি</span>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingBill(false)}
-                      className="text-slate-400 hover:text-slate-200"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+          {/* Add Bill Form (Accessible to Manager for all, and to Members for out-of-pocket bills) */}
+          <div className="border-t border-slate-800 pt-3">
+            {!isAddingBill ? (
+              <button
+                onClick={() => {
+                  setIsAddingBill(true);
+                  if (!isManager) setNewBillPayer(currentUser.id);
+                }}
+                className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {isManager
+                  ? 'নতুন বিল যুক্ত করুন (বুয়া, কারেন্ট, গ্যাস, ইন্টারনেট)'
+                  : 'পকেট থেকে বিল পরিশোধ এন্ট্রি করুন (খালা, বিদ্যুৎ, গ্যাস, ওয়াইফাই)'}
+              </button>
+            ) : (
+              <form onSubmit={handleAddBill} className="space-y-3 p-3 rounded-xl bg-slate-900/60 border border-slate-700 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-200">
+                    {isManager ? 'নতুন বিল এন্ট্রি' : 'পকেট থেকে বিল পরিশোধ রেকর্ড'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingBill(false)}
+                    className="text-slate-400 hover:text-slate-200 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">বিলের নাম</label>
-                      <input
-                        type="text"
-                        placeholder="যেমন: খালা বিল / বিদ্যুৎ বিল"
-                        value={newBillType}
-                        onChange={(e) => setNewBillType(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">টাকার পরিমাণ (৳)</label>
-                      <input
-                        type="number"
-                        placeholder="টাকা"
-                        value={newBillAmount}
-                        onChange={(e) => setNewBillAmount(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Who paid the bill */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[11px] text-slate-400 block mb-1">কে বিলটি পরিশোধ করেছেন?</label>
+                    <label className="text-[11px] text-slate-400 block mb-1">বিলের নাম / ধরণ</label>
+                    <input
+                      type="text"
+                      placeholder="যেমন: খালা বিল / বিদ্যুৎ বিল / ইন্টারনেট"
+                      value={newBillType}
+                      onChange={(e) => setNewBillType(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">টাকার পরিমাণ (৳)</label>
+                    <input
+                      type="number"
+                      placeholder="টাকা"
+                      value={newBillAmount}
+                      onChange={(e) => setNewBillAmount(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 font-mono"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Who paid the bill */}
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">কে বিলটি পরিশোধ করেছেন?</label>
+                  {isManager ? (
                     <select
                       value={newBillPayer}
                       onChange={(e) => setNewBillPayer(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 cursor-pointer"
                     >
-                      <option value="mess_fund">মেস ক্যাশ / ফান্ড থেকে পরিশোধ</option>
+                      <option value="mess_fund">মেস ক্যাশ / সাধারণ ফান্ড থেকে পরিশোধ</option>
                       {members.map((m) => (
                         <option key={m.userId} value={m.userId}>
-                          {m.name} (নিজ পকেট থেকে দিয়েছেন — তার জমার সাথে যোগ হবে)
+                          {m.name} (নিজ পকেট থেকে দিয়েছেন — তার জমার সাথে ক্রেডিট হবে)
                         </option>
                       ))}
                     </select>
-                    {newBillPayer !== 'mess_fund' && (
-                      <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
-                        <Check className="w-3 h-3" />
-                        এই বিলের পুরো টাকা নির্বাচিত সদস্যের অ্যাকাউন্টে অগ্রিম ক্রেডিট (জমা) হিসেবে যোগ হবে এবং মেসের সকল সদস্যের মাঝে সমানভাবে ভাগ হবে।
-                      </p>
-                    )}
-                  </div>
+                  ) : (
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center justify-between">
+                      <span>পরিশোধকারী: <strong>{currentUser.name}</strong></span>
+                      <span className="text-[11px] bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-200 font-medium">
+                        নিজ পকেট থেকে
+                      </span>
+                    </div>
+                  )}
+                  {newBillPayer !== 'mess_fund' && (
+                    <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
+                      <Check className="w-3 h-3 shrink-0" />
+                      এই বিলের পুরো টাকা আপনার অ্যাকাউন্টে অগ্রিম ক্রেডিট (জমা) হিসেবে যোগ হবে এবং মেসের সকল সদস্যের মাঝে সমানভাবে ভাগ হবে।
+                    </p>
+                  )}
+                </div>
 
                   <div className="flex justify-end gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => setIsAddingBill(false)}
-                      className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                      className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 cursor-pointer"
                     >
                       বাতিল
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white font-semibold shadow-md shadow-indigo-600/20"
+                      className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white font-semibold shadow-md shadow-indigo-600/20 cursor-pointer"
                     >
                       সংরক্ষণ করুন
                     </button>
@@ -310,7 +325,6 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                 </form>
               )}
             </div>
-          )}
         </div>
 
         {/* 2. Big Bazar Card with Enable/Disable Toggle */}

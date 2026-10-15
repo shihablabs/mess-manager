@@ -100,10 +100,10 @@ export const StatementModal: React.FC<StatementModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm print:p-0 print:bg-white">
-      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden print:border-none print:shadow-none print:w-full print:max-w-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm print:static print:p-0 print:bg-white print:z-auto print:block">
+      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden print:border-none print:shadow-none print:w-full print:max-w-none printable-statement">
         {/* Modal Actions Bar (hidden when printing) */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/40 print:hidden">
+        <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/40 print:hidden no-print">
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-indigo-400" />
             <span className="text-xs font-semibold text-slate-300">
@@ -128,7 +128,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
         </div>
 
         {/* Printable Statement Content (SRS Section 4.10) */}
-        <div className="p-6 overflow-y-auto space-y-6 text-slate-200 print:text-black print:bg-white max-h-[85vh]">
+        <div className="p-6 overflow-y-auto space-y-5 text-slate-200 print:text-black print:bg-white max-h-[85vh] print:max-h-none print:overflow-visible print:p-2">
           {/* Header Info */}
           <div className="flex justify-between items-start border-b border-slate-800 pb-4">
             <div>
@@ -148,7 +148,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           </div>
 
           {/* KPI Strip for Member */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print-avoid-break">
             <div className="p-3 bg-slate-950/50 border border-slate-800/80 rounded-xl print:border-gray-300">
               <span className="text-[11px] text-slate-400 block">মোট মিল ইউনিট</span>
               <span className="text-base font-bold text-white print:text-black font-mono">
@@ -176,36 +176,36 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           </div>
 
           {/* Dues Breakdown */}
-          <div className="space-y-3">
+          <div className="space-y-3 print-avoid-break">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               দেনা ও খরচের ভাগ (Dues / Debits)
             </h4>
-            <div className="space-y-2 text-xs border border-slate-800 rounded-xl p-3 bg-slate-950/40">
-              <div className="flex justify-between py-1 border-b border-slate-800/80">
+            <div className="space-y-2 text-xs border border-slate-800 rounded-xl p-3 bg-slate-950/40 print:border-gray-300 print:bg-white">
+              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
                 <span>মিল বাবদ খরচ ({member.mealUnits.toFixed(1)} × {formatTaka(calculation.mealRate)})</span>
-                <span className="font-mono font-bold text-slate-200">{formatTaka(member.regularMealCost)}</span>
+                <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.regularMealCost)}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-800/80">
+              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
                 <span>ফিক্সড বাজার শেয়ার (স্পেশাল মিল)</span>
-                <span className="font-mono font-bold text-slate-200">{formatTaka(member.fixedShare)}</span>
+                <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.fixedShare)}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-800/80">
+              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
                 <span>ইউটিলিটি ও আনুষঙ্গিক বিলের ভাগ</span>
-                <span className="font-mono font-bold text-slate-200">{formatTaka(member.utilityShare)}</span>
+                <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.utilityShare)}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-800/80">
+              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
                 <span>রুম ভাড়া (নির্ধারিত)</span>
-                <span className="font-mono font-bold text-slate-200">{formatTaka(member.roomRent)}</span>
+                <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.roomRent)}</span>
               </div>
               {member.extraShareNonPool > 0 && (
-                <div className="flex justify-between py-1 border-b border-slate-800/80">
+                <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
                   <span>এক্সট্রা বাজার শেয়ার (নন-পুল)</span>
-                  <span className="font-mono font-bold text-slate-200">
+                  <span className="font-mono font-bold text-slate-200 print:text-black">
                     {formatTaka(member.extraShareNonPool)}
                   </span>
                 </div>
               )}
-              <div className="flex justify-between pt-1 font-bold text-rose-400">
+              <div className="flex justify-between pt-1 font-bold text-rose-400 print:text-red-700">
                 <span>মোট দেনা</span>
                 <span className="font-mono text-sm">{formatTaka(member.totalDues)}</span>
               </div>
@@ -213,26 +213,26 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           </div>
 
           {/* Credits Breakdown */}
-          <div className="space-y-3">
+          <div className="space-y-3 print-avoid-break">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               জমা ও খরচের বিবরণী (Credits)
             </h4>
-            <div className="space-y-2 text-xs border border-slate-800 rounded-xl p-3 bg-slate-950/40">
-              <div className="flex justify-between py-1 border-b border-slate-800/80">
+            <div className="space-y-2 text-xs border border-slate-800 rounded-xl p-3 bg-slate-950/40 print:border-gray-300 print:bg-white">
+              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
                 <span>সাধারণ জমা (General Deposits)</span>
-                <span className="font-mono font-bold text-slate-200">{formatTaka(member.generalDeposits)}</span>
+                <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.generalDeposits)}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-800/80">
+              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
                 <span>বড় বাজারের জমা (Big Bazar Contribution)</span>
-                <span className="font-mono font-bold text-slate-200">{formatTaka(member.bigBazarDeposits)}</span>
+                <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.bigBazarDeposits)}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-800/80">
+              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
                 <span>অনুমোদিত নিজস্ব বাজার খরচ (Personal Money)</span>
-                <span className="font-mono font-bold text-slate-200">
+                <span className="font-mono font-bold text-slate-200 print:text-black">
                   {formatTaka(member.approvedBazarSpentOwnMoney)}
                 </span>
               </div>
-              <div className="flex justify-between pt-1 font-bold text-emerald-400">
+              <div className="flex justify-between pt-1 font-bold text-emerald-400 print:text-green-700">
                 <span>মোট পাওনা / ক্রেডিট</span>
                 <span className="font-mono text-sm">{formatTaka(member.totalCredits)}</span>
               </div>
@@ -241,10 +241,10 @@ export const StatementModal: React.FC<StatementModalProps> = ({
 
           {/* Net Final Balance */}
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between ${
+            className={`p-4 rounded-xl border flex items-center justify-between print-avoid-break ${
               isRefund
-                ? 'bg-emerald-950/30 border-emerald-500/30'
-                : 'bg-rose-950/30 border-rose-500/30'
+                ? 'bg-emerald-950/30 border-emerald-500/30 print:border-green-600 print:bg-green-50'
+                : 'bg-rose-950/30 border-rose-500/30 print:border-red-600 print:bg-red-50'
             }`}
           >
             <div>

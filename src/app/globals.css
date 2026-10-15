@@ -123,3 +123,52 @@ button:disabled {
 .glow-rose {
   box-shadow: 0 0 25px -5px rgba(244, 63, 94, 0.3);
 }
+
+/* STRICT PRINT STYLES (Single Page Statement, Hiding All Background Elements) */
+@media print {
+  /* Hide all app navigation, headers, sidebars, buttons, modals backdrops */
+  aside,
+  header,
+  nav,
+  button,
+  .no-print,
+  .print-hidden,
+  [role="dialog"] > div:first-child:not(.printable-statement) {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Printable statement fills 100% and does not trigger extra blank/second page */
+  .printable-statement {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+
