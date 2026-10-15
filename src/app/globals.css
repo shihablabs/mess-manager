@@ -14,6 +14,69 @@ body {
   overflow-x: hidden;
 }
 
+/* GLOBAL INTERACTIVE ELEMENTS: Cursor Pointer Everywhere */
+button,
+[role="button"],
+select,
+input[type="submit"],
+input[type="button"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+label[for],
+summary {
+  cursor: pointer !important;
+}
+
+/* GLOBAL TAILWIND INPUT & FORM STYLES */
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+textarea,
+select {
+  outline: none !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Default Input State if not fully styled by utility classes */
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+textarea {
+  border: 1px solid rgba(51, 65, 85, 0.8);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):hover,
+textarea:hover,
+select:hover {
+  border-color: rgba(99, 102, 241, 0.55) !important;
+  box-shadow: 0 0 10px -2px rgba(99, 102, 241, 0.15);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):focus,
+textarea:focus,
+select:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.28) !important;
+}
+
+/* Date picker indicator dark mode styling */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+  cursor: pointer;
+  transition: filter 0.2s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  filter: invert(1);
+}
+
+/* Disabled Form State */
+input:disabled,
+textarea:disabled,
+select:disabled,
+button:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -30,7 +93,7 @@ body {
   background: rgba(100, 116, 139, 0.7);
 }
 
-/* Glassmorphism utility */
+/* Glassmorphism utilities */
 .glass-panel {
   background: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(16px);

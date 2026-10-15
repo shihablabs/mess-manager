@@ -32,6 +32,8 @@ import { MemberBillingResult } from '@/billing-engine/types';
 import { useSession, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { GlobalLoader } from '@/components/GlobalLoader';
+import { toast } from 'sonner';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -127,13 +129,11 @@ export default function DashboardPage() {
   // Loading state while NextAuth verifies session
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
-        <Navbar />
-        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
-          <p className="text-sm font-medium text-slate-400">লগইন অবস্থা যাচাই করা হচ্ছে...</p>
-        </div>
-      </div>
+      <GlobalLoader
+        message="লগইন অবস্থা ও ড্যাশবোর্ড যাচাই করা হচ্ছে..."
+        subMessage="Developer Zone • মেস ইআরপি সুরক্ষিত প্রবেশদ্বার"
+        fullScreen={true}
+      />
     );
   }
 
@@ -376,7 +376,7 @@ export default function DashboardPage() {
                 if (billingResult) {
                   setStatementMember(billingResult);
                 } else {
-                  alert('এই সদস্যের চলতি চক্রের হিসাব বিবরণী লোড হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন');
+                  toast.info('এই সদস্যের চলতি চক্রের হিসাব বিবরণী তৈরি হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন');
                 }
               }}
             />

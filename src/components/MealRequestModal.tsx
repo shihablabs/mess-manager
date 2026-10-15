@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Utensils, X, Clock, AlertTriangle, Calendar } from 'lucide-react';
 import { AppUser } from '@/lib/session';
+import { toast } from 'sonner';
 
 interface MealRequestModalProps {
   currentUser: AppUser;
@@ -51,12 +52,12 @@ export const MealRequestModal: React.FC<MealRequestModalProps> = ({
         setReason('');
         onSuccess();
         onClose();
-        alert(data.message || 'মিল পরিবর্তনের অনুরোধ সফলভাবে পাঠানো হয়েছে!');
+        toast.success(data.message || 'মিল পরিবর্তনের অনুরোধ সফলভাবে পাঠানো হয়েছে!');
       } else {
-        alert(data.error || 'ব্যর্থ হয়েছে');
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
       }
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'নেটওয়ার্ক ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }

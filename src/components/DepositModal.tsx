@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Wallet, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface DepositModalProps {
   members: any[];
@@ -46,12 +47,12 @@ export const DepositModal: React.FC<DepositModalProps> = ({
         setNotes('');
         onSuccess();
         onClose();
-        alert('জমা সফলভাবে এন্ট্রি হয়েছে!');
+        toast.success('জমা সফলভাবে এন্ট্রি হয়েছে!');
       } else {
-        alert(data.error || 'ব্যর্থ হয়েছে');
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
       }
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'নেটওয়ার্ক ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }

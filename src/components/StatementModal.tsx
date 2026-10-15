@@ -5,6 +5,7 @@ import { MemberBillingResult, BillingEngineOutput } from '@/billing-engine/types
 import { formatTaka } from '@/lib/money';
 import { Printer, X, CheckCircle, FileText, UserMinus, Clock, AlertTriangle } from 'lucide-react';
 import { AppUser } from '@/lib/session';
+import { toast } from 'sonner';
 
 interface StatementModalProps {
   member: MemberBillingResult | null;
@@ -55,13 +56,13 @@ export const StatementModal: React.FC<StatementModalProps> = ({
       const data = await res.json();
       if (data.success) {
         setSettlementRequested(true);
-        alert('হিসাব নিষ্পত্তির আবেদন অ্যাডমিনের নিকট পাঠানো হয়েছে!');
+        toast.success('হিসাব নিষ্পত্তির আবেদন অ্যাডমিনের নিকট পাঠানো হয়েছে!');
         onRefresh?.();
       } else {
-        alert(data.error || 'আবেদন পাঠাতে ব্যর্থ হয়েছে');
+        toast.error(data.error || 'আবেদন পাঠাতে ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }
@@ -85,14 +86,14 @@ export const StatementModal: React.FC<StatementModalProps> = ({
       });
       const data = await res.json();
       if (data.success) {
-        alert('সদস্যের হিসাব চূড়ান্ত নিষ্পত্তি সম্পন্ন হয়েছে!');
+        toast.success('সদস্যের হিসাব চূড়ান্ত নিষ্পত্তি সম্পন্ন হয়েছে!');
         onRefresh?.();
         onClose();
       } else {
-        alert(data.error || 'নিষ্পত্তি ব্যর্থ হয়েছে');
+        toast.error(data.error || 'নিষ্পত্তি ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }

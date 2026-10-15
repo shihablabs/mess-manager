@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface NewFixedEventModalProps {
   members: any[];
@@ -46,7 +47,7 @@ export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !cost || Number(cost) <= 0 || attendeeIds.length === 0) {
-      alert('শিরোনাম, খরচ এবং অন্তত একজন উপস্থিত সদস্য নির্বাচন করুন');
+      toast.warning('শিরোনাম, খরচ এবং অন্তত একজন উপস্থিত সদস্য নির্বাচন করুন');
       return;
     }
 
@@ -68,12 +69,12 @@ export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
       if (data.success) {
         onSuccess();
         onClose();
-        alert('বিশেষ ভোজ (Fixed Event) সফলভাবে যুক্ত হয়েছে!');
+        toast.success('বিশেষ ভোজ (Fixed Event) সফলভাবে যুক্ত হয়েছে!');
       } else {
-        alert(data.error || 'ব্যর্থ হয়েছে');
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
       }
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'নেটওয়ার্ক ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }

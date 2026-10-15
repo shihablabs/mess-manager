@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { ShoppingBag, Plus, CheckCircle, XCircle, Clock, Shield, Sparkles } from 'lucide-react';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
+import { toast } from 'sonner';
 
 interface BazarTabProps {
   currentUser: AppUser;
@@ -39,12 +40,13 @@ export const BazarTab: React.FC<BazarTabProps> = ({
       });
       const data = await res.json();
       if (data.success) {
+        toast.success(status === 'approved' ? 'বাজার অনুমোদন করা হয়েছে' : 'বাজার প্রত্যাখ্যান করা হয়েছে');
         onRefresh();
       } else {
-        alert(data.error || 'ব্যর্থ হয়েছে');
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setProcessingId(null);
     }

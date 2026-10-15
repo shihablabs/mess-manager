@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
+import { toast } from 'sonner';
 
 interface MembersTabProps {
   currentUser: AppUser;
@@ -86,12 +87,12 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       const data = await res.json();
       if (data.success) {
         onRefresh();
-        alert('সদস্য সফলভাবে অনুমোদিত হয়েছে এবং মেসে সক্রিয় করা হয়েছে!');
+        toast.success('সদস্য সফলভাবে অনুমোদিত হয়েছে এবং মেসে সক্রিয় করা হয়েছে!');
       } else {
-        alert(data.error || 'অনুমোদন ব্যর্থ হয়েছে');
+        toast.error(data.error || 'অনুমোদন ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }
@@ -113,12 +114,13 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       });
       const data = await res.json();
       if (data.success) {
+        toast.success('সদস্যের রেজিস্ট্রেশন সফলভাবে বাতিল করা হয়েছে');
         onRefresh();
       } else {
-        alert(data.error || 'বাতিল ব্যর্থ হয়েছে');
+        toast.error(data.error || 'বাতিল ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }
@@ -128,7 +130,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   const handleSaveRent = async (userId: string) => {
     const newRent = Number(tempRentValue);
     if (isNaN(newRent) || newRent < 0) {
-      alert('সঠিক ভাড়ার পরিমাণ দিন');
+      toast.warning('সঠিক ভাড়ার পরিমাণ দিন');
       return;
     }
     try {
@@ -146,12 +148,13 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       const data = await res.json();
       if (data.success) {
         setEditingRentUserId(null);
+        toast.success('রুম ভাড়া সফলভাবে আপডেট হয়েছে!');
         onRefresh();
       } else {
-        alert(data.error || 'ভাড়া আপডেট ব্যর্থ হয়েছে');
+        toast.error(data.error || 'ভাড়া আপডেট ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }
@@ -177,12 +180,12 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       if (data.success) {
         setIsCycleSettingsOpen(false);
         onRefresh();
-        alert('চক্র ও বড় বাজার কনফিগারেশন সফলভাবে আপডেট হয়েছে!');
+        toast.success('চক্র ও বড় বাজার কনফিগারেশন সফলভাবে আপডেট হয়েছে!');
       } else {
-        alert(data.error || 'আপডেট ব্যর্থ হয়েছে');
+        toast.error(data.error || 'আপডেট ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }
@@ -213,12 +216,12 @@ export const MembersTab: React.FC<MembersTabProps> = ({
         setEmail('');
         setPhone('');
         onRefresh();
-        alert('নতুন সদস্য সফলভাবে যুক্ত হয়েছে!');
+        toast.success('নতুন সদস্য সফলভাবে যুক্ত হয়েছে!');
       } else {
-        alert(data.error || 'ব্যর্থ হয়েছে');
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }
@@ -242,12 +245,13 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       });
       const data = await res.json();
       if (data.success) {
+        toast.success(`${actionText} হিসেবে দায়িত্ব নির্ধারণ সফল হয়েছে!`);
         onRefresh();
       } else {
-        alert(data.error || 'ভূমিকা পরিবর্তন ব্যর্থ হয়েছে');
+        toast.error(data.error || 'ভূমিকা পরিবর্তন ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     }
   };
 
@@ -272,10 +276,10 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       if (data.success) {
         setIsClosingCycle(false);
         onRefresh();
-        alert('হিসাব চক্র সফলভাবে বন্ধ করা হয়েছে এবং স্ন্যাপশট সংরক্ষণ করা হয়েছে!');
+        toast.success('হিসাব চক্র সফলভাবে বন্ধ করা হয়েছে এবং স্ন্যাপশট সংরক্ষণ করা হয়েছে!');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     }
   };
 

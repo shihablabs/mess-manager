@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Calendar, RefreshCw, ArrowRightLeft, Shield, CheckCircle } from 'lucide-react';
 import { AppUser } from '@/lib/session';
+import { toast } from 'sonner';
 
 interface RosterTabProps {
   currentUser: AppUser;
@@ -33,10 +34,12 @@ export const RosterTab: React.FC<RosterTabProps> = ({
       const data = await res.json();
       if (data.success) {
         onRefresh();
-        alert('বাজারের ডিউটি রোস্টার সফলভাবে বণ্টন করা হয়েছে!');
+        toast.success('বাজারের ডিউটি রোস্টার সফলভাবে বণ্টন করা হয়েছে!');
+      } else {
+        toast.error(data.error || 'বণ্টন ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     }
   };
 
@@ -60,10 +63,12 @@ export const RosterTab: React.FC<RosterTabProps> = ({
         setIsRequesting(false);
         setReason('');
         onRefresh();
-        alert('স্লট পরিবর্তনের আবেদন পাঠানো হয়েছে!');
+        toast.success('স্লট পরিবর্তনের আবেদন পাঠানো হয়েছে!');
+      } else {
+        toast.error(data.error || 'আবেদন পাঠাতে ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }

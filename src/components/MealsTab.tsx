@@ -18,6 +18,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { AppUser } from '@/lib/session';
+import { toast } from 'sonner';
 
 interface MealsTabProps {
   currentUser: AppUser;
@@ -160,12 +161,13 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       if (data.success) {
         setSaveSuccessMsg(`${selectedDate} তারিখের মিল সংরক্ষিত হয়েছে!`);
         setTimeout(() => setSaveSuccessMsg(null), 3500);
+        toast.success(`${selectedDate} তারিখের মিল হাজিরা সংরক্ষিত হয়েছে!`);
         onRefresh();
       } else {
-        alert(data.error || 'সংরক্ষণ ব্যর্থ হয়েছে');
+        toast.error(data.error || 'সংরক্ষণ ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setIsSaving(false);
     }
@@ -185,13 +187,14 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       });
       const data = await res.json();
       if (data.success) {
+        toast.success(status === 'approved' ? 'অনুরোধ অনুমোদিত হয়েছে' : 'অনুরোধ বাতিল করা হয়েছে');
         onRefresh();
         fetchDateMeals(selectedDate);
       } else {
-        alert(data.error || 'ব্যর্থ হয়েছে');
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     } finally {
       setProcessingId(null);
     }

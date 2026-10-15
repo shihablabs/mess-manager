@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Lightbulb, Package, Plus, DollarSign, Wallet, Shield } from 'lucide-react';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
+import { toast } from 'sonner';
 
 interface UtilitiesTabProps {
   currentUser: AppUser;
@@ -45,10 +46,13 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
         setIsAddingBill(false);
         setNewBillType('');
         setNewBillAmount('');
+        toast.success('ইউটিলিটি বিল সফলভাবে যুক্ত হয়েছে!');
         onRefresh();
+      } else {
+        toast.error(data.error || 'বিল যুক্ত করতে ব্যর্থ হয়েছে');
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
     }
   };
 

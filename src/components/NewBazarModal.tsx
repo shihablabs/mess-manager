@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ShoppingBag, X, Info, ShieldCheck, Calendar } from 'lucide-react';
 import { AppUser } from '@/lib/session';
+import { toast } from 'sonner';
 
 interface NewBazarModalProps {
   currentUser: AppUser;
@@ -54,12 +55,12 @@ export const NewBazarModal: React.FC<NewBazarModalProps> = ({
         setDescription('');
         onSuccess();
         onClose();
-        alert(data.message || 'বাজার সফলভাবে সরাসরি যুক্ত ও অনুমোদিত হয়েছে!');
+        toast.success(data.message || 'বাজার সফলভাবে সরাসরি যুক্ত ও অনুমোদিত হয়েছে!');
       } else {
-        alert(data.error || 'বাজার যুক্ত করতে ব্যর্থ হয়েছে');
+        toast.error(data.error || 'বাজার যুক্ত করতে ব্যর্থ হয়েছে');
       }
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'নেটওয়ার্ক ত্রুটি ঘটেছে');
     } finally {
       setIsSubmitting(false);
     }
