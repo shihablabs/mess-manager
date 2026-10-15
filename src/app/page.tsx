@@ -24,11 +24,26 @@ import {
   Users,
 } from 'lucide-react';
 import { MemberBillingResult } from '@/billing-engine/types';
+import { useSession } from 'next-auth/react';
 
 export default function HomePage() {
+  const { data: session } = useSession();
   const [currentUser, setCurrentUser] = useState<AppUser>(DEMO_USERS[0]); // default admin
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Sync Google authenticated user if present
+  useEffect(() => {
+    if (session?.user) {
+      setCurrentUser({
+        id: (session.user as any).id || session.user.email || 'google_user',
+        name: session.user.name || 'গুগল ব্যবহারকারী',
+        email: session.user.email || '',
+        role: (session.user as any).role || 'admin',
+        image: session.user.image || 'https://api.dicebear.com/7.x/bottts/svg?seed=user',
+      });
+    }
+  }, [session]);
 
   // Data states
   const [summaryData, setSummaryData] = useState<any>(null);

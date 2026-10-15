@@ -7,6 +7,8 @@ export const metadata: Metadata = {
     'স্বয়ংক্রিয় মিল হিসাব, রেগুলার ও ফিক্সড বাজার, বড় বাজার, ইউটিলিটি বিল এবং রিয়েল-টাইম ব্যালেন্স ট্র্যাকিং।',
 };
 
+import { AuthProvider } from '@/components/AuthProvider';
+
 export default function RootLayout({
   children,
 }: {
@@ -15,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="bn" className="dark">
       <body className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

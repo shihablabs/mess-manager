@@ -1,6 +1,13 @@
 import { MongoClient, Db } from 'mongodb';
+import dns from 'dns';
 
-const uri = process.env.MONGODB_URI || '';
+// Fix for Windows / ISP DNS servers failing MongoDB Atlas SRV query (ECONNREFUSED)
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch {
+  // Ignore in environments where setServers is restricted
+}
+
 const options = {};
 
 let client: MongoClient;
@@ -19,6 +26,8 @@ export async function getMongoClient(): Promise<MongoClient | null> {
   if (!isMongoConfigured()) {
     return null;
   }
+
+  const uri = process.env.MONGODB_URI!;
 
   if (process.env.NODE_ENV === 'development') {
     if (!global._mongoClientPromise) {

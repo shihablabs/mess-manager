@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { AppUser, DEMO_USERS } from '@/lib/session';
-import { Shield, User, RefreshCw, Sparkles, Building2 } from 'lucide-react';
+import { Shield, RefreshCw, Building2, LogIn, LogOut } from 'lucide-react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 
 interface NavbarProps {
   currentUser: AppUser;
@@ -21,6 +22,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onRefresh,
   isLoading,
 }) => {
+  const { data: session, status } = useSession();
+
   return (
     <header className="sticky top-0 z-40 border-b border-slate-800/80 glass-panel">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -52,7 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* User Role Switcher & Live indicator */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={onRefresh}
             disabled={isLoading}
@@ -62,7 +65,59 @@ export const Navbar: React.FC<NavbarProps> = ({
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-indigo-400' : ''}`} />
           </button>
 
-          {/* User selector dropdown / switcher */}
+          {/* Google Sign-In / Sign-Out */}
+          {status === 'authenticated' && session?.user ? (
+            <div className="flex items-center gap-2 bg-slate-900/90 border border-emerald-500/30 rounded-xl px-2.5 py-1.5 shadow-inner">
+              {session.user.image ? (
+                <img
+                  src={session.user.image}
+                  alt={session.user.name || 'Google User'}
+                  className="w-7 h-7 rounded-full border border-emerald-400"
+                />
+              ) : null}
+              <div className="hidden lg:block text-left text-xs">
+                <div className="font-semibold text-slate-200 truncate max-w-[120px]">
+                  {session.user.name}
+                </div>
+                <div className="text-[10px] text-emerald-400">Google Connected</div>
+              </div>
+              <button
+                onClick={() => signOut()}
+                title="Google লগআউট"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => signIn('google')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white text-slate-900 hover:bg-slate-100 transition-all shadow-sm"
+              title="গুগল দিয়ে লগইন করুন"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              <span className="hidden sm:inline">Google লগইন</span>
+            </button>
+          )}
+
+          {/* User selector dropdown / switcher (Role Switch) */}
           <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 py-1.5 shadow-inner">
             <div className="relative">
               <img
@@ -112,3 +167,4 @@ export const Navbar: React.FC<NavbarProps> = ({
     </header>
   );
 };
+
