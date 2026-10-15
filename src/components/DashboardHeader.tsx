@@ -22,9 +22,11 @@ import { signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
+import { usePathname } from 'next/navigation';
+
 interface DashboardHeaderProps {
   currentUser: AppUser | null;
-  activeTab: string;
+  activeTab?: string;
   cycleName?: string;
   isCycleClosed?: boolean;
   isLoading?: boolean;
@@ -40,9 +42,12 @@ const TAB_TITLES: Record<string, string> = {
   dashboard: 'ড্যাশবোর্ড ও লাইভ ব্যালেন্স',
   meals: 'দৈনিক মিল খাতা ও হাজিরা',
   bazar: 'বাজার খরচ ও ভাউচার',
+  schedule: 'বাজার ডিউটি রোস্টার',
   roster: 'বাজার ডিউটি রোস্টার',
+  bills: 'ইউটিলিটি বিল ও বড় বাজার',
   utilities: 'ইউটিলিটি বিল ও বড় বাজার',
-  members: 'সদস্য ও প্রশাসনিক দায়িত্ব',
+  users: 'ইউজার ও সদস্য ম্যানেজমেন্ট',
+  members: 'ইউজার ও সদস্য ম্যানেজমেন্ট',
 };
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -58,6 +63,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onOpenNewBazar,
   onOpenDeposit,
 }) => {
+  const pathname = usePathname();
+  const currentPathSegment = pathname?.split('/')[2] || 'dashboard';
+  const effectiveTab = activeTab || currentPathSegment;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -90,7 +98,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-slate-400 hidden sm:inline">মেস ইআরপি /</span>
           <h1 className="text-sm sm:text-base font-bold text-white tracking-wide truncate max-w-[180px] xs:max-w-xs sm:max-w-none">
-            {TAB_TITLES[activeTab] || 'ড্যাশবোর্ড'}
+            {TAB_TITLES[effectiveTab] || 'ড্যাশবোর্ড'}
           </h1>
           {isCycleClosed && (
             <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold">
