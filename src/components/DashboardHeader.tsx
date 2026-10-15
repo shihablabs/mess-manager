@@ -48,6 +48,7 @@ const TAB_TITLES: Record<string, string> = {
   utilities: 'ইউটিলিটি বিল ও বড় বাজার',
   users: 'ইউজার ও সদস্য ম্যানেজমেন্ট',
   members: 'ইউজার ও সদস্য ম্যানেজমেন্ট',
+  profile: 'সদস্য প্রোফাইল ও ব্যক্তিগত হিসাব খাতা',
 };
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -210,26 +211,40 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   </div>
                 </div>
 
-                {/* My Statement / Profile View (for non-super admins) */}
-                {!isSuperAdmin && (
-                  <div className="mb-2">
+                {/* Profile Page Navigation Link */}
+                <div className="mb-2 space-y-1">
+                  <Link
+                    href="/dashboard/profile"
+                    onClick={() => setIsDropdownOpen(false)}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-indigo-400" />
+                      <span>আমার প্রোফাইল ও বিস্তারিত হিসাব</span>
+                    </div>
+                    <span className="text-[10px] bg-indigo-500/25 px-2 py-0.5 rounded text-indigo-200">
+                      পেজ
+                    </span>
+                  </Link>
+
+                  {!isSuperAdmin && (
                     <button
                       onClick={() => {
                         setIsDropdownOpen(false);
                         onOpenMyStatement();
                       }}
-                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-300 border border-indigo-500/25 text-xs font-semibold transition-all cursor-pointer group"
+                      className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
                     >
                       <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-indigo-400" />
-                        <span>আমার প্রোফাইল ও হিসাব বিবরণী</span>
+                        <FileText className="w-3.5 h-3.5 text-slate-400" />
+                        <span>কুইক স্টেটমেন্ট পপআপ</span>
                       </div>
-                      <span className="text-[10px] bg-indigo-500/20 px-1.5 py-0.5 rounded text-indigo-200">
-                        স্টেটমেন্ট
+                      <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">
+                        মডাল
                       </span>
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Emergency Actions Menu */}
                 <div className="p-1 space-y-0.5 border-b border-slate-800/80 pb-2 mb-2">

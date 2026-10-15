@@ -9,8 +9,12 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
     const date = searchParams.get('date');
+    const userId = searchParams.get('userId');
 
     let list = store.meals.filter((m) => m.cycleId === cycleId);
+    if (userId) {
+      list = list.filter((m) => m.userId === userId);
+    }
     if (date) {
       list = list.filter((m) => m.date === date);
     }

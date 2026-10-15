@@ -7,8 +7,12 @@ export async function GET(request: Request) {
   const store = await getStore();
   const { searchParams } = new URL(request.url);
   const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
+  const userId = searchParams.get('userId');
 
-  const events = store.fixedEvents.filter((e) => e.cycleId === cycleId);
+  let events = store.fixedEvents.filter((e) => e.cycleId === cycleId);
+  if (userId) {
+    events = events.filter((e) => e.attendeeUserIds.includes(userId));
+  }
   const enriched = events.map((e) => {
     const attendees = e.attendeeUserIds.map((uid) => {
       const u = store.users.find((user) => user._id === uid);

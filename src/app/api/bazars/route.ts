@@ -9,8 +9,10 @@ export async function GET(request: Request) {
   const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
   const type = searchParams.get('type');
   const status = searchParams.get('status');
+  const userId = searchParams.get('userId');
 
   let list = store.bazars.filter((b) => b.cycleId === cycleId);
+  if (userId) list = list.filter((b) => b.userId === userId);
   if (type) list = list.filter((b) => b.type === type);
   if (status) list = list.filter((b) => b.status === status);
 

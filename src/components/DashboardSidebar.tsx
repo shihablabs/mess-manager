@@ -20,6 +20,7 @@ import {
   X,
   CreditCard,
   UserCheck,
+  User,
 } from 'lucide-react';
 import { AppUser } from '@/lib/session';
 import Link from 'next/link';
@@ -218,6 +219,22 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           },
         ]
       : []),
+    {
+      id: 'profile',
+      label: 'আমার প্রোফাইল ও হিসাব',
+      href: '/dashboard/profile',
+      icon: User,
+      badge: null,
+      isActive: pathname.startsWith('/dashboard/profile'),
+      subItems: [
+        {
+          id: 'profile_view',
+          label: 'ব্যক্তিগত ব্যালেন্স ও লেজার',
+          href: '/dashboard/profile',
+          isActive: pathname === '/dashboard/profile',
+        },
+      ],
+    },
   ];
 
   return (

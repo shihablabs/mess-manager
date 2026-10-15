@@ -17,10 +17,12 @@ import {
   FileText,
   DollarSign,
   UserCheck,
+  User,
 } from 'lucide-react';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
+import Link from 'next/link';
 
 interface MembersTabProps {
   currentUser: AppUser;
@@ -747,16 +749,27 @@ export const MembersTab: React.FC<MembersTabProps> = ({
 
               {/* Actions Footer */}
               <div className="border-t border-slate-800 pt-3 flex flex-wrap items-center justify-between gap-2">
-                {/* View Statement & Profile Modal */}
-                {onOpenStatement && (
-                  <button
-                    onClick={() => onOpenStatement(mem)}
-                    className="flex items-center gap-1 text-[11px] text-indigo-300 hover:text-indigo-200 font-medium px-2.5 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 transition-all cursor-pointer"
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* View Full Profile Page */}
+                  <Link
+                    href={`/dashboard/profile?userId=${mem.userId}`}
+                    className="flex items-center gap-1 text-[11px] text-amber-300 hover:text-amber-200 font-medium px-2.5 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-all cursor-pointer"
                   >
-                    <FileText className="w-3 h-3" />
-                    বিবরণী ও হিসাব
-                  </button>
-                )}
+                    <User className="w-3 h-3 text-amber-400" />
+                    প্রোফাইল
+                  </Link>
+
+                  {/* View Statement & Profile Modal */}
+                  {onOpenStatement && (
+                    <button
+                      onClick={() => onOpenStatement(mem)}
+                      className="flex items-center gap-1 text-[11px] text-indigo-300 hover:text-indigo-200 font-medium px-2.5 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 transition-all cursor-pointer"
+                    >
+                      <FileText className="w-3 h-3" />
+                      স্টেটমেন্ট
+                    </button>
+                  )}
+                </div>
 
                 {/* Super Admin can promote/demote Managers */}
                 {currentUser.role === 'super_admin' && !isSuperAdminUser && (
