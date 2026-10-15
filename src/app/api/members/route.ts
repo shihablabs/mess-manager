@@ -124,16 +124,121 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: 'ভূমিকা পরিবর্তন সম্পন্ন হয়েছে' });
     }
 
-    // Update room rent
-    if (action === 'update_member') {
-      if (db && userId) {
+    // Approve pending member
+    if (action === 'approve_member') {
+      if (!userId) {
+        return NextResponse.json({ success: false, error: 'ইউজার আইডি আবশ্যক' }, { status: 400 });
+      }
+
+      if (db) {
+        await db.collection('memberships').updateOne(
+          { userId: userId.toString() },
+          { $set: { status: 'active', updatedAt: new Date() } }
+        );
+
         await db.collection('member_cycles').updateOne(
           { userId: userId.toString(), cycleId },
-          { $set: { roomRent: Number(roomRent), updatedAt: new Date() } }
+          {
+            $set: {
+              roomRent: Number(roomRent || 3000),
+              isActive: true,
+              updatedAt: new Date(),
+            },
+            $setOnInsert: {
+              _id: `mc_${userId}_${cycleId}`,
+              messId: store.mess._id as string,
+              createdAt: new Date(),
+            },
+          },
+          { upsert: true }
         );
       }
 
-      return NextResponse.json({ success: true, message: 'সদস্যের তথ্য হালনাগাদ করা হয়েছে' });
+      return NextResponse.json({ success: true, message: 'সদস্য সফলভাবে অনুমোদিত হয়েছে' });
+    }
+
+    // Reject pending member
+    if (action === 'reject_member') {
+      if (!userId) {
+        return NextResponse.json({ success: false, error: 'ইউজার আইডি আবশ্যক' }, { status: 400 });
+      }
+
+      if (db) {
+        await db.collection('memberships').updateOne(
+          { userId: userId.toString() },
+          { $set: { status: 'inactive', updatedAt: new Date() } }
+        );
+      }
+
+      return NextResponse.json({ success: true, message: 'সদস্য বাতিল করা হয়েছে' });
+    }
+
+    // Update room rent
+    if (action === 'update_rent' || action === 'update_member') {
+      if (db && userId) {
+        await db.collection('member_cycles').updateOne(
+          { userId: userId.toString(), cycleId },
+          {
+            $set: { roomRent: Number(roomRent), updatedAt: new Date() },
+            $setOnInsert: {
+              _id: `mc_${userId}_${cycleId}`,
+              messId: store.mess._id as string,
+              isActive: true,
+              createdAt: new Date(),
+            },
+          },
+          { upsert: true }
+        );
+      }
+
+      return NextResponse.json({ success: true, message: 'রুম ভাড়া সফলভাবে আপডেট করা হয়েছে' });
+    }
+
+    // Member requests settlement (মেম্বার নিজে হিসাব নিষ্পত্তির আবেদন করবে)
+    if (action === 'request_settlement') {
+      if (!userId) {
+        return NextResponse.json({ success: false, error: 'ইউজার আইডি আবশ্যক' }, { status: 400 });
+      }
+
+      if (db) {
+        await db.collection('member_cycles').updateOne(
+          { userId: userId.toString(), cycleId },
+          {
+            $set: {
+              settlementRequested: true,
+              settlementRequestedAt: new Date(),
+              updatedAt: new Date(),
+            },
+          }
+        );
+      }
+
+      return NextResponse.json({ success: true, message: 'হিসাব নিষ্পত্তির আবেদন পাঠানো হয়েছে' });
+    }
+
+    // Admin confirms settlement (এডমিন হিসাব চূড়ান্ত নিষ্পত্তি করবে)
+    if (action === 'confirm_settlement') {
+      if (!userId) {
+        return NextResponse.json({ success: false, error: 'ইউজার আইডি আবশ্যক' }, { status: 400 });
+      }
+
+      if (db) {
+        await db.collection('member_cycles').updateOne(
+          { userId: userId.toString(), cycleId },
+          {
+            $set: {
+              isActive: false,
+              individualSettled: true,
+              settledAt: new Date(),
+              settlementRequested: false,
+              leftDate: new Date().toISOString().split('T')[0],
+              updatedAt: new Date(),
+            },
+          }
+        );
+      }
+
+      return NextResponse.json({ success: true, message: 'সদস্যের হিসাব চূড়ান্ত নিষ্পত্তি সম্পন্ন হয়েছে' });
     }
 
     return NextResponse.json({ success: false, error: 'অবৈধ একশন' }, { status: 400 });

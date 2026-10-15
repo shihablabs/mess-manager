@@ -26,6 +26,7 @@ import {
   Lock,
   ArrowRight,
   ShieldAlert,
+  Clock,
 } from 'lucide-react';
 import { MemberBillingResult } from '@/billing-engine/types';
 import { useSession, signIn } from 'next-auth/react';
@@ -45,11 +46,14 @@ export default function DashboardPage() {
     if (status === 'authenticated' && session?.user) {
       const userEmail = session.user.email || '';
       const isSuper = userEmail === 'shihab.warfaze@gmail.com';
+      const userRole = (session.user as any).role || (isSuper ? 'super_admin' : 'member');
+      const userStatus = (session.user as any).status || (isSuper ? 'active' : 'pending');
       setCurrentUser({
         id: (session.user as any).id || userEmail || 'user',
         name: session.user.name || 'সদস্য',
         email: userEmail,
-        role: (session.user as any).role || (isSuper ? 'super_admin' : 'member'),
+        role: userRole,
+        status: userStatus,
         image: session.user.image || 'https://api.dicebear.com/7.x/bottts/svg?seed=user',
       });
     } else if (status === 'unauthenticated') {
@@ -128,6 +132,48 @@ export default function DashboardPage() {
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
           <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
           <p className="text-sm font-medium text-slate-400">লগইন অবস্থা যাচাই করা হচ্ছে...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Pending Approval State for new Google Users
+  if (status === 'authenticated' && currentUser?.status === 'pending') {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+        <Navbar currentUser={currentUser} />
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto space-y-6">
+          <div className="w-20 h-20 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-2xl shadow-amber-500/10">
+            <Clock className="w-10 h-10 animate-pulse" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-[11px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-full font-semibold">
+              অ্যাডমিন অনুমোদনের অপেক্ষায়
+            </span>
+            <h2 className="text-2xl font-black text-white mt-2">আপনার অ্যাকাউন্টটি পর্যালোচনায় আছে</h2>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              স্বাগতম, <strong>{currentUser.name}</strong>! Developer Zone মেসে যুক্ত হওয়ার জন্য ধন্যবাদ। মেসের আর্থিক গোপনীয়তা রক্ষার স্বার্থে নতুন সদস্যের ক্ষেত্রে মেস সুপার অ্যাডমিন বা ম্যানেজারের অনুমোদন প্রয়োজন হয়।
+            </p>
+            <p className="text-xs text-slate-500">
+              অ্যাডমিন আপনার অ্যাকাউন্ট অনুমোদন করা মাত্রই আপনি ড্যাশবোর্ড ও মিল খাতা দেখতে পারবেন।
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full pt-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3.5 px-5 rounded-xl shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
+            >
+              স্ট্যাটাস রিফ্রেশ করুন
+            </button>
+            <Link
+              href="/"
+              className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-semibold text-xs py-3.5 px-5 rounded-xl transition-all"
+            >
+              হোম পেজে ফিরে যান
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -323,6 +369,16 @@ export default function DashboardPage() {
               members={members}
               cycle={summaryData?.cycle}
               onRefresh={fetchData}
+              onOpenStatement={(m) => {
+                const billingResult =
+                  summaryData?.calculation?.allMembersSummary?.find((res: any) => res.userId === m.userId) ||
+                  summaryData?.calculation?.memberResults?.[m.userId];
+                if (billingResult) {
+                  setStatementMember(billingResult);
+                } else {
+                  alert('এই সদস্যের চলতি চক্রের হিসাব বিবরণী লোড হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন');
+                }
+              }}
             />
           )}
         </div>
@@ -334,6 +390,8 @@ export default function DashboardPage() {
           member={statementMember}
           calculation={summaryData?.calculation || null}
           cycleName={summaryData?.cycle?.name || 'চলমান চক্র'}
+          currentUser={currentUser}
+          onRefresh={fetchData}
           onClose={() => setStatementMember(null)}
         />
       )}

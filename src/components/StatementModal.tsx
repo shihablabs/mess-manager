@@ -1,14 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { MemberBillingResult, BillingEngineOutput } from '@/billing-engine/types';
 import { formatTaka } from '@/lib/money';
-import { Printer, X, CheckCircle, FileText } from 'lucide-react';
+import { Printer, X, CheckCircle, FileText, UserMinus, Clock, AlertTriangle } from 'lucide-react';
+import { AppUser } from '@/lib/session';
 
 interface StatementModalProps {
   member: MemberBillingResult | null;
   calculation: BillingEngineOutput | null;
   cycleName: string;
+  currentUser?: AppUser;
+  onRefresh?: () => void;
   onClose: () => void;
 }
 
@@ -16,9 +19,13 @@ export const StatementModal: React.FC<StatementModalProps> = ({
   member,
   calculation,
   cycleName,
+  currentUser,
+  onRefresh,
   onClose,
 }) => {
   const [formattedDate, setFormattedDate] = React.useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [settlementRequested, setSettlementRequested] = useState(false);
 
   React.useEffect(() => {
     setFormattedDate(new Date().toLocaleDateString('bn-BD'));
@@ -27,39 +34,100 @@ export const StatementModal: React.FC<StatementModalProps> = ({
   if (!member || !calculation) return null;
 
   const isRefund = member.netBalance >= 0;
+  const isManagerOrSuperAdmin =
+    currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
+  const isOwnStatement = currentUser?.id === member.userId;
+
+  // Handle member requesting settlement
+  const handleRequestSettlement = async () => {
+    const confirmReq = confirm('আপনি কি মেস ছাড়ার জন্য চূড়ান্ত হিসাব নিষ্পত্তির আবেদন পাঠাতে চান?');
+    if (!confirmReq) return;
+    try {
+      setIsSubmitting(true);
+      const res = await fetch('/api/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'request_settlement',
+          userId: member.userId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSettlementRequested(true);
+        alert('হিসাব নিষ্পত্তির আবেদন অ্যাডমিনের নিকট পাঠানো হয়েছে!');
+        onRefresh?.();
+      } else {
+        alert(data.error || 'আবেদন পাঠাতে ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle admin finalizing settlement
+  const handleConfirmSettlement = async () => {
+    const confirmSettle = confirm(
+      `আপনি কি নিশ্চিত যে ${member.name}-এর চূড়ান্ত হিসাব নিষ্পত্তি করতে চান? এর পর এই চক্রে তার হিসাব অপরিবর্তনীয় থাকবে।`
+    );
+    if (!confirmSettle) return;
+    try {
+      setIsSubmitting(true);
+      const res = await fetch('/api/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'confirm_settlement',
+          userId: member.userId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('সদস্যের হিসাব চূড়ান্ত নিষ্পত্তি সম্পন্ন হয়েছে!');
+        onRefresh?.();
+        onClose();
+      } else {
+        alert(data.error || 'নিষ্পত্তি ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Modal Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm print:p-0 print:bg-white">
+      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden print:border-none print:shadow-none print:w-full print:max-w-none">
+        {/* Modal Actions Bar (hidden when printing) */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/40 print:hidden">
           <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-indigo-400" />
-            <div>
-              <h3 className="font-bold text-white text-base">হিসাব-বিবরণী (Statement)</h3>
-              <p className="text-xs text-slate-400">{cycleName}</p>
-            </div>
+            <FileText className="w-4 h-4 text-indigo-400" />
+            <span className="text-xs font-semibold text-slate-300">
+              সদস্যের ব্যক্তিগত আর্থিক হিসাব বিবরণী
+            </span>
           </div>
-
           <div className="flex items-center gap-2">
             <button
               onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               প্রিন্ট / PDF
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Printable Statement Content (SRS Section 4.10) */}
-        <div className="p-6 overflow-y-auto space-y-6 text-slate-200 print:text-black print:bg-white">
+        <div className="p-6 overflow-y-auto space-y-6 text-slate-200 print:text-black print:bg-white max-h-[85vh]">
           {/* Header Info */}
           <div className="flex justify-between items-start border-b border-slate-800 pb-4">
             <div>
@@ -74,8 +142,34 @@ export const StatementModal: React.FC<StatementModalProps> = ({
               <div className="text-base font-bold text-indigo-400 print:text-black">
                 {member.name}
               </div>
-              <span className="text-xs text-slate-400">
-                স্ট্যাটাস: {member.isActive ? 'সক্রিয়' : 'মেস ছেড়েছেন'}
+              <span className="text-xs font-mono text-slate-400">ID: {member.userId.slice(-6)}</span>
+            </div>
+          </div>
+
+          {/* KPI Strip for Member */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3 bg-slate-950/50 border border-slate-800/80 rounded-xl print:border-gray-300">
+              <span className="text-[11px] text-slate-400 block">মোট মিল ইউনিট</span>
+              <span className="text-base font-bold text-white print:text-black font-mono">
+                {member.mealUnits.toFixed(1)}
+              </span>
+            </div>
+            <div className="p-3 bg-slate-950/50 border border-slate-800/80 rounded-xl print:border-gray-300">
+              <span className="text-[11px] text-slate-400 block">মিল রেট</span>
+              <span className="text-base font-bold text-indigo-400 print:text-black font-mono">
+                {formatTaka(calculation.mealRate)}
+              </span>
+            </div>
+            <div className="p-3 bg-slate-950/50 border border-slate-800/80 rounded-xl print:border-gray-300">
+              <span className="text-[11px] text-slate-400 block">মোট জমা (Credit)</span>
+              <span className="text-base font-bold text-emerald-400 print:text-black font-mono">
+                {formatTaka(member.totalCredits)}
+              </span>
+            </div>
+            <div className="p-3 bg-slate-950/50 border border-slate-800/80 rounded-xl print:border-gray-300">
+              <span className="text-[11px] text-slate-400 block">মোট খরচ (Debit)</span>
+              <span className="text-base font-bold text-rose-400 print:text-black font-mono">
+                {formatTaka(member.totalDues)}
               </span>
             </div>
           </div>
@@ -83,29 +177,35 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           {/* Dues Breakdown */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              দেনা বা খরচের বিবরণী (Dues)
+              দেনা ও খরচের ভাগ (Dues / Debits)
             </h4>
             <div className="space-y-2 text-xs border border-slate-800 rounded-xl p-3 bg-slate-950/40">
               <div className="flex justify-between py-1 border-b border-slate-800/80">
-                <span>
-                  মিল খরচ ({member.mealUnits} ইউনিট × {formatTaka(calculation.mealRate, { decimals: 2 })})
-                </span>
+                <span>মিল বাবদ খরচ ({member.mealUnits.toFixed(1)} × {formatTaka(calculation.mealRate)})</span>
                 <span className="font-mono font-bold text-slate-200">{formatTaka(member.regularMealCost)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800/80">
-                <span>রুম ভাড়া</span>
-                <span className="font-mono font-bold text-slate-200">{formatTaka(member.roomRent)}</span>
+                <span>ফিক্সড বাজার শেয়ার (স্পেশাল মিল)</span>
+                <span className="font-mono font-bold text-slate-200">{formatTaka(member.fixedShare)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800/80">
-                <span>ইউটিলিটি বিলের অংশ (সমান ভাগ)</span>
+                <span>ইউটিলিটি ও আনুষঙ্গিক বিলের ভাগ</span>
                 <span className="font-mono font-bold text-slate-200">{formatTaka(member.utilityShare)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800/80">
-                <span>ফিক্সড বাজার শেয়ার (উপস্থিত ভোজ)</span>
-                <span className="font-mono font-bold text-slate-200">{formatTaka(member.fixedShare)}</span>
+                <span>রুম ভাড়া (নির্ধারিত)</span>
+                <span className="font-mono font-bold text-slate-200">{formatTaka(member.roomRent)}</span>
               </div>
+              {member.extraShareNonPool > 0 && (
+                <div className="flex justify-between py-1 border-b border-slate-800/80">
+                  <span>এক্সট্রা বাজার শেয়ার (নন-পুল)</span>
+                  <span className="font-mono font-bold text-slate-200">
+                    {formatTaka(member.extraShareNonPool)}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between pt-1 font-bold text-rose-400">
-                <span>মোট প্রদেয় দেনা</span>
+                <span>মোট দেনা</span>
                 <span className="font-mono text-sm">{formatTaka(member.totalDues)}</span>
               </div>
             </div>
@@ -162,6 +262,54 @@ export const StatementModal: React.FC<StatementModalProps> = ({
               }`}
             >
               {formatTaka(member.netBalance, { showSign: true })}
+            </div>
+          </div>
+
+          {/* SETTLEMENT ACTIONS SECTION (Print Hidden) */}
+          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-3 print:hidden">
+            <div className="flex items-center justify-between">
+              <h5 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <UserMinus className="w-4 h-4 text-amber-400" />
+                মেস ছাড়ার চূড়ান্ত হিসাব নিষ্পত্তি (Settlement)
+              </h5>
+              <span className="text-[10px] text-slate-500">স্বচ্ছ ও নিরাপদ এক্সিট প্রসেস</span>
+            </div>
+
+            <p className="text-[11px] text-slate-400">
+              সদস্য মেস ছাড়তে চাইলে এই হিসাব অনুযায়ী অবশিষ্ট টাকা লেনদেন করে হিসাব নিষ্পত্তি করা হয়।
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {/* If member viewing own statement */}
+              {isOwnStatement && !settlementRequested && (
+                <button
+                  onClick={handleRequestSettlement}
+                  disabled={isSubmitting}
+                  className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold transition-all cursor-pointer"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  হিসাব নিষ্পত্তির আবেদন পাঠান
+                </button>
+              )}
+
+              {settlementRequested && (
+                <span className="text-xs px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 animate-spin" />
+                  নিষ্পত্তির আবেদন প্রেরিত (অ্যাডমিন অনুমোদনের অপেক্ষায়)
+                </span>
+              )}
+
+              {/* Admin/Manager can finalize settlement */}
+              {isManagerOrSuperAdmin && (
+                <button
+                  onClick={handleConfirmSettlement}
+                  disabled={isSubmitting}
+                  className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-lg shadow-rose-600/20 transition-all cursor-pointer ml-auto"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  হিসাব চূড়ান্ত নিষ্পত্তি অনুমোদন করুন
+                </button>
+              )}
             </div>
           </div>
         </div>

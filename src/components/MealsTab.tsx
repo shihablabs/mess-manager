@@ -109,13 +109,13 @@ export const MealsTab: React.FC<MealsTabProps> = ({
     }
   }, [selectedDate, members, fetchDateMeals]);
 
-  // Adjust count
+  // Adjust count (0.5 step support for half meal)
   const updateCount = (userId: string, slot: 'morning' | 'night', delta: number) => {
     if (!canEditMeals) return;
     setDailyEntries((prev) => {
       const current = prev[userId] || { morning: 1, night: 1 };
       const currentVal = current[slot];
-      const newVal = Math.max(0, currentVal + delta);
+      const newVal = Math.max(0, Math.round((currentVal + delta) * 10) / 10);
       return {
         ...prev,
         [userId]: {
@@ -312,13 +312,19 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                   <button
                     onClick={() => handleSetAll(1)}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors"
+                    className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors cursor-pointer"
                   >
                     সবার মিল ১
                   </button>
                   <button
+                    onClick={() => handleSetAll(0.5)}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 font-medium transition-colors cursor-pointer"
+                  >
+                    সবার হাফ (০.৫)
+                  </button>
+                  <button
                     onClick={() => handleSetAll(0)}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors"
+                    className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors cursor-pointer"
                   >
                     সবার মিল ০
                   </button>
@@ -450,22 +456,24 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                             <span className="text-[11px] font-semibold text-slate-400">সকাল</span>
                             <span className="text-[10px] text-slate-500 block">(০.৫)</span>
                           </div>
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1">
                             {canEditMeals && (
                               <button
-                                onClick={() => updateCount(member.userId, 'morning', -1)}
-                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors"
+                                onClick={() => updateCount(member.userId, 'morning', -0.5)}
+                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                title="০.৫ কমান"
                               >
                                 -
                               </button>
                             )}
-                            <span className="w-6 text-center text-sm font-bold font-mono text-white">
+                            <span className="w-10 text-center text-sm font-bold font-mono text-white">
                               {entry.morning}
                             </span>
                             {canEditMeals && (
                               <button
-                                onClick={() => updateCount(member.userId, 'morning', 1)}
-                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors"
+                                onClick={() => updateCount(member.userId, 'morning', 0.5)}
+                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                title="০.৫ বাড়ান"
                               >
                                 +
                               </button>
@@ -479,22 +487,24 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                             <span className="text-[11px] font-semibold text-slate-400">রাত</span>
                             <span className="text-[10px] text-slate-500 block">(১.০)</span>
                           </div>
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1">
                             {canEditMeals && (
                               <button
-                                onClick={() => updateCount(member.userId, 'night', -1)}
-                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors"
+                                onClick={() => updateCount(member.userId, 'night', -0.5)}
+                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                title="০.৫ কমান"
                               >
                                 -
                               </button>
                             )}
-                            <span className="w-6 text-center text-sm font-bold font-mono text-white">
+                            <span className="w-10 text-center text-sm font-bold font-mono text-white">
                               {entry.night}
                             </span>
                             {canEditMeals && (
                               <button
-                                onClick={() => updateCount(member.userId, 'night', 1)}
-                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors"
+                                onClick={() => updateCount(member.userId, 'night', 0.5)}
+                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                title="০.৫ বাড়ান"
                               >
                                 +
                               </button>

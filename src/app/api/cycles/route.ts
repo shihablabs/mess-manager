@@ -128,6 +128,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: 'চক্র পুনরায় উন্মুক্ত করা হয়েছে' });
     }
 
+    // 4. Update cycle & big bazar configuration (এডমিন/ম্যানেজার বড় বাজার ও চক্র কনফিগারেশন)
+    if (action === 'update_cycle_config') {
+      const {
+        isBigBazarEnabled,
+        bigBazarContributionPerMember,
+        name,
+        startDate,
+        endDate,
+      } = body;
+
+      if (db) {
+        const updateDoc: any = { updatedAt: new Date() };
+        if (typeof isBigBazarEnabled === 'boolean') updateDoc.isBigBazarEnabled = isBigBazarEnabled;
+        if (typeof bigBazarContributionPerMember === 'number') {
+          updateDoc.bigBazarContributionPerMember = Number(bigBazarContributionPerMember);
+        }
+        if (name) updateDoc.name = name;
+        if (startDate) updateDoc.startDate = startDate;
+        if (endDate) updateDoc.endDate = endDate;
+
+        await db.collection('cycles').updateOne({ _id: cycleId }, { $set: updateDoc });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'চলমান চক্র ও বড় বাজার কনফিগারেশন সফলভাবে আপডেট করা হয়েছে',
+      });
+    }
+
     return NextResponse.json({ success: false, error: 'অবৈধ একশন' }, { status: 400 });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

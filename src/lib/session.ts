@@ -6,6 +6,7 @@ export interface AppUser {
   email: string;
   role: UserRole;
   image: string;
+  status?: 'pending' | 'active' | 'inactive';
 }
 
 export const SUPER_ADMIN_EMAIL = 'shihab.warfaze@gmail.com';
