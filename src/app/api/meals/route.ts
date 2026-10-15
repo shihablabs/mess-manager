@@ -43,6 +43,7 @@ export async function POST(request: Request) {
     if (db && entries.length > 0) {
       for (const entry of entries) {
         const morningCount = Number(entry.morning ?? 0);
+        const lunchCount = Number(entry.lunch ?? 0);
         const nightCount = Number(entry.night ?? 0);
 
         // Morning slot
@@ -61,6 +62,29 @@ export async function POST(request: Request) {
             },
             $setOnInsert: {
               _id: `meal_m_${entry.userId}_${date}`,
+              messId: store.mess._id as string,
+              createdAt: new Date(),
+            },
+          },
+          { upsert: true }
+        );
+
+        // Lunch slot
+        await db.collection('meals').updateOne(
+          {
+            userId: entry.userId,
+            cycleId,
+            date,
+            slotId: 'lunch',
+          },
+          {
+            $set: {
+              consumed: lunchCount,
+              weight: 1.0,
+              updatedAt: new Date(),
+            },
+            $setOnInsert: {
+              _id: `meal_l_${entry.userId}_${date}`,
               messId: store.mess._id as string,
               createdAt: new Date(),
             },

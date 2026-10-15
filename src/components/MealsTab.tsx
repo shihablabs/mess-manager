@@ -65,7 +65,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
   };
 
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
-  const [dailyEntries, setDailyEntries] = useState<Record<string, { morning: number; night: number }>>({});
+  const [dailyEntries, setDailyEntries] = useState<Record<string, { morning: number; lunch: number; night: number }>>({});
   const [isLoadingDateMeals, setIsLoadingDateMeals] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
@@ -76,7 +76,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
   // DataTable filter states for Monthly Master Register
   const [registerSearchQuery, setRegisterSearchQuery] = useState('');
-  const [registerSortKey, setRegisterSortKey] = useState<'totalUnits' | 'name' | 'morningTotal' | 'nightTotal' | 'estimatedCost'>('totalUnits');
+  const [registerSortKey, setRegisterSortKey] = useState<'totalUnits' | 'name' | 'morningTotal' | 'lunchTotal' | 'nightTotal' | 'estimatedCost'>('totalUnits');
   const [registerSortAsc, setRegisterSortAsc] = useState(false);
 
   // DataTable filter states for Daily Logs
@@ -93,6 +93,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
     userId: string;
     name: string;
     morning: number;
+    lunch: number;
     night: number;
   } | null>(null);
   const [isSavingLogEdit, setIsSavingLogEdit] = useState(false);
@@ -111,6 +112,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
             {
               userId: editingLogItem.userId,
               morning: editingLogItem.morning,
+              lunch: editingLogItem.lunch,
               night: editingLogItem.night,
             },
           ],
@@ -187,23 +189,25 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       const res = await fetch(`/api/meals?date=${date}&cycleId=${cycle?._id || 'cycle_1'}`);
       const json = await res.json();
 
-      const newEntries: Record<string, { morning: number; night: number }> = {};
+      const newEntries: Record<string, { morning: number; lunch: number; night: number }> = {};
       const diningMembers = members.filter((m) => m.role !== 'super_admin');
 
-      // Initialize with 1 morning, 1 night for all active members as default
+      // Initialize with 0 morning, 1 lunch, 1 night for all active members as default
       diningMembers.forEach((m) => {
-        newEntries[m.userId || m._id] = { morning: 1, night: 1 };
+        newEntries[m.userId || m._id] = { morning: 0, lunch: 1, night: 1 };
       });
 
       // Override if records exist in DB for this date
       if (json.success && Array.isArray(json.meals) && json.meals.length > 0) {
         for (const m of json.meals) {
           if (!newEntries[m.userId]) {
-            newEntries[m.userId] = { morning: 0, night: 0 };
+            newEntries[m.userId] = { morning: 0, lunch: 0, night: 0 };
           }
           const count = typeof m.consumed === 'number' ? m.consumed : (m.consumed ? 1 : 0);
           if (m.slotId === 'morning') {
             newEntries[m.userId].morning = count;
+          } else if (m.slotId === 'lunch') {
+            newEntries[m.userId].lunch = count;
           } else if (m.slotId === 'night') {
             newEntries[m.userId].night = count;
           }
@@ -225,11 +229,11 @@ export const MealsTab: React.FC<MealsTabProps> = ({
   }, [selectedDate, members, fetchDateMeals]);
 
   // Adjust count (0.5 step support for half meal)
-  const updateCount = (userId: string, slot: 'morning' | 'night', delta: number) => {
+  const updateCount = (userId: string, slot: 'morning' | 'lunch' | 'night', delta: number) => {
     if (!canEditMeals) return;
     setDailyEntries((prev) => {
-      const current = prev[userId] || { morning: 1, night: 1 };
-      const currentVal = current[slot];
+      const current = prev[userId] || { morning: 0, lunch: 1, night: 1 };
+      const currentVal = current[slot] ?? 0;
       const newVal = Math.max(0, Math.round((currentVal + delta) * 10) / 10);
       return {
         ...prev,
@@ -244,11 +248,11 @@ export const MealsTab: React.FC<MealsTabProps> = ({
   // Quick actions
   const handleSetAll = (val: number) => {
     if (!canEditMeals) return;
-    const updated: Record<string, { morning: number; night: number }> = {};
+    const updated: Record<string, { morning: number; lunch: number; night: number }> = {};
     const diningMembers = members.filter((m) => m.role !== 'super_admin');
     diningMembers.forEach((m) => {
       const uid = m.userId || m._id;
-      updated[uid] = { morning: val, night: val };
+      updated[uid] = { morning: val, lunch: val, night: val };
     });
     setDailyEntries(updated);
   };
@@ -261,6 +265,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       const entriesPayload = Object.entries(dailyEntries).map(([userId, val]) => ({
         userId,
         morning: val.morning,
+        lunch: val.lunch,
         night: val.night,
       }));
 
@@ -328,6 +333,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       const userRecords = allCycleMeals.filter((r) => r.userId === uId);
 
       let morningTotal = 0;
+      let lunchTotal = 0;
       let nightTotal = 0;
       const attendedDates = new Set<string>();
 
@@ -336,13 +342,16 @@ export const MealsTab: React.FC<MealsTabProps> = ({
         if (rec.slotId === 'morning') {
           morningTotal += count;
           if (count > 0) attendedDates.add(rec.date);
+        } else if (rec.slotId === 'lunch') {
+          lunchTotal += count;
+          if (count > 0) attendedDates.add(rec.date);
         } else if (rec.slotId === 'night') {
           nightTotal += count;
           if (count > 0) attendedDates.add(rec.date);
         }
       }
 
-      const totalUnits = morningTotal + nightTotal;
+      const totalUnits = morningTotal + lunchTotal + nightTotal;
       const estimatedCost = Math.round(totalUnits * liveMealRate);
 
       return {
@@ -353,6 +362,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
         role: m.role,
         isActive: m.isActive ?? true,
         morningTotal,
+        lunchTotal,
         nightTotal,
         totalUnits,
         estimatedCost,
@@ -386,6 +396,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
   // Master Summary KPI calculations
   const totalMonthUnits = memberMonthlyStats.reduce((sum, m) => sum + m.totalUnits, 0);
   const totalMonthMorning = memberMonthlyStats.reduce((sum, m) => sum + m.morningTotal, 0);
+  const totalMonthLunch = memberMonthlyStats.reduce((sum, m) => sum + m.lunchTotal, 0);
   const totalMonthNight = memberMonthlyStats.reduce((sum, m) => sum + m.nightTotal, 0);
   const totalEstimatedFoodCost = Math.round(totalMonthUnits * liveMealRate);
 
@@ -394,15 +405,16 @@ export const MealsTab: React.FC<MealsTabProps> = ({
     const diningMembersMap = new Map<string, any>();
     members.forEach((m) => diningMembersMap.set(m.userId || m._id, m));
 
-    // Map: date -> userId -> { morning: 0, night: 0 }
-    const matrix: Record<string, Record<string, { morning: number; night: number }>> = {};
+    // Map: date -> userId -> { morning: 0, lunch: 0, night: 0 }
+    const matrix: Record<string, Record<string, { morning: number; lunch: number; night: number }>> = {};
 
     for (const rec of allCycleMeals) {
       if (!matrix[rec.date]) matrix[rec.date] = {};
-      if (!matrix[rec.date][rec.userId]) matrix[rec.date][rec.userId] = { morning: 0, night: 0 };
+      if (!matrix[rec.date][rec.userId]) matrix[rec.date][rec.userId] = { morning: 0, lunch: 0, night: 0 };
       const count = typeof rec.consumed === 'number' ? rec.consumed : (rec.consumed ? 1 : 0);
       if (rec.slotId === 'morning') matrix[rec.date][rec.userId].morning = count;
-      if (rec.slotId === 'night') matrix[rec.date][rec.userId].night = count;
+      else if (rec.slotId === 'lunch') matrix[rec.date][rec.userId].lunch = count;
+      else if (rec.slotId === 'night') matrix[rec.date][rec.userId].night = count;
     }
 
     const rows: any[] = [];
@@ -410,7 +422,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       Object.entries(userObj).forEach(([userId, counts]) => {
         const mem = diningMembersMap.get(userId);
         if (!mem || mem.role === 'super_admin') return;
-        const total = counts.morning + counts.night;
+        const total = counts.morning + counts.lunch + counts.night;
         rows.push({
           date,
           userId,
@@ -418,6 +430,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           email: mem.email,
           image: mem.image || `https://api.dicebear.com/7.x/bottts/svg?seed=${userId}`,
           morning: counts.morning,
+          lunch: counts.lunch,
           night: counts.night,
           total,
         });
@@ -469,8 +482,9 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       const headers = [
         'সদস্যের নাম',
         'ইমেইল',
-        'মোট সকালের মিল (০.৫)',
-        'মোট রাতের মিল (১.০)',
+        'মোট সকালের মিল',
+        'মোট দুপুরের মিল',
+        'মোট রাতের মিল',
         'সর্বমোট মিল ইউনিট',
         'মিল রেট (টাকা)',
         'আনুমানিক খাবার খরচ (টাকা)',
@@ -485,6 +499,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           `"${m.name.replace(/"/g, '""')}"`,
           `"${(m.email || '').replace(/"/g, '""')}"`,
           m.morningTotal,
+          m.lunchTotal,
           m.nightTotal,
           formatMealUnits(m.totalUnits),
           liveMealRate,
@@ -518,12 +533,14 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
   // Daily totals for single-day stepper
   let totalMorningMeals = 0;
+  let totalLunchMeals = 0;
   let totalNightMeals = 0;
   Object.values(dailyEntries).forEach((e) => {
     totalMorningMeals += e.morning || 0;
+    totalLunchMeals += e.lunch || 0;
     totalNightMeals += e.night || 0;
   });
-  const totalMealUnits = totalMorningMeals + totalNightMeals;
+  const totalMealUnits = totalMorningMeals + totalLunchMeals + totalNightMeals;
 
   return (
     <div className="space-y-6">
@@ -749,7 +766,23 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     >
                       <div className="flex items-center justify-center gap-1">
                         <Sun className="w-3 h-3 text-amber-400" />
-                        <span>সকাল (০.৫)</span>
+                        <span>সকাল</span>
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => {
+                        if (registerSortKey === 'lunchTotal') setRegisterSortAsc(!registerSortAsc);
+                        else {
+                          setRegisterSortKey('lunchTotal');
+                          setRegisterSortAsc(false);
+                        }
+                      }}
+                      className="py-3 px-3 text-center cursor-pointer hover:text-white"
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <Coffee className="w-3 h-3 text-orange-400" />
+                        <span>দুপুর</span>
                         <ArrowUpDown className="w-3 h-3" />
                       </div>
                     </th>
@@ -765,7 +798,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     >
                       <div className="flex items-center justify-center gap-1">
                         <Moon className="w-3 h-3 text-indigo-400" />
-                        <span>রাত (১.০)</span>
+                        <span>রাত</span>
                         <ArrowUpDown className="w-3 h-3" />
                       </div>
                     </th>
@@ -807,7 +840,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
                   {filteredRegister.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-500">
+                      <td colSpan={8} className="py-8 text-center text-slate-500">
                         {registerSearchQuery
                           ? `"${registerSearchQuery}" দিয়ে কোনো সদস্য পাওয়া যায়নি`
                           : 'কোনো সদস্যের মিল রেকর্ড নেই'}
@@ -841,6 +874,10 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
                         <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
                           {m.morningTotal} টি
+                        </td>
+
+                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
+                          {m.lunchTotal} টি
                         </td>
 
                         <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
@@ -884,6 +921,9 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     </td>
                     <td className="py-3 px-3 text-center font-mono text-amber-300">
                       {filteredRegister.reduce((sum, m) => sum + m.morningTotal, 0)} টি
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-orange-300">
+                      {filteredRegister.reduce((sum, m) => sum + m.lunchTotal, 0)} টি
                     </td>
                     <td className="py-3 px-3 text-center font-mono text-indigo-300">
                       {filteredRegister.reduce((sum, m) => sum + m.nightTotal, 0)} টি
@@ -991,21 +1031,26 @@ export const MealsTab: React.FC<MealsTabProps> = ({
             )}
 
             {/* Daily Summary Stats Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-800/80">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-800/80">
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                 <span className="text-[11px] text-slate-400">সকালের মিল</span>
                 <p className="text-base font-bold text-white mt-0.5">{totalMorningMeals} টি</p>
-                <span className="text-[10px] text-slate-500 font-mono">হাফ ০.৫ / ফুল ১.০</span>
+                <span className="text-[10px] text-amber-400/80 font-mono">সকাল</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                <span className="text-[11px] text-slate-400">দুপুরের মিল</span>
+                <p className="text-base font-bold text-white mt-0.5">{totalLunchMeals} টি</p>
+                <span className="text-[10px] text-orange-400/80 font-mono">দুপুর</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                 <span className="text-[11px] text-slate-400">রাতের মিল</span>
                 <p className="text-base font-bold text-white mt-0.5">{totalNightMeals} টি</p>
-                <span className="text-[10px] text-slate-500 font-mono">হাফ ০.৫ / ফুল ১.০</span>
+                <span className="text-[10px] text-indigo-400/80 font-mono">রাত</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                 <span className="text-[11px] text-indigo-400">মোট মিল ইউনিট</span>
                 <p className="text-base font-bold text-indigo-300 mt-0.5 font-mono">{formatMealUnits(totalMealUnits)}</p>
-                <span className="text-[10px] text-indigo-400/80 font-mono">সকাল ({totalMorningMeals}) + রাত ({totalNightMeals})</span>
+                <span className="text-[10px] text-indigo-400/80 font-mono">{totalMorningMeals} + {totalLunchMeals} + {totalNightMeals}</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                 <span className="text-[11px] text-slate-400">ডাইনিং সদস্য সংখ্যা</span>
@@ -1023,7 +1068,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   {selectedDate} তারিখের ব্যক্তিগত মিল তালিকা
                 </h4>
                 <p className="text-xs text-slate-400">
-                  সদস্যদের সকাল ও রাতের মিল পরিবর্তন করতে + / - বাটনে ক্লিক করুন
+                  সদস্যদের সকাল, দুপুর ও রাতের মিল পরিবর্তন করতে + / - বাটনে ক্লিক করুন
                 </p>
               </div>
             </div>
@@ -1039,8 +1084,8 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   .filter((m) => m.role !== 'super_admin')
                   .map((member) => {
                     const uId = member.userId || member._id;
-                    const entry = dailyEntries[uId] || { morning: 1, night: 1 };
-                    const userTotal = entry.morning + entry.night;
+                    const entry = dailyEntries[uId] || { morning: 0, lunch: 1, night: 1 };
+                    const userTotal = entry.morning + (entry.lunch || 0) + entry.night;
 
                     return (
                       <div
@@ -1072,31 +1117,56 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                           </div>
                         </div>
 
-                        {/* Controls */}
-                        <div className="grid grid-cols-2 gap-2 text-xs">
+                        {/* Controls for 3 Meal Slots */}
+                        <div className="grid grid-cols-3 gap-1.5 text-xs">
                           {/* Morning */}
-                          <div className="flex items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                            <div>
-                              <span className="text-[11px] font-semibold text-slate-400">সকাল</span>
-                              <span className="text-[10px] text-slate-500 block">(০.৫)</span>
-                            </div>
+                          <div className="flex flex-col items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60 gap-1.5">
+                            <span className="text-[11px] font-semibold text-amber-300">সকাল</span>
                             <div className="flex items-center gap-1">
                               {canEditMeals && (
                                 <button
                                   onClick={() => updateCount(uId, 'morning', -0.5)}
-                                  className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                  className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
                                   title="০.৫ কমান"
                                 >
                                   -
                                 </button>
                               )}
-                              <span className="w-10 text-center text-sm font-bold font-mono text-white">
+                              <span className="w-7 text-center text-xs font-bold font-mono text-white">
                                 {entry.morning}
                               </span>
                               {canEditMeals && (
                                 <button
                                   onClick={() => updateCount(uId, 'morning', 0.5)}
-                                  className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                  className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                  title="০.৫ বাড়ান"
+                                >
+                                  +
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Lunch */}
+                          <div className="flex flex-col items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60 gap-1.5">
+                            <span className="text-[11px] font-semibold text-orange-300">দুপুর</span>
+                            <div className="flex items-center gap-1">
+                              {canEditMeals && (
+                                <button
+                                  onClick={() => updateCount(uId, 'lunch', -0.5)}
+                                  className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                  title="০.৫ কমান"
+                                >
+                                  -
+                                </button>
+                              )}
+                              <span className="w-7 text-center text-xs font-bold font-mono text-white">
+                                {entry.lunch}
+                              </span>
+                              {canEditMeals && (
+                                <button
+                                  onClick={() => updateCount(uId, 'lunch', 0.5)}
+                                  className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
                                   title="০.৫ বাড়ান"
                                 >
                                   +
@@ -1106,28 +1176,25 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                           </div>
 
                           {/* Night */}
-                          <div className="flex items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                            <div>
-                              <span className="text-[11px] font-semibold text-slate-400">রাত</span>
-                              <span className="text-[10px] text-slate-500 block">(১.০)</span>
-                            </div>
+                          <div className="flex flex-col items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60 gap-1.5">
+                            <span className="text-[11px] font-semibold text-indigo-300">রাত</span>
                             <div className="flex items-center gap-1">
                               {canEditMeals && (
                                 <button
                                   onClick={() => updateCount(uId, 'night', -0.5)}
-                                  className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                  className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
                                   title="০.৫ কমান"
                                 >
                                   -
                                 </button>
                               )}
-                              <span className="w-10 text-center text-sm font-bold font-mono text-white">
+                              <span className="w-7 text-center text-xs font-bold font-mono text-white">
                                 {entry.night}
                               </span>
                               {canEditMeals && (
                                 <button
                                   onClick={() => updateCount(uId, 'night', 0.5)}
-                                  className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
+                                  className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
                                   title="০.৫ বাড়ান"
                                 >
                                   +
@@ -1222,6 +1289,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     <th className="py-2.5 px-3">তারিখ</th>
                     <th className="py-2.5 px-3">সদস্যের নাম</th>
                     <th className="py-2.5 px-3 text-center">সকালের মিল</th>
+                    <th className="py-2.5 px-3 text-center">দুপুরের মিল</th>
                     <th className="py-2.5 px-3 text-center">রাতের মিল</th>
                     <th className="py-2.5 px-3 text-center">মোট মিল ইউনিট</th>
                     <th className="py-2.5 px-3 text-center">স্ট্যাটাস</th>
@@ -1233,7 +1301,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
                   {filteredDailyLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={canEditMeals ? 7 : 6} className="py-8 text-center text-slate-500">
+                      <td colSpan={canEditMeals ? 8 : 7} className="py-8 text-center text-slate-500">
                         কোনো মিল লগ পাওয়া যায়নি
                       </td>
                     </tr>
@@ -1255,6 +1323,9 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                         </td>
                         <td className="py-2.5 px-3 text-center font-mono text-slate-300">
                           {row.morning}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono text-slate-300">
+                          {row.lunch}
                         </td>
                         <td className="py-2.5 px-3 text-center font-mono text-slate-300">
                           {row.night}
@@ -1283,6 +1354,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                                     userId: row.userId,
                                     name: row.name,
                                     morning: row.morning,
+                                    lunch: row.lunch,
                                     night: row.night,
                                   })
                                 }
@@ -1339,8 +1411,8 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               {/* Morning Meal Input */}
               <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-semibold text-slate-300 block">সকালের মিল</span>
-                  <span className="text-[10px] text-slate-500 block">ওয়েট ০.৫ ইউনিট</span>
+                  <span className="text-xs font-semibold text-amber-300 block">সকালের মিল</span>
+                  <span className="text-[10px] text-slate-500 block">সকালের খাবার</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -1381,11 +1453,56 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 </div>
               </div>
 
+              {/* Lunch Meal Input */}
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-orange-300 block">দুপুরের মিল</span>
+                  <span className="text-[10px] text-slate-500 block">দুপুরের খাবার</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      setEditingLogItem({
+                        ...editingLogItem,
+                        lunch: Math.max(0, Number((editingLogItem.lunch - 0.5).toFixed(1))),
+                      })
+                    }
+                    className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm flex items-center justify-center cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={editingLogItem.lunch}
+                    onChange={(e) =>
+                      setEditingLogItem({
+                        ...editingLogItem,
+                        lunch: Math.max(0, parseFloat(e.target.value) || 0),
+                      })
+                    }
+                    className="w-14 text-center bg-slate-900 border border-slate-750 rounded-lg py-1 text-xs text-white font-mono font-bold"
+                  />
+                  <button
+                    onClick={() =>
+                      setEditingLogItem({
+                        ...editingLogItem,
+                        lunch: Number((editingLogItem.lunch + 0.5).toFixed(1)),
+                      })
+                    }
+                    className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm flex items-center justify-center cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
               {/* Night Meal Input */}
               <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-semibold text-slate-300 block">রাতের মিল</span>
-                  <span className="text-[10px] text-slate-500 block">ওয়েট ১.০ ইউনিট</span>
+                  <span className="text-xs font-semibold text-indigo-300 block">রাতের মিল</span>
+                  <span className="text-[10px] text-slate-500 block">রাতের খাবার</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -1430,7 +1547,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/30 flex items-center justify-between">
                 <span className="text-xs text-indigo-300">হিসাবকৃত মোট মিল ইউনিট:</span>
                 <span className="font-mono font-bold text-sm text-indigo-200">
-                  {formatMealUnits(editingLogItem.morning + editingLogItem.night)} ইউনিট
+                  {formatMealUnits(editingLogItem.morning + (editingLogItem.lunch || 0) + editingLogItem.night)} ইউনিট
                 </span>
               </div>
             </div>

@@ -578,42 +578,42 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
         </div>
       </div>
 
-      {/* 4. 6-Month Data Archive & JSON Backup Hub */}
-      <div className="glass-panel rounded-2xl p-5 border border-cyan-500/30 bg-cyan-950/15 space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <h4 className="text-sm font-bold text-cyan-300 flex items-center gap-2">
-              <Database className="w-4 h-4 text-cyan-400" />
-              ৬ মাসের ডাটা ব্যাকআপ ও হিস্ট্রি হাব (JSON Backup & Restore)
-            </h4>
-            <p className="text-xs text-slate-400 mt-0.5">
-              মেস ডাটাবেজের সম্পূর্ণ ৬ মাসের ডাটা অফলাইনে এক্সপোর্ট বা পূর্ববর্তী ব্যাকআপ ফাইল রিস্টোর করুন
-            </p>
-          </div>
+      {/* 4. 6-Month Data Archive & JSON Backup Hub (STRICTLY SUPER ADMIN ONLY) */}
+      {isSuperAdmin ? (
+        <div className="glass-panel rounded-2xl p-5 border border-cyan-500/30 bg-cyan-950/15 space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-bold text-cyan-300 flex items-center gap-2">
+                <Database className="w-4 h-4 text-cyan-400" />
+                ৬ মাসের ডাটা ব্যাকআপ ও হিস্ট্রি হাব (JSON Backup & Restore)
+              </h4>
+              <p className="text-xs text-slate-400 mt-0.5">
+                মেস ডাটাবেজের সম্পূর্ণ ৬ মাসের ডাটা অফলাইনে এক্সপোর্ট বা পূর্ববর্তী ব্যাকআপ ফাইল রিস্টোর করুন (সুপার অ্যাডমিন)
+              </p>
+            </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Hidden JSON file input */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".json"
-              className="hidden"
-            />
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Hidden JSON file input */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".json"
+                className="hidden"
+              />
 
-            {/* Export JSON Button */}
-            <button
-              onClick={handleExportBackup}
-              disabled={isExporting}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-all cursor-pointer"
-              title="সম্পূর্ণ ডাটাবেজ ব্যাকআপ JSON ফাইলে ডাউনলোড করুন"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>{isExporting ? 'প্রসেসিং...' : 'ব্যাকআপ ডাউনলোড (JSON)'}</span>
-            </button>
+              {/* Export JSON Button */}
+              <button
+                onClick={handleExportBackup}
+                disabled={isExporting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-all cursor-pointer"
+                title="সম্পূর্ণ ডাটাবেজ ব্যাকআপ JSON ফাইলে ডাউনলোড করুন"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{isExporting ? 'প্রসেসিং...' : 'ব্যাকআপ ডাউনলোড (JSON)'}</span>
+              </button>
 
-            {/* Import JSON Button */}
-            {isManager && (
+              {/* Import JSON Button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isImporting}
@@ -623,82 +623,92 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                 <Upload className="w-3.5 h-3.5" />
                 <span>রিস্টোর (JSON Import)</span>
               </button>
-            )}
-          </div>
-        </div>
-
-        {/* Confirmation Modal when JSON is loaded */}
-        {pendingImportData && (
-          <div className="p-4 rounded-xl bg-slate-900 border border-cyan-500/50 space-y-3 animate-in fade-in">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center gap-2">
-                <FileJson className="w-4 h-4 text-cyan-400" />
-                ব্যাকআপ ফাইল প্রিভিউ ও নিশ্চিতকরণ
-              </span>
-              <button
-                onClick={() => setPendingImportData(null)}
-                className="text-slate-400 hover:text-white text-xs"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
-                <span className="text-[10px] text-slate-400 block">মোট চক্র</span>
-                <strong className="text-slate-200">
-                  {pendingImportData.summary?.totalCycles || pendingImportData.data?.cycles?.length || 1} টি
-                </strong>
-              </div>
-              <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
-                <span className="text-[10px] text-slate-400 block">মিল রেকর্ড</span>
-                <strong className="text-emerald-400">
-                  {pendingImportData.summary?.totalMeals || pendingImportData.data?.meals?.length || 0} টি
-                </strong>
-              </div>
-              <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
-                <span className="text-[10px] text-slate-400 block">বাজার খরচ</span>
-                <strong className="text-purple-400">
-                  {pendingImportData.summary?.totalBazars || pendingImportData.data?.bazars?.length || 0} টি
-                </strong>
-              </div>
-              <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
-                <span className="text-[10px] text-slate-400 block">মোট জমা</span>
-                <strong className="text-cyan-400">
-                  {pendingImportData.summary?.totalDeposits || pendingImportData.data?.deposits?.length || 0} টি
-                </strong>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-amber-300/90 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
-              ⚠️ <strong>সতর্কতা:</strong> ব্যাকআপ রিস্টোর করলে বর্তমান ডাটাবেজের রেকর্ডগুলোর সাথে ব্যাকআপের রেকর্ডগুলো মার্জ/আপডেট হবে।
-            </p>
-
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setPendingImportData(null)}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
-              >
-                বাতিল
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmImport}
-                disabled={isImporting}
-                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-md shadow-cyan-600/30 flex items-center gap-1.5 cursor-pointer"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>{isImporting ? 'রিস্টোর হচ্ছে...' : 'হ্যাঁ, রিস্টোর নিশ্চিত করুন'}</span>
-              </button>
             </div>
           </div>
-        )}
 
-        <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-          💡 <strong>৬ মাসের হিস্ট্রি পলিসি:</strong> মেস ম্যানেজারে বিগত ৬ মাসের সকল চক্রের ব্যালেন্স, মিল হাজিরা এবং বাজার ভাউচার স্বয়ংক্রিয়ভাবে সংরক্ষিত থাকে। যেকোনো সময় উপরের সাইকেল ড্রপডাউন থেকে পূর্ববর্তী মাস নির্বাচন করে দেখতে পারবেন। এছাড়া দীর্ঘমেয়াদে অফলাইন সংরক্ষণের জন্য প্রতি মাসান্তে JSON ব্যাকআপ ডাউনলোড করে রাখা অত্যন্ত নিরাপদ ও কার্যকর।
+          {/* Confirmation Modal when JSON is loaded */}
+          {pendingImportData && (
+            <div className="p-4 rounded-xl bg-slate-900 border border-cyan-500/50 space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white flex items-center gap-2">
+                  <FileJson className="w-4 h-4 text-cyan-400" />
+                  ব্যাকআপ ফাইল প্রিভিউ ও নিশ্চিতকরণ
+                </span>
+                <button
+                  onClick={() => setPendingImportData(null)}
+                  className="text-slate-400 hover:text-white text-xs"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">মোট চক্র</span>
+                  <strong className="text-slate-200">
+                    {pendingImportData.summary?.totalCycles || pendingImportData.data?.cycles?.length || 1} টি
+                  </strong>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">মিল রেকর্ড</span>
+                  <strong className="text-emerald-400">
+                    {pendingImportData.summary?.totalMeals || pendingImportData.data?.meals?.length || 0} টি
+                  </strong>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">বাজার খরচ</span>
+                  <strong className="text-purple-400">
+                    {pendingImportData.summary?.totalBazars || pendingImportData.data?.bazars?.length || 0} টি
+                  </strong>
+                </div>
+                <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">মোট জমা</span>
+                  <strong className="text-cyan-400">
+                    {pendingImportData.summary?.totalDeposits || pendingImportData.data?.deposits?.length || 0} টি
+                  </strong>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-amber-300/90 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
+                ⚠️ <strong>সতর্কতা:</strong> ব্যাকআপ রিস্টোর করলে বর্তমান ডাটাবেজের রেকর্ডগুলোর সাথে ব্যাকআপের রেকর্ডগুলো মার্জ/আপডেট হবে।
+              </p>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPendingImportData(null)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmImport}
+                  disabled={isImporting}
+                  className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-md shadow-cyan-600/30 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{isImporting ? 'রিস্টোর হচ্ছে...' : 'হ্যাঁ, রিস্টোর নিশ্চিত করুন'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+            💡 <strong>সুপার অ্যাডমিন ব্যাকআপ পলিসি:</strong> মেস ম্যানেজারে দীর্ঘমেয়াদে অফলাইন সংরক্ষণের জন্য প্রতি মাসান্তে JSON ব্যাকআপ ফাইলটি ডাউনলোড করে রাখা যাবে। কোনো সমস্যা হলে পূর্ববর্তী ব্যাকআপ ফাইল রিস্টোর করা যাবে। সাধারণ সদস্যরা শুধুমাত্র চলতি ও পূর্ববর্তী মাসের হিসাব দেখতে পাবেন।
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Database className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span>বিগত মাসের বিস্তারিত হিসাব ও রিপোর্টের প্রয়োজনে মেসের সুপার অ্যাডমিনের নিকট অনুরোধ করুন।</span>
+          </div>
+          <span className="text-[10px] text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-lg shrink-0">
+            চলতি ও বিগত মাস সক্রিয়
+          </span>
+        </div>
+      )}
     </div>
   );
 };

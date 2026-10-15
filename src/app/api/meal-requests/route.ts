@@ -14,8 +14,9 @@ export async function GET(request: Request) {
 
   const enriched = list.map((r) => {
     const user = store.users.find((u) => u._id === r.userId);
-    let slotDisplay = 'উভয় মিল (সকাল ও রাত)';
+    let slotDisplay = 'সারাদিন (সব মিল)';
     if (r.slotId === 'morning') slotDisplay = 'সকালের মিল';
+    if (r.slotId === 'lunch') slotDisplay = 'দুপুরের মিল';
     if (r.slotId === 'night') slotDisplay = 'রাতের মিল';
 
     return {
@@ -39,11 +40,12 @@ export async function POST(request: Request) {
       date,
       startDate,
       endDate,
-      slotId = 'both', // 'morning' | 'night' | 'both'
+      slotId = 'both', // 'morning' | 'lunch' | 'night' | 'both' | 'all'
       action = 'off', // 'off' | 'on'
       reason,
       isAdminDirect = false,
       adminUserId,
+      isLate: explicitIsLate,
     } = body;
 
     const fromDate = startDate || date;
@@ -53,14 +55,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'তারিখ নির্বাচন আবশ্যক' }, { status: 400 });
     }
 
-    let isLate = false;
     const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
     const currentHour = now.getHours();
 
-    if (slotId === 'morning' && currentHour >= 22) {
+    let isLate = explicitIsLate || false;
+    if (fromDate < todayStr) {
       isLate = true;
-    } else if (slotId === 'night' && currentHour >= 16) {
-      isLate = true;
+    } else if (fromDate === todayStr) {
+      if (slotId === 'morning' || slotId === 'both' || slotId === 'all') {
+        isLate = true; // morning cutoff was previous night 10 PM
+      } else if (slotId === 'lunch' && currentHour >= 9) {
+        isLate = true; // lunch cutoff is 9 AM
+      } else if (slotId === 'night' && currentHour >= 16) {
+        isLate = true; // night cutoff is 4 PM
+      }
+    } else if (fromDate === tomorrowStr) {
+      if ((slotId === 'morning' || slotId === 'both' || slotId === 'all') && currentHour >= 22) {
+        isLate = true; // previous night 10 PM
+      }
     }
 
     const newReq: any = {
@@ -86,12 +102,14 @@ export async function POST(request: Request) {
       if (isAdminDirect) {
         const start = new Date(fromDate);
         const end = new Date(toDate);
-        const slotsToUpdate = slotId === 'both' ? ['morning', 'night'] : [slotId];
+        const slotsToUpdate =
+          slotId === 'both' || slotId === 'all'
+            ? ['morning', 'lunch', 'night']
+            : [slotId];
 
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
           for (const sId of slotsToUpdate) {
-            const weight = sId === 'morning' ? 0.5 : 1.0;
             const consumed = action === 'off' ? 0 : 1;
 
             await db.collection('meals').updateOne(
@@ -104,11 +122,11 @@ export async function POST(request: Request) {
               {
                 $set: {
                   consumed,
-                  weight,
+                  weight: 1.0,
                   updatedAt: new Date(),
                 },
                 $setOnInsert: {
-                  _id: `meal_${sId}_${userId}_${dateStr}`,
+                  _id: `meal_${sId[0]}_${userId}_${dateStr}`,
                   messId: store.mess._id as string,
                   createdAt: new Date(),
                 },
@@ -125,7 +143,9 @@ export async function POST(request: Request) {
       request: newReq,
       message: isAdminDirect
         ? 'মিল সফলভাবে আপডেট করা হয়েছে'
-        : 'মিল পরিবর্তনের অনুরোধ অ্যাডমিনের অনুমোদনের জন্য পাঠানো হয়েছে',
+        : isLate
+        ? 'ডেডলাইন পার হয়ে যাওয়ায় বিলম্বিত আবেদন হিসেবে অ্যাডমিনের পর্যালোচনার জন্য জমা হয়েছে'
+        : 'মিল পরিবর্তনের অনুরোধ সফলভাবে পাঠানো হয়েছে',
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -164,12 +184,14 @@ export async function PATCH(request: Request) {
         const toDate = reqItem.endDate || fromDate;
         const start = new Date(fromDate);
         const end = new Date(toDate);
-        const slotsToUpdate = reqItem.slotId === 'both' ? ['morning', 'night'] : [reqItem.slotId];
+        const slotsToUpdate =
+          reqItem.slotId === 'both' || reqItem.slotId === 'all'
+            ? ['morning', 'lunch', 'night']
+            : [reqItem.slotId];
 
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
           for (const sId of slotsToUpdate) {
-            const weight = sId === 'morning' ? 0.5 : 1.0;
             const consumed = reqItem.action === 'off' ? 0 : 1;
 
             await db.collection('meals').updateOne(
@@ -182,11 +204,11 @@ export async function PATCH(request: Request) {
               {
                 $set: {
                   consumed,
-                  weight,
+                  weight: 1.0,
                   updatedAt: new Date(),
                 },
                 $setOnInsert: {
-                  _id: `meal_${sId}_${reqItem.userId}_${dateStr}`,
+                  _id: `meal_${sId[0]}_${reqItem.userId}_${dateStr}`,
                   messId: store.mess._id as string,
                   createdAt: new Date(),
                 },
