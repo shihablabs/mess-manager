@@ -185,34 +185,39 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         },
       ],
     },
-    {
-      id: 'users',
-      label: 'ইউজার ও সদস্য ম্যানেজমেন্ট',
-      href: '/dashboard/users',
-      icon: Users,
-      badge: isSuperAdmin ? 'সুপার কন্ট্রোল' : isManager ? 'অ্যাডমিন' : null,
-      isActive: pathname.startsWith('/dashboard/users'),
-      subItems: [
-        {
-          id: 'user_management_main',
-          label: 'সদস্য তালিকা ও অনুমোদন',
-          href: '/dashboard/users',
-          isActive: pathname === '/dashboard/users',
-        },
-        {
-          id: 'user_roles',
-          label: 'মেস ম্যানেজার ও রোল বণ্টন',
-          href: '/dashboard/users#roles',
-          isActive: false,
-        },
-        {
-          id: 'user_settlement',
-          label: 'হিসাব নিষ্পত্তির আবেদন',
-          href: '/dashboard/users#settlement',
-          isActive: false,
-        },
-      ],
-    },
+    // 6. User Management: STRICTLY for Super Admin and Mess Manager
+    ...(isManager
+      ? [
+          {
+            id: 'users',
+            label: 'ইউজার ও সদস্য ম্যানেজমেন্ট',
+            href: '/dashboard/users',
+            icon: Users,
+            badge: isSuperAdmin ? 'সুপার কন্ট্রোল' : 'অ্যাডমিন',
+            isActive: pathname.startsWith('/dashboard/users'),
+            subItems: [
+              {
+                id: 'user_management_main',
+                label: 'সদস্য তালিকা ও অনুমোদন',
+                href: '/dashboard/users',
+                isActive: pathname === '/dashboard/users',
+              },
+              {
+                id: 'user_roles',
+                label: 'মেস ম্যানেজার ও রোল বণ্টন',
+                href: '/dashboard/users#roles',
+                isActive: false,
+              },
+              {
+                id: 'user_settlement',
+                label: 'হিসাব নিষ্পত্তির আবেদন',
+                href: '/dashboard/users#settlement',
+                isActive: false,
+              },
+            ],
+          },
+        ]
+      : []),
   ];
 
   return (
