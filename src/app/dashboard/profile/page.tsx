@@ -49,7 +49,9 @@ import {
   Copy,
   Save,
   RotateCw,
+  Building2,
 } from '@/components/icons';
+import { MemberFinancialStatementCard } from '@/components/MemberFinancialStatementCard';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
@@ -1010,6 +1012,10 @@ function ProfileContent() {
           </div>
           <div className="space-y-1 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 font-mono">
             <div className="flex justify-between">
+              <span>মোট জমাকৃত কিস্তি:</span>
+              <span className="text-emerald-400 font-bold">{memberDeposits.length} টি</span>
+            </div>
+            <div className="flex justify-between">
               <span>সাধারণ মেস জমা:</span>
               <span className="text-slate-200">{formatTaka(calculationResult?.generalDeposits || 0)}</span>
             </div>
@@ -1038,7 +1044,15 @@ function ProfileContent() {
           <div className="text-2xl font-black text-white font-mono">
             {formatTaka(calculationResult?.totalDues || 0)}
           </div>
-          <div className="space-y-1 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 font-mono">
+          <div className="space-y-1.5 text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 font-mono">
+            {/* Prominent Distinct House Rent */}
+            <div className="flex justify-between items-center py-1 px-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-300 font-bold">
+              <span className="flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                নির্ধারিত বাসা ভাড়া:
+              </span>
+              <span>{formatTaka(calculationResult?.roomRent || 0)}</span>
+            </div>
             <div className="flex justify-between">
               <span>মিল খরচ ({calculationResult?.mealUnits || 0} টি):</span>
               <span className="text-slate-200">{formatTaka(calculationResult?.regularMealCost || 0)}</span>
@@ -1050,10 +1064,6 @@ function ProfileContent() {
             <div className="flex justify-between">
               <span>ইউটিলিটি ও খালা বিল:</span>
               <span className="text-slate-200">{formatTaka(calculationResult?.utilityShare || 0)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>রুম ভাড়া:</span>
-              <span className="text-slate-200">{formatTaka(calculationResult?.roomRent || 0)}</span>
             </div>
           </div>
         </div>
@@ -1146,150 +1156,23 @@ function ProfileContent() {
       {/* Tab 1: Financial Overview & Ledger Breakdown */}
       {activeHistoryTab === 'overview' && (
         <div className="space-y-4">
-          <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                <FileText className="w-4 h-4 text-indigo-400" />
-                ব্যক্তিগত হিসাব খাতার পূর্ণাঙ্গ লেজার (SRS সেকশন ৫ অনুয়ায়ী)
-              </h4>
-              {calculationResult && (
-                <button
-                  onClick={() => openStatement(calculationResult)}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 cursor-pointer"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  স্টেটমেন্ট প্রিন্ট / PDF
-                </button>
-              )}
+          {calculationResult ? (
+            <MemberFinancialStatementCard
+              memberResult={calculationResult}
+              mealRate={summaryData?.calculation?.mealRate || 0}
+              cycleName={summaryData?.cycle?.name || 'অক্টোবর ২০২৬'}
+              deposits={deposits}
+              isViewingSelf={isViewingSelf}
+              onOpenDeposit={openDeposit}
+              onOpenStatement={openStatement}
+              title={`${targetMember?.name || 'সদস্য'}-এর ব্যক্তিগত আর্থিক হিসাব বিবরণী ও লেজার`}
+              subtitle="নির্ধারিত বাসা ভাড়া, মেস ইউটিলিটি, মিল খরচ এবং আপনার জমাকৃত প্রতিটি কিস্তির (২০০, ৩০০, ৫০০ ইত্যাদি) স্বচ্ছ হিসাব।"
+            />
+          ) : (
+            <div className="glass-panel rounded-2xl p-8 border border-slate-800 text-center text-slate-400 text-xs">
+              এই সদস্যের কোনো চলতি চক্রের হিসাব তথ্য পাওয়া যায়নি।
             </div>
-
-            <div className="divide-y divide-slate-800/80 text-xs">
-              {/* Row 1 */}
-              <div className="py-2.5 flex justify-between items-center">
-                <div>
-                  <span className="font-semibold text-slate-200">১. মোট কনজিউমড মিল</span>
-                  <div className="text-[11px] text-slate-400">
-                    রেগুলার মিল সংখ্যা: {calculationResult?.mealUnits || 0} টি × বর্তমান রেট{' '}
-                    {formatTaka(summaryData?.calculation?.mealRate || 0)}
-                  </div>
-                </div>
-                <span className="font-mono font-bold text-slate-200">
-                  {formatTaka(calculationResult?.regularMealCost || 0)}
-                </span>
-              </div>
-
-              {/* Row 2 */}
-              <div className="py-2.5 flex justify-between items-center">
-                <div>
-                  <span className="font-semibold text-slate-200">২. ফিক্সড মিল / বিশেষ ভোজের অংশ</span>
-                  <div className="text-[11px] text-slate-400">
-                    উপস্থিত স্পেশাল ভোজের ইভেন্ট সংখ্যা: {memberFixedEvents.length} টি
-                  </div>
-                </div>
-                <span className="font-mono font-bold text-slate-200">
-                  {formatTaka(calculationResult?.fixedShare || 0)}
-                </span>
-              </div>
-
-              {/* Row 3 */}
-              <div className="py-2.5 flex justify-between items-center">
-                <div>
-                  <span className="font-semibold text-slate-200">৩. মেস ইউটিলিটি ও খালা বিল</span>
-                  <div className="text-[11px] text-slate-400">
-                    {targetMember?.isUtilityExempt
-                      ? 'অ্যাডমিন কর্তৃক এই মাসে ইউটিলিটি চার্জ মওকুফ করা হয়েছে (৳০)'
-                      : 'বিদ্যুৎ, পানি, গ্যাস, ইন্টারনেট ও খালা বিলের সমবণ্টন'}
-                  </div>
-                </div>
-                <span className="font-mono font-bold text-slate-200">
-                  {formatTaka(calculationResult?.utilityShare || 0)}
-                </span>
-              </div>
-
-              {/* Row 4 */}
-              <div className="py-2.5 flex justify-between items-center">
-                <div>
-                  <span className="font-semibold text-slate-200">৪. অতিরিক্ত বাজার (নন-মিল শেয়ার)</span>
-                  <div className="text-[11px] text-slate-400">মেসের বিশেষ আইটেমের সমবণ্টন</div>
-                </div>
-                <span className="font-mono font-bold text-slate-200">
-                  {formatTaka(calculationResult?.extraShareNonPool || 0)}
-                </span>
-              </div>
-
-              {/* Row 5 */}
-              <div className="py-2.5 flex justify-between items-center">
-                <div>
-                  <span className="font-semibold text-slate-200">৫. নির্ধারিত রুম ভাড়া</span>
-                  <div className="text-[11px] text-slate-400">চলমান চক্রের মাসিক সিট / রুম ভাড়া</div>
-                </div>
-                <span className="font-mono font-bold text-slate-200">
-                  {formatTaka(calculationResult?.roomRent || 0)}
-                </span>
-              </div>
-
-              {/* Total Dues Subtotal */}
-              <div className="py-3 flex justify-between items-center bg-slate-900/50 px-3 rounded-xl font-bold">
-                <span className="text-amber-300">মোট খরচ ও চার্জ (দাবি)</span>
-                <span className="font-mono text-amber-300 text-sm">
-                  {formatTaka(calculationResult?.totalDues || 0)}
-                </span>
-              </div>
-
-              {/* Credits Section */}
-              <div className="py-2.5 flex justify-between items-center pt-4">
-                <div>
-                  <span className="font-semibold text-emerald-300">৬. সাধারণ মেস জমা (Deposits)</span>
-                  <div className="text-[11px] text-slate-400">বিকাশ, নগদ বা ব্যাংক মারফত মেস ফান্ডে জমাকৃত টাকা</div>
-                </div>
-                <span className="font-mono font-bold text-emerald-400">
-                  {formatTaka(calculationResult?.generalDeposits || 0)}
-                </span>
-              </div>
-
-              <div className="py-2.5 flex justify-between items-center">
-                <div>
-                  <span className="font-semibold text-emerald-300">৭. বড় বাজার ফান্ড জমা</span>
-                  <div className="text-[11px] text-slate-400">বড় বাজারের জন্য নির্ধারিত অগ্রিম ফান্ড</div>
-                </div>
-                <span className="font-mono font-bold text-emerald-400">
-                  {formatTaka(calculationResult?.bigBazarDeposits || 0)}
-                </span>
-              </div>
-
-              <div className="py-2.5 flex justify-between items-center">
-                <div>
-                  <span className="font-semibold text-emerald-300">৮. নিজ পকেট থেকে বাজার খরচ (অনুমোদিত)</span>
-                  <div className="text-[11px] text-slate-400">মেসের বাজার করে নিজের পকেট থেকে দেওয়া টাকা</div>
-                </div>
-                <span className="font-mono font-bold text-emerald-400">
-                  {formatTaka(calculationResult?.approvedBazarSpentOwnMoney || 0)}
-                </span>
-              </div>
-
-              {/* Total Credits Subtotal */}
-              <div className="py-3 flex justify-between items-center bg-emerald-950/30 px-3 rounded-xl font-bold">
-                <span className="text-emerald-300">মোট পরিশোধ ও ক্রেডিট (জমা)</span>
-                <span className="font-mono text-emerald-300 text-sm">
-                  {formatTaka(calculationResult?.totalCredits || 0)}
-                </span>
-              </div>
-
-              {/* Final Net Result */}
-              <div
-                className={`py-4 flex justify-between items-center px-4 rounded-xl font-extrabold text-base mt-2 ${
-                  isPlus
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                }`}
-              >
-                <span>নিট ব্যালেন্স ({isPlus ? 'মেস থেকে পাওনা (+)' : 'মেসের কাছে দেনা (-)'})</span>
-                <span className="font-mono text-lg">
-                  {isPlus ? `+${formatTaka(netBalance)}` : `-${formatTaka(Math.abs(netBalance))}`}
-                </span>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       )}
 

@@ -13,6 +13,7 @@ interface StatementModalProps {
   calculation: BillingEngineOutput | null;
   cycleName: string;
   currentUser?: AppUser;
+  deposits?: any[];
   onRefresh?: () => void;
   onClose: () => void;
 }
@@ -22,6 +23,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
   calculation,
   cycleName,
   currentUser,
+  deposits = [],
   onRefresh,
   onClose,
 }) => {
@@ -39,6 +41,29 @@ export const StatementModal: React.FC<StatementModalProps> = ({
   const isManagerOrSuperAdmin =
     currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
   const isOwnStatement = currentUser?.id === member.userId;
+
+  // Filter approved deposit entries for this member
+  const memberApprovedDeposits = deposits.filter(
+    (d) =>
+      String(d.userId) === String(member.userId) &&
+      (d.isPaid || d.status === 'approved')
+  );
+
+  const getMethodName = (method?: string) => {
+    switch (method?.toLowerCase()) {
+      case 'bkash':
+        return 'বিকাশ';
+      case 'nagad':
+        return 'নগদ';
+      case 'rocket':
+        return 'রকেট';
+      case 'bank':
+        return 'ব্যাংক';
+      case 'cash':
+      default:
+        return 'ক্যাশ';
+    }
+  };
 
   // Handle member requesting settlement
   const handleRequestSettlement = async () => {
@@ -192,59 +217,123 @@ export const StatementModal: React.FC<StatementModalProps> = ({
               দেনা ও খরচের ভাগ (Dues / Debits)
             </h4>
             <div className="space-y-2 text-xs border border-slate-800 rounded-xl p-3 bg-slate-950/40 print:border-gray-300 print:bg-white">
-              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
+              {/* Prominent Distinct House Rent */}
+              <div className="flex justify-between py-1.5 border-b border-slate-800/80 print:border-gray-200 bg-amber-500/5 print:bg-gray-50 px-2 rounded">
+                <span className="font-bold text-amber-300 print:text-black">
+                  🏠 নির্ধারিত বাসা / রুম ভাড়া (ডিফল্ট ফিক্সড চার্জ)
+                </span>
+                <span className="font-mono font-bold text-amber-300 print:text-black">
+                  {formatTaka(member.roomRent)}
+                </span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
                 <span>মিল বাবদ খরচ ({formatMealUnits(member.mealUnits)} × {formatTaka(calculation.mealRate)})</span>
                 <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.regularMealCost)}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
+              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
                 <span>ফিক্সড বাজার শেয়ার (স্পেশাল মিল)</span>
                 <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.fixedShare)}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
+              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
                 <span>ইউটিলিটি ও আনুষঙ্গিক বিলের ভাগ</span>
-                <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.utilityShare)}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
-                <span>রুম ভাড়া (নির্ধারিত)</span>
-                <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.roomRent)}</span>
+                <span className="font-mono font-bold text-slate-200 print:text-black">
+                  {member.isUtilityExempt ? 'মওকুফ (৳০)' : formatTaka(member.utilityShare)}
+                </span>
               </div>
               {member.extraShareNonPool > 0 && (
-                <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
+                <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
                   <span>এক্সট্রা বাজার শেয়ার (নন-পুল)</span>
                   <span className="font-mono font-bold text-slate-200 print:text-black">
                     {formatTaka(member.extraShareNonPool)}
                   </span>
                 </div>
               )}
-              <div className="flex justify-between pt-1 font-bold text-rose-400 print:text-red-700">
-                <span>মোট দেনা</span>
+              <div className="flex justify-between pt-1 font-bold text-rose-400 print:text-red-700 px-2">
+                <span>মোট দেনা (Total Dues)</span>
                 <span className="font-mono text-sm">{formatTaka(member.totalDues)}</span>
               </div>
             </div>
           </div>
 
-          {/* Credits Breakdown */}
+          {/* Credits Breakdown with Itemized Installments */}
           <div className="space-y-3 print-avoid-break">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              জমা ও খরচের বিবরণী (Credits)
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>জমা ও পরিশোধের বিবরণী (Credits & Paid Installments)</span>
+              {memberApprovedDeposits.length > 0 && (
+                <span className="text-[10px] text-emerald-400 lowercase font-normal">
+                  ({memberApprovedDeposits.length}টি কিস্তির হিসাব)
+                </span>
+              )}
             </h4>
             <div className="space-y-2 text-xs border border-slate-800 rounded-xl p-3 bg-slate-950/40 print:border-gray-300 print:bg-white">
-              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
-                <span>সাধারণ জমা (General Deposits)</span>
-                <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.generalDeposits)}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
-                <span>বড় বাজারের জমা (Big Bazar Contribution)</span>
-                <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.bigBazarDeposits)}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
-                <span>অনুমোদিত নিজস্ব বাজার খরচ (Personal Money)</span>
-                <span className="font-mono font-bold text-slate-200 print:text-black">
-                  {formatTaka(member.approvedBazarSpentOwnMoney)}
-                </span>
-              </div>
-              <div className="flex justify-between pt-1 font-bold text-emerald-400 print:text-green-700">
-                <span>মোট পাওনা / ক্রেডিট</span>
+              {/* Itemized Installments (200, 300, 500, etc.) */}
+              {memberApprovedDeposits.length > 0 ? (
+                <div className="space-y-1.5 pb-2 border-b border-slate-800/80 print:border-gray-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    পরিশোধকৃত কিস্তিসমূহ:
+                  </span>
+                  {memberApprovedDeposits.map((dep, idx) => (
+                    <div
+                      key={dep._id || idx}
+                      className="flex justify-between py-1 px-2 rounded bg-slate-900/60 print:bg-gray-50 border border-slate-800/60 print:border-gray-200 text-[11px]"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-slate-400 print:text-gray-600">
+                          {dep.date || '—'}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded bg-slate-800 print:bg-gray-200 text-[10px] font-medium">
+                          {getMethodName(dep.paymentMethod)}
+                        </span>
+                        {dep.notes && (
+                          <span className="text-slate-300 print:text-gray-800 italic">
+                            ({dep.notes})
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono font-bold text-emerald-400 print:text-green-700">
+                        +{formatTaka(dep.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
+                  <span>সাধারণ জমা (General Deposits)</span>
+                  <span className="font-mono font-bold text-slate-200 print:text-black">
+                    {formatTaka(member.generalDeposits)}
+                  </span>
+                </div>
+              )}
+
+              {member.bigBazarDeposits > 0 && (
+                <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
+                  <span>বড় বাজারের জমা (Big Bazar Contribution)</span>
+                  <span className="font-mono font-bold text-slate-200 print:text-black">
+                    {formatTaka(member.bigBazarDeposits)}
+                  </span>
+                </div>
+              )}
+
+              {member.approvedBazarSpentOwnMoney > 0 && (
+                <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
+                  <span>অনুমোদিত নিজস্ব বাজার খরচ (Personal Money)</span>
+                  <span className="font-mono font-bold text-emerald-400 print:text-green-700">
+                    +{formatTaka(member.approvedBazarSpentOwnMoney)}
+                  </span>
+                </div>
+              )}
+
+              {member.openingCarryCredit > 0 && (
+                <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
+                  <span>পূর্ববর্তী মাসের অবশিষ্ট জমা (Carry-over)</span>
+                  <span className="font-mono font-bold text-emerald-400 print:text-green-700">
+                    +{formatTaka(member.openingCarryCredit)}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between pt-1 font-bold text-emerald-400 print:text-green-700 px-2">
+                <span>মোট পাওনা / ক্রেডিট (Total Credits)</span>
                 <span className="font-mono text-sm">{formatTaka(member.totalCredits)}</span>
               </div>
             </div>

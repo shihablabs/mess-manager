@@ -24,6 +24,7 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
     currentUser,
     summaryData,
     members,
+    deposits,
     isLoading,
     refreshData,
     isMobileSidebarOpen,
@@ -264,6 +265,7 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
           calculation={summaryData?.calculation || null}
           cycleName={summaryData?.cycle?.name || 'অক্টোবর ২০২৬'}
           currentUser={currentUser || undefined}
+          deposits={deposits}
           onRefresh={refreshData}
           onClose={closeStatement}
         />

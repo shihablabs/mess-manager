@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useDashboard } from '@/context/DashboardContext';
 import { KPICards } from '@/components/KPICards';
 import { DashboardTab } from '@/components/DashboardTab';
@@ -9,17 +9,22 @@ import { Sparkles, Crown, Shield, ArrowRight, Utensils, ShoppingBag } from '@/co
 import Link from 'next/link';
 import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
 import { getMemberBillingResultSafe } from '@/lib/safe-utils';
+import { MemberFinancialStatementCard } from '@/components/MemberFinancialStatementCard';
 
 export default function DashboardOverviewPage() {
   const {
     currentUser,
     summaryData,
     members,
+    deposits,
     isLoading,
     openStatement,
     openMealRequest,
     openNewBazar,
+    openDeposit,
   } = useDashboard();
+
+  const [selectedAdminMemberId, setSelectedAdminMemberId] = useState<string>('');
 
   if (isLoading && !summaryData) {
     return (
@@ -32,6 +37,38 @@ export default function DashboardOverviewPage() {
 
   const isSuperAdmin = currentUser?.role === 'super_admin';
   const isManager = currentUser?.role === 'admin';
+
+  // Dining members list (non super_admin)
+  const diningMembers = useMemo(() => {
+    return members.filter((m) => m.role !== 'super_admin');
+  }, [members]);
+
+  // Determine active personal statement for the user
+  const activeBillingResult = useMemo(() => {
+    if (!summaryData?.calculation) return null;
+
+    if (isSuperAdmin) {
+      const activeId =
+        selectedAdminMemberId ||
+        diningMembers[0]?.userId ||
+        diningMembers[0]?._id;
+      if (!activeId) return null;
+      return getMemberBillingResultSafe(summaryData.calculation, activeId);
+    }
+
+    return (
+      getMemberBillingResultSafe(summaryData.calculation, currentUser?.id || '') ||
+      summaryData?.userBalance ||
+      null
+    );
+  }, [
+    summaryData?.calculation,
+    summaryData?.userBalance,
+    isSuperAdmin,
+    selectedAdminMemberId,
+    diningMembers,
+    currentUser?.id,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -58,8 +95,8 @@ export default function DashboardOverviewPage() {
           </div>
           <p className="text-xs sm:text-sm text-slate-400">
             {isSuperAdmin
-              ? 'আপনি সিস্টেমের সকল সদস্য ও আর্থিক হিসাব পূর্ণাঙ্গভাবে নিরীক্ষা ও নিয়ন্ত্রণ করছেন।'
-              : 'চলতি মাসের আপনার ব্যক্তিগত হিসাব, মেস মিল রেট এবং লাইভ খরচ নিচে প্রদর্শিত হচ্ছে।'}
+              ? 'সুপার অ্যাডমিন হিসেবে সিস্টেমের সকল সদস্যের হিসাব নিরীক্ষা এবং যে কোনো সদস্যের আর্থিক লেজার সরাসরি পরিদর্শন করতে পারেন।'
+              : 'চলতি মাসের আপনার ব্যক্তিগত আর্থিক হিসাব বিবরণী, বাসা ভাড়া এবং জমাকৃত প্রতিটি কিস্তির হিসাব নিচে প্রদর্শিত হচ্ছে।'}
           </p>
         </div>
 
@@ -84,7 +121,35 @@ export default function DashboardOverviewPage() {
         </div>
       </div>
 
-      {/* 2. KPI Summary Cards */}
+      {/* 2. MEMBER'S PERSONAL FINANCIAL STATEMENT (সদস্যের ব্যক্তিগত আর্থিক হিসাব বিবরণী) */}
+      {activeBillingResult && (
+        <MasterErrorBoundary fallbackTitle="ব্যক্তিগত আর্থিক বিবরণী লোড করতে সমস্যা হয়েছে">
+          <MemberFinancialStatementCard
+            memberResult={activeBillingResult}
+            mealRate={summaryData?.calculation?.mealRate || 0}
+            cycleName={summaryData?.cycle?.name || 'অক্টোবর ২০২৬'}
+            deposits={deposits}
+            isViewingSelf={!isSuperAdmin}
+            showMemberPicker={isSuperAdmin}
+            allMembers={diningMembers}
+            onSelectMemberId={setSelectedAdminMemberId}
+            onOpenDeposit={openDeposit}
+            onOpenStatement={openStatement}
+            title={
+              isSuperAdmin
+                ? `${activeBillingResult.name}-এর ব্যক্তিগত আর্থিক হিসাব বিবরণী`
+                : 'আপনার ব্যক্তিগত আর্থিক হিসাব বিবরণী'
+            }
+            subtitle={
+              isSuperAdmin
+                ? 'সুপার অ্যাডমিন মোডে সদস্যের নির্ধারিত বাসা ভাড়া, ইউটিলিটি, মিল খরচ ও সকল জমার কিস্তি সরাসরি নিরীক্ষা করছেন।'
+                : 'আপনার নির্ধারিত বাসা ভাড়া, মেস ইউটিলিটি, মিল খরচ এবং জমাকৃত প্রতিটি কিস্তির (২০০, ৩০০, ৫০০ ইত্যাদি) স্বচ্ছ হিসাব।'
+            }
+          />
+        </MasterErrorBoundary>
+      )}
+
+      {/* 3. KPI Summary Cards */}
       {summaryData?.calculation && currentUser && (
         <MasterErrorBoundary fallbackTitle="কেপিআই কার্ড লোড করতে সমস্যা হয়েছে">
           <KPICards
@@ -100,7 +165,7 @@ export default function DashboardOverviewPage() {
         </MasterErrorBoundary>
       )}
 
-      {/* 3. Dashboard Master Table & Activity */}
+      {/* 4. Dashboard Master Table & Activity */}
       <MasterErrorBoundary fallbackTitle="মাস্টার ব্যালেন্স শিট লোড করতে সমস্যা হয়েছে">
         <DashboardTab
           calculation={summaryData?.calculation || null}
