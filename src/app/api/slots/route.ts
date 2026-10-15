@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { SlotRequestDoc, BazarSlotDoc } from '@/models/types';
+import { recordAuditLog } from '@/lib/audit';
 
 export async function GET(request: Request) {
   try {
@@ -137,10 +138,22 @@ export async function POST(request: Request) {
       const generated = store.bazarSlots.filter((s) => s.cycleId === cycleId);
 
       if (db) {
+        const prevSlots = await db.collection('bazar_slots').find({ cycleId }).toArray();
         await db.collection('bazar_slots').deleteMany({ cycleId });
         if (generated.length > 0) {
           await db.collection('bazar_slots').insertMany(generated as any[]);
         }
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: userId || 'admin',
+          action: 'GENERATE_BAZAR_SLOTS',
+          targetCollection: 'bazar_slots',
+          targetId: cycleId,
+          previousValue: { count: prevSlots.length, slots: prevSlots },
+          newValue: { count: generated.length, slots: generated },
+        });
       }
 
       return NextResponse.json({
@@ -186,6 +199,17 @@ export async function POST(request: Request) {
             { $set: { assignedUserIds: slot.assignedUserIds, updatedAt: new Date() } }
           );
         }
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: userId || 'admin',
+          action: 'ROTATE_BAZAR_SLOTS',
+          targetCollection: 'bazar_slots',
+          targetId: cycleId,
+          previousValue: { order: currentUsers },
+          newValue: { order: newUsers, isReverse, shiftOffset },
+        });
       }
 
       return NextResponse.json({
@@ -219,6 +243,17 @@ export async function POST(request: Request) {
 
       if (db) {
         await db.collection('slot_requests').insertOne(newReq as any);
+
+        await recordAuditLog({
+          messId: newReq.messId,
+          cycleId: newReq.cycleId,
+          performedByUserId: userId || 'user',
+          action: 'REQUEST_SLOT_SWAP',
+          targetCollection: 'slot_requests',
+          targetId: String(newReq._id),
+          previousValue: null,
+          newValue: newReq,
+        });
       }
       store.slotRequests.unshift(newReq);
 
@@ -266,6 +301,8 @@ export async function POST(request: Request) {
         }
       }
 
+      const prevReq = { ...reqItem };
+
       reqItem.status = status;
       reqItem.updatedAt = new Date();
 
@@ -274,6 +311,17 @@ export async function POST(request: Request) {
           { _id: requestId },
           { $set: { status, updatedAt: new Date() } }
         );
+
+        await recordAuditLog({
+          messId: reqItem.messId || (store.mess._id as string),
+          cycleId: reqItem.cycleId,
+          performedByUserId: userId || reqItem.toUserId || 'user',
+          action: isAccept ? 'ACCEPT_SLOT_SWAP' : 'REJECT_SLOT_SWAP',
+          targetCollection: 'slot_requests',
+          targetId: String(requestId),
+          previousValue: prevReq,
+          newValue: { status, updatedAt: new Date() },
+        });
       }
 
       return NextResponse.json({
@@ -313,6 +361,23 @@ export async function POST(request: Request) {
           { cycleId, slotIndex: idxB },
           { $set: { assignedUserIds: slotB.assignedUserIds, updatedAt: new Date() } }
         );
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: userId || 'admin',
+          action: 'ADMIN_DIRECT_SWAP_SLOTS',
+          targetCollection: 'bazar_slots',
+          targetId: `${cycleId}_${idxA}_${idxB}`,
+          previousValue: {
+            slotA: { slotIndex: idxA, assignedUserIds: temp },
+            slotB: { slotIndex: idxB, assignedUserIds: slotA.assignedUserIds },
+          },
+          newValue: {
+            slotA: { slotIndex: idxA, assignedUserIds: slotA.assignedUserIds },
+            slotB: { slotIndex: idxB, assignedUserIds: slotB.assignedUserIds },
+          },
+        });
       }
 
       return NextResponse.json({
@@ -334,6 +399,8 @@ export async function POST(request: Request) {
       if (endDate) slot.endDate = endDate;
 
       if (db) {
+        const prevSlot = await db.collection('bazar_slots').findOne({ cycleId, slotIndex: sIdx });
+
         await db.collection('bazar_slots').updateOne(
           { cycleId, slotIndex: sIdx },
           {
@@ -345,6 +412,21 @@ export async function POST(request: Request) {
             },
           }
         );
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: userId || 'admin',
+          action: 'ADMIN_UPDATE_SLOT',
+          targetCollection: 'bazar_slots',
+          targetId: `${cycleId}_${sIdx}`,
+          previousValue: prevSlot,
+          newValue: {
+            assignedUserIds: slot.assignedUserIds,
+            startDate: slot.startDate,
+            endDate: slot.endDate,
+          },
+        });
       }
 
       return NextResponse.json({

@@ -3,6 +3,7 @@ import { getStore } from '@/lib/store';
 import { getDb, isMongoConfigured, idFilter, safeObjectId } from '@/lib/db';
 import { UserDoc, MembershipDoc, MemberCycleDoc, UserRole } from '@/models/types';
 import { ObjectId } from 'mongodb';
+import { recordAuditLog } from '@/lib/audit';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -118,6 +119,17 @@ export async function POST(request: Request) {
         await db.collection('users').insertOne({ ...newUser, _id: new ObjectId(newUserId) as any });
         await db.collection('memberships').insertOne(newMembership as any);
         await db.collection('member_cycles').insertOne(newMemberCycle as any);
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: 'admin',
+          action: 'ADD_MEMBER',
+          targetCollection: 'users',
+          targetId: newUserId,
+          previousValue: null,
+          newValue: { ...newUser, roomRent: Number(roomRent), cycleId },
+        });
       }
 
       return NextResponse.json({ success: true, user: newUser });
@@ -155,6 +167,17 @@ export async function POST(request: Request) {
           { userId: userId.toString() },
           { $set: { role: role as UserRole, updatedAt: new Date() } }
         );
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: 'admin',
+          action: 'CHANGE_ROLE',
+          targetCollection: 'users',
+          targetId: String(userId),
+          previousValue: { role: targetUser?.role },
+          newValue: { role },
+        });
       }
 
       return NextResponse.json({ success: true, message: 'ভূমিকা পরিবর্তন সম্পন্ন হয়েছে' });
@@ -167,6 +190,8 @@ export async function POST(request: Request) {
       }
 
       if (db) {
+        const prevMembership = await db.collection('memberships').findOne({ userId: userId.toString() });
+
         await db.collection('memberships').updateOne(
           { userId: userId.toString() },
           { $set: { status: 'active', updatedAt: new Date() } }
@@ -188,6 +213,17 @@ export async function POST(request: Request) {
           },
           { upsert: true }
         );
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: 'admin',
+          action: 'APPROVE_MEMBER',
+          targetCollection: 'memberships',
+          targetId: String(userId),
+          previousValue: prevMembership,
+          newValue: { status: 'active', roomRent: Number(roomRent || 3000) },
+        });
       }
 
       return NextResponse.json({ success: true, message: 'সদস্য সফলভাবে অনুমোদিত হয়েছে' });
@@ -201,6 +237,8 @@ export async function POST(request: Request) {
 
       if (db) {
         const uId = userId.toString();
+        const prevMembership = await db.collection('memberships').findOne({ userId: uId });
+
         await db.collection('memberships').updateOne(
           { userId: uId },
           { $set: { status: 'rejected', updatedAt: new Date() } }
@@ -208,6 +246,17 @@ export async function POST(request: Request) {
         // Remove cycle association so user is not active anywhere
         await db.collection('member_cycles').deleteMany({
           userId: uId,
+        });
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: 'admin',
+          action: 'REJECT_MEMBER',
+          targetCollection: 'memberships',
+          targetId: uId,
+          previousValue: prevMembership,
+          newValue: { status: 'rejected' },
         });
       }
 
@@ -222,9 +271,22 @@ export async function POST(request: Request) {
 
       if (db) {
         const uId = userId.toString();
+        const prevUser = await db.collection('users').findOne(idFilter(uId));
+
         await db.collection('users').deleteOne(idFilter(uId));
         await db.collection('memberships').deleteMany({ userId: uId });
         await db.collection('member_cycles').deleteMany({ userId: uId });
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: 'admin',
+          action: 'DELETE_MEMBER',
+          targetCollection: 'users',
+          targetId: uId,
+          previousValue: prevUser,
+          newValue: null,
+        });
       }
 
       return NextResponse.json({ success: true, message: 'সদস্য সফলভাবে মুছে ফেলা হয়েছে' });
@@ -252,10 +314,23 @@ export async function POST(request: Request) {
 
       if (db) {
         const uId = userId.toString();
+        const prevUser = await db.collection('users').findOne(idFilter(uId));
+
         await db.collection('users').updateOne(
           idFilter(uId),
           { $set: updateData }
         );
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: uId,
+          action: 'UPDATE_PROFILE',
+          targetCollection: 'users',
+          targetId: uId,
+          previousValue: prevUser,
+          newValue: updateData,
+        });
       }
 
       return NextResponse.json({
@@ -268,6 +343,8 @@ export async function POST(request: Request) {
     // Update room rent
     if (action === 'update_rent' || action === 'update_member') {
       if (db && userId) {
+        const prevMc = await db.collection('member_cycles').findOne({ userId: userId.toString(), cycleId });
+
         await db.collection('member_cycles').updateOne(
           { userId: userId.toString(), cycleId },
           {
@@ -281,6 +358,17 @@ export async function POST(request: Request) {
           },
           { upsert: true }
         );
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: 'admin',
+          action: 'UPDATE_MEMBER_RENT',
+          targetCollection: 'member_cycles',
+          targetId: `${cycleId}_${userId}`,
+          previousValue: prevMc,
+          newValue: { roomRent: Number(roomRent) },
+        });
       }
 
       return NextResponse.json({ success: true, message: 'রুম ভাড়া সফলভাবে আপডেট করা হয়েছে' });
@@ -295,6 +383,8 @@ export async function POST(request: Request) {
       const isUtilityExempt = Boolean(body.isUtilityExempt);
 
       if (db) {
+        const prevMc = await db.collection('member_cycles').findOne({ userId: userId.toString(), cycleId });
+
         await db.collection('member_cycles').updateOne(
           { userId: userId.toString(), cycleId },
           {
@@ -309,6 +399,17 @@ export async function POST(request: Request) {
           },
           { upsert: true }
         );
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: 'admin',
+          action: 'TOGGLE_UTILITY_EXEMPT',
+          targetCollection: 'member_cycles',
+          targetId: `${cycleId}_${userId}`,
+          previousValue: { isUtilityExempt: prevMc?.isUtilityExempt },
+          newValue: { isUtilityExempt },
+        });
       }
 
       return NextResponse.json({
@@ -365,6 +466,8 @@ export async function POST(request: Request) {
       }
 
       if (db) {
+        const prevMc = await db.collection('member_cycles').findOne({ userId: userId.toString(), cycleId });
+
         await db.collection('member_cycles').updateOne(
           { userId: userId.toString(), cycleId },
           {
@@ -381,6 +484,24 @@ export async function POST(request: Request) {
             },
           }
         );
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: 'admin',
+          action: 'CONFIRM_SETTLEMENT',
+          targetCollection: 'member_cycles',
+          targetId: `${cycleId}_${userId}`,
+          previousValue: prevMc,
+          newValue: {
+            isActive: false,
+            individualSettled: true,
+            settlementType,
+            settledMealRate,
+            stayedDays,
+            leftDate: effectiveLeftDate,
+          },
+        });
       }
 
       return NextResponse.json({

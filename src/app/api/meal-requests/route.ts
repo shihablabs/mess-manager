@@ -3,6 +3,7 @@ import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { MealRequestDoc, MealDoc } from '@/models/types';
 import { isMealRequestLate } from '@/billing-engine';
+import { recordAuditLog } from '@/lib/audit';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -85,6 +86,17 @@ export async function POST(request: Request) {
 
     if (db) {
       await db.collection('meal_requests').insertOne(newReq);
+
+      await recordAuditLog({
+        messId: newReq.messId,
+        cycleId: newReq.cycleId,
+        performedByUserId: userId || 'user',
+        action: isAdminDirect ? 'DIRECT_UPDATE_MEAL' : 'CREATE_MEAL_REQUEST',
+        targetCollection: 'meal_requests',
+        targetId: String(newReq._id),
+        previousValue: null,
+        newValue: newReq,
+      });
 
       // If admin direct action, apply immediately to meals
       if (isAdminDirect) {
@@ -206,6 +218,17 @@ export async function PATCH(request: Request) {
           }
         }
       }
+
+      await recordAuditLog({
+        messId: reqItem.messId || (store.mess._id as string),
+        cycleId: reqItem.cycleId,
+        performedByUserId: adminUserId || 'admin',
+        action: status === 'approved' ? 'APPROVE_MEAL_REQUEST' : 'REJECT_MEAL_REQUEST',
+        targetCollection: 'meal_requests',
+        targetId: String(id),
+        previousValue: reqItem,
+        newValue: { status, adminNote, reviewedBy: adminUserId || 'admin' },
+      });
     }
 
     return NextResponse.json({ success: true, message: 'মিল অনুরোধ পর্যালোচনা সম্পন্ন হয়েছে' });

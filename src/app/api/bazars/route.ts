@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { BazarDoc } from '@/models/types';
+import { recordAuditLog } from '@/lib/audit';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -120,6 +121,16 @@ export async function POST(request: Request) {
 
     if (db) {
       await db.collection('bazars').insertOne(newEntry as any);
+      await recordAuditLog({
+        messId: newEntry.messId,
+        cycleId: newEntry.cycleId,
+        performedByUserId: userId,
+        action: 'CREATE_BAZAR',
+        targetCollection: 'bazars',
+        targetId: String(newEntry._id),
+        previousValue: null,
+        newValue: newEntry,
+      });
     }
     store.bazars.unshift(newEntry);
 
@@ -146,6 +157,8 @@ export async function PATCH(request: Request) {
     }
 
     if (db) {
+      const prevItem = await db.collection('bazars').findOne({ _id: id as any });
+
       const updateDoc: any = { updatedAt: new Date() };
       if (status) {
         updateDoc.status = status;
@@ -158,6 +171,17 @@ export async function PATCH(request: Request) {
       if (date) updateDoc.date = date;
 
       await db.collection('bazars').updateOne({ _id: id as any }, { $set: updateDoc });
+
+      await recordAuditLog({
+        messId: prevItem?.messId || (store.mess._id as string),
+        cycleId: prevItem?.cycleId,
+        performedByUserId: adminUserId || 'admin',
+        action: status ? (status === 'approved' ? 'APPROVE_BAZAR' : 'REJECT_BAZAR') : 'UPDATE_BAZAR',
+        targetCollection: 'bazars',
+        targetId: String(id),
+        previousValue: prevItem,
+        newValue: updateDoc,
+      });
     }
 
     return NextResponse.json({ success: true, message: 'বাজারের তথ্য সফলভাবে আপডেট করা হয়েছে' });
@@ -177,7 +201,19 @@ export async function DELETE(request: Request) {
     }
 
     if (db) {
+      const prevItem = await db.collection('bazars').findOne({ _id: id as any });
       await db.collection('bazars').deleteOne({ _id: id as any });
+
+      await recordAuditLog({
+        messId: prevItem?.messId || 'mess_1',
+        cycleId: prevItem?.cycleId,
+        performedByUserId: 'admin',
+        action: 'DELETE_BAZAR',
+        targetCollection: 'bazars',
+        targetId: String(id),
+        previousValue: prevItem,
+        newValue: null,
+      });
     }
 
     return NextResponse.json({

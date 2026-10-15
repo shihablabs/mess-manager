@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { CycleSnapshotDoc } from '@/models/types';
+import { recordAuditLog } from '@/lib/audit';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -57,6 +58,8 @@ export async function POST(request: Request) {
       }
 
       if (db) {
+        const prevMc = await db.collection('member_cycles').findOne({ userId: memberId, cycleId });
+
         await db.collection('member_cycles').updateOne(
           { userId: memberId, cycleId },
           {
@@ -72,6 +75,24 @@ export async function POST(request: Request) {
             },
           }
         );
+
+        await recordAuditLog({
+          messId: cycle.messId || (store.mess._id as string),
+          cycleId,
+          performedByUserId: adminUserId || 'admin',
+          action: 'SETTLE_MEMBER',
+          targetCollection: 'member_cycles',
+          targetId: `${cycleId}_${memberId}`,
+          previousValue: prevMc,
+          newValue: {
+            isActive: false,
+            leftDate: effectiveLeftDate,
+            stayedDays,
+            settlementType,
+            settledMealRate,
+            individualSettled: true,
+          },
+        });
       }
       return NextResponse.json({
         success: true,
@@ -133,6 +154,21 @@ export async function POST(request: Request) {
             },
           }
         );
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId,
+          performedByUserId: adminUserId || 'admin',
+          action: 'CLOSE_CYCLE',
+          targetCollection: 'cycles',
+          targetId: cycleId,
+          previousValue: { status: cycle.status, bigBazarCarryToNext: cycle.bigBazarCarryToNext },
+          newValue: {
+            status: 'closed',
+            bigBazarCarryToNext: Number(carryAmount) || 0,
+            snapshotId: snapshot._id,
+          },
+        });
       }
 
       return NextResponse.json({
@@ -149,6 +185,17 @@ export async function POST(request: Request) {
           { _id: cycleId },
           { $set: { status: 'open', closedAt: null, updatedAt: new Date() } }
         );
+
+        await recordAuditLog({
+          messId: cycle?.messId || (store.mess._id as string),
+          cycleId,
+          performedByUserId: adminUserId || 'admin',
+          action: 'REOPEN_CYCLE',
+          targetCollection: 'cycles',
+          targetId: cycleId,
+          previousValue: { status: 'closed' },
+          newValue: { status: 'open' },
+        });
       }
       return NextResponse.json({ success: true, message: 'চক্র পুনরায় উন্মুক্ত করা হয়েছে' });
     }
@@ -164,6 +211,8 @@ export async function POST(request: Request) {
       } = body;
 
       if (db) {
+        const prevCycle = await db.collection('cycles').findOne({ _id: cycleId });
+
         const updateDoc: any = { updatedAt: new Date() };
         if (typeof isBigBazarEnabled === 'boolean') updateDoc.isBigBazarEnabled = isBigBazarEnabled;
         if (typeof bigBazarContributionPerMember === 'number') {
@@ -174,6 +223,17 @@ export async function POST(request: Request) {
         if (endDate) updateDoc.endDate = endDate;
 
         await db.collection('cycles').updateOne({ _id: cycleId }, { $set: updateDoc });
+
+        await recordAuditLog({
+          messId: prevCycle?.messId || (store.mess._id as string),
+          cycleId,
+          performedByUserId: adminUserId || 'admin',
+          action: 'UPDATE_CYCLE_CONFIG',
+          targetCollection: 'cycles',
+          targetId: cycleId,
+          previousValue: prevCycle,
+          newValue: updateDoc,
+        });
       }
 
       return NextResponse.json({
@@ -208,6 +268,8 @@ export async function PATCH(request: Request) {
     }
 
     if (db) {
+      const prevCycle = await db.collection('cycles').findOne({ _id: cycleId });
+
       await db.collection('cycles').updateOne(
         { _id: cycleId },
         {
@@ -218,6 +280,23 @@ export async function PATCH(request: Request) {
           },
         }
       );
+
+      await recordAuditLog({
+        messId: prevCycle?.messId || (store.mess._id as string),
+        cycleId,
+        performedByUserId: 'admin',
+        action: 'UPDATE_CYCLE_CONFIG',
+        targetCollection: 'cycles',
+        targetId: cycleId,
+        previousValue: {
+          isBigBazarEnabled: prevCycle?.isBigBazarEnabled,
+          bigBazarContributionPerMember: prevCycle?.bigBazarContributionPerMember,
+        },
+        newValue: {
+          isBigBazarEnabled: cycle.isBigBazarEnabled,
+          bigBazarContributionPerMember: cycle.bigBazarContributionPerMember,
+        },
+      });
     }
 
     return NextResponse.json({

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
 import { getDb, idFilter } from '@/lib/db';
 import { BillDoc } from '@/models/types';
+import { recordAuditLog } from '@/lib/audit';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -34,6 +35,8 @@ export async function POST(request: Request) {
     const finalApplicableUserIds = Array.isArray(applicableUserIds) ? applicableUserIds : [];
 
     if (db) {
+      const previousBill = await db.collection('bills').findOne({ cycleId, type });
+
       await db.collection('bills').updateOne(
         { cycleId, type },
         {
@@ -53,6 +56,25 @@ export async function POST(request: Request) {
         },
         { upsert: true }
       );
+
+      const newBillData = {
+        amount: Number(amount),
+        splitMethod,
+        applicableCount: applicableCount ? Math.max(1, Number(applicableCount)) : null,
+        applicableUserIds: finalApplicableUserIds,
+        paidByUserId: paidByUserId && paidByUserId !== 'mess_fund' ? paidByUserId : null,
+      };
+
+      await recordAuditLog({
+        messId: store.mess._id as string,
+        cycleId,
+        performedByUserId: 'manager',
+        action: previousBill ? 'UPDATE_BILL' : 'CREATE_BILL',
+        targetCollection: 'bills',
+        targetId: `${cycleId}_${type}`,
+        previousValue: previousBill,
+        newValue: newBillData,
+      });
 
       // If paid by a specific member out of pocket, automatically credit them with a deposit
       if (paidByUserId && paidByUserId !== 'mess_fund') {
@@ -88,7 +110,19 @@ export async function DELETE(request: Request) {
     }
     const db = await getDb();
     if (db) {
+      const previousBill = await db.collection('bills').findOne(idFilter(id));
       await db.collection('bills').deleteOne(idFilter(id));
+
+      await recordAuditLog({
+        messId: previousBill?.messId || 'mess_1',
+        cycleId: previousBill?.cycleId,
+        performedByUserId: 'manager',
+        action: 'DELETE_BILL',
+        targetCollection: 'bills',
+        targetId: String(id),
+        previousValue: previousBill,
+        newValue: null,
+      });
     }
     return NextResponse.json({ success: true, message: 'বিল সফলভাবে মুছে ফেলা হয়েছে' });
   } catch (err: any) {

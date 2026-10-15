@@ -5,6 +5,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { MealSlotDefinition } from '@/models/types';
 
+import { recordAuditLog } from '@/lib/audit';
+
 export async function GET() {
   try {
     const store = await getStore();
@@ -72,7 +74,7 @@ export async function POST(request: Request) {
         );
 
         // Record audit log with previousValue & newValue
-        await db.collection('audit_logs').insertOne({
+        await recordAuditLog({
           messId: String(store.mess._id),
           cycleId: store.cycles[0]?._id ? String(store.cycles[0]._id) : undefined,
           performedByUserId: (session?.user as any)?.id || 'admin',
@@ -82,7 +84,6 @@ export async function POST(request: Request) {
           targetId: String(store.mess._id),
           previousValue: { mealSlots: previousSlots },
           newValue: { mealSlots: sanitizedSlots },
-          createdAt: new Date(),
         });
       }
 

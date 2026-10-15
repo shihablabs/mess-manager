@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getDb, idFilter, userKeyFilter, safeObjectId } from '@/lib/db';
 import { getStore } from '@/lib/store';
+import { recordAuditLog } from '@/lib/audit';
 
 export async function GET(request: Request) {
   try {
@@ -210,7 +211,7 @@ export async function POST(request: Request) {
       }
 
       // Record audit log
-      await db.collection('audit_logs').insertOne({
+      await recordAuditLog({
         messId,
         cycleId: cycleIdStr,
         performedByUserId: (session.user as any).id,
@@ -218,8 +219,21 @@ export async function POST(request: Request) {
         action: 'MARK_RENT_PAID',
         targetCollection: 'member_cycles',
         targetId: userIdStr,
-        newValue: { amount: roomRent, rentDepositId, paymentMethod, paidAt: effectivePaidAt, notes },
-        createdAt: new Date(),
+        previousValue: existingMc
+          ? {
+              rentPaid: existingMc.rentPaid,
+              roomRent: existingMc.roomRent,
+              rentDepositId: existingMc.rentDepositId,
+            }
+          : null,
+        newValue: {
+          rentPaid: true,
+          roomRent,
+          rentDepositId,
+          paymentMethod,
+          paidAt: effectivePaidAt,
+          notes,
+        },
       });
 
       // Sync store
@@ -263,7 +277,7 @@ export async function POST(request: Request) {
       });
 
       // Record audit log
-      await db.collection('audit_logs').insertOne({
+      await recordAuditLog({
         messId,
         cycleId: cycleIdStr,
         performedByUserId: (session.user as any).id,
@@ -271,7 +285,18 @@ export async function POST(request: Request) {
         action: 'REVERT_RENT_PAID',
         targetCollection: 'member_cycles',
         targetId: userIdStr,
-        createdAt: new Date(),
+        previousValue: existingMc
+          ? {
+              rentPaid: existingMc.rentPaid,
+              rentDepositId: existingMc.rentDepositId,
+              rentPaidAt: existingMc.rentPaidAt,
+            }
+          : null,
+        newValue: {
+          rentPaid: false,
+          rentDepositId: null,
+          rentPaidAt: null,
+        },
       });
 
       // Sync store
@@ -300,6 +325,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'সঠিক টাকার পরিমাণ দিন' }, { status: 400 });
       }
 
+      const existingMc = await db.collection('member_cycles').findOne(mcFilter);
+
       await db.collection('member_cycles').updateOne(
         mcFilter,
         {
@@ -315,6 +342,18 @@ export async function POST(request: Request) {
         },
         { upsert: true }
       );
+
+      await recordAuditLog({
+        messId,
+        cycleId: cycleIdStr,
+        performedByUserId: (session.user as any).id,
+        performedByUserName: session.user.name || 'Admin',
+        action: 'UPDATE_ROOM_RENT',
+        targetCollection: 'member_cycles',
+        targetId: userIdStr,
+        previousValue: existingMc ? { roomRent: existingMc.roomRent } : null,
+        newValue: { roomRent: newRent },
+      });
 
       return NextResponse.json({
         success: true,

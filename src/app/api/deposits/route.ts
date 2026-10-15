@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { getStore } from '@/lib/store';
 import { getDb, idFilter, userKeyFilter } from '@/lib/db';
 import { DepositDoc } from '@/models/types';
+import { recordAuditLog } from '@/lib/audit';
 
 export async function GET(request: Request) {
   try {
@@ -95,6 +96,18 @@ export async function POST(request: Request) {
       // Perform deletion
       await db.collection('deposits').deleteOne(idFilter(depositId));
 
+      await recordAuditLog({
+        messId: targetDeposit.messId,
+        cycleId: targetDeposit.cycleId,
+        performedByUserId: currentUserId,
+        performedByUserName: session.user.name || undefined,
+        action: 'DELETE_DEPOSIT',
+        targetCollection: 'deposits',
+        targetId: String(targetDeposit._id),
+        previousValue: targetDeposit,
+        newValue: null,
+      });
+
       return NextResponse.json({
         success: true,
         message: 'জমার রেকর্ড সফলভাবে ডাটাবেজ থেকে মুছে ফেলা হয়েছে',
@@ -142,6 +155,18 @@ export async function POST(request: Request) {
         );
       }
 
+      await recordAuditLog({
+        messId: targetDeposit.messId,
+        cycleId: targetDeposit.cycleId,
+        performedByUserId: currentUserId,
+        performedByUserName: session.user.name || undefined,
+        action: 'APPROVE_DEPOSIT',
+        targetCollection: 'deposits',
+        targetId: String(targetDeposit._id),
+        previousValue: { isPaid: targetDeposit.isPaid, status: targetDeposit.status },
+        newValue: { isPaid: true, status: 'approved' },
+      });
+
       return NextResponse.json({
         success: true,
         message: 'জমা অনুমোদিত হয়েছে এবং সদস্যের অ্যাকাউন্টে যুক্ত হয়েছে',
@@ -158,6 +183,11 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'জমা আইডি প্রয়োজন' }, { status: 400 });
       }
 
+      const targetDeposit = await db.collection('deposits').findOne(idFilter(depositId));
+      if (!targetDeposit) {
+        return NextResponse.json({ success: false, error: 'জমার রেকর্ড খুঁজে পাওয়া যায়নি' }, { status: 404 });
+      }
+
       await db.collection('deposits').updateOne(idFilter(depositId), {
         $set: {
           isPaid: false,
@@ -166,6 +196,18 @@ export async function POST(request: Request) {
           rejectedBy: currentUserId,
           updatedAt: new Date(),
         },
+      });
+
+      await recordAuditLog({
+        messId: targetDeposit.messId,
+        cycleId: targetDeposit.cycleId,
+        performedByUserId: currentUserId,
+        performedByUserName: session.user.name || undefined,
+        action: 'REJECT_DEPOSIT',
+        targetCollection: 'deposits',
+        targetId: String(targetDeposit._id),
+        previousValue: { isPaid: targetDeposit.isPaid, status: targetDeposit.status },
+        newValue: { isPaid: false, status: 'rejected' },
       });
 
       return NextResponse.json({
@@ -227,6 +269,18 @@ export async function POST(request: Request) {
 
     const insertResult = await db.collection('deposits').insertOne(newDeposit as any);
     newDeposit._id = insertResult.insertedId.toString();
+
+    await recordAuditLog({
+      messId: newDeposit.messId,
+      cycleId: newDeposit.cycleId,
+      performedByUserId: currentUserId,
+      performedByUserName: session.user.name || undefined,
+      action: 'CREATE_DEPOSIT',
+      targetCollection: 'deposits',
+      targetId: String(newDeposit._id),
+      previousValue: null,
+      newValue: newDeposit,
+    });
 
     // If manager created an approved rent deposit directly, link with member_cycles to prevent double counting
     if (type === 'rent' && isPaid) {
@@ -314,6 +368,18 @@ export async function DELETE(request: Request) {
     );
 
     await db.collection('deposits').deleteOne(idFilter(depositId));
+
+    await recordAuditLog({
+      messId: targetDeposit.messId,
+      cycleId: targetDeposit.cycleId,
+      performedByUserId: currentUserId,
+      performedByUserName: session.user.name || undefined,
+      action: 'DELETE_DEPOSIT',
+      targetCollection: 'deposits',
+      targetId: String(targetDeposit._id),
+      previousValue: targetDeposit,
+      newValue: null,
+    });
 
     return NextResponse.json({
       success: true,

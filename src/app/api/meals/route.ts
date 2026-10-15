@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { MealDoc } from '@/models/types';
+import { recordAuditLog } from '@/lib/audit';
 
 export async function GET(request: Request) {
   try {
@@ -115,6 +116,17 @@ export async function POST(request: Request) {
           { upsert: true }
         );
       }
+
+      await recordAuditLog({
+        messId: store.mess._id as string,
+        cycleId,
+        performedByUserId: 'manager',
+        action: 'UPDATE_MEALS',
+        targetCollection: 'meals',
+        targetId: date,
+        previousValue: { date, count: entries.length },
+        newValue: { date, entries },
+      });
     }
 
     return NextResponse.json({
@@ -143,7 +155,19 @@ export async function DELETE(request: Request) {
       if (userId) query.userId = userId;
       if (cycleId) query.cycleId = cycleId;
 
+      const previousMeals = await db.collection('meals').find(query).toArray();
       await db.collection('meals').deleteMany(query);
+
+      await recordAuditLog({
+        messId: 'mess_1',
+        cycleId: cycleId || undefined,
+        performedByUserId: 'manager',
+        action: 'DELETE_MEALS',
+        targetCollection: 'meals',
+        targetId: date,
+        previousValue: { count: previousMeals.length, meals: previousMeals },
+        newValue: null,
+      });
     }
 
     return NextResponse.json({
