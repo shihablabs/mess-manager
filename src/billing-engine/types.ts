@@ -64,6 +64,7 @@ export interface UtilityBillInput {
   name: string;
   amount: number;
   splitMethod?: 'equal'; // default equal among active members
+  applicableCount?: number | null; // headcount if divided among a specific number of members
 }
 
 export interface BillingEngineInput {
@@ -118,6 +119,7 @@ export interface BillingEngineOutput {
   totals: {
     totalDues: number;
     totalCredits: number;
+    totalMessFundDeposits?: number;
     netBalance: number;
     roundingDifference: number;
   };

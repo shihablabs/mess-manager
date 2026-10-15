@@ -29,6 +29,7 @@ import {
   Save,
   Phone,
   WhatsApp,
+  Trash2,
 } from '@/components/icons';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
@@ -57,8 +58,10 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
 }) => {
   const [newBillType, setNewBillType] = useState('');
   const [newBillAmount, setNewBillAmount] = useState('');
+  const [newBillApplicableCount, setNewBillApplicableCount] = useState<string>('');
   const [newBillPayer, setNewBillPayer] = useState<string>('mess_fund');
   const [isAddingBill, setIsAddingBill] = useState(false);
+  const [processingDepositId, setProcessingDepositId] = useState<string | null>(null);
 
   // Big Bazar management state
   const [isTogglingBigBazar, setIsTogglingBigBazar] = useState(false);
@@ -298,7 +301,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
     }
   };
 
-  // Add utility bill (support specific member paying Khala/Electricity bill from own pocket)
+  // Add utility bill (support specific member paying Khala/Electricity bill from own pocket, with headcount divisor)
   const handleAddBill = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBillType || !newBillAmount || Number(newBillAmount) <= 0) {
@@ -315,6 +318,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
           type: newBillType,
           amount: Number(newBillAmount),
           paidByUserId: newBillPayer,
+          applicableCount: newBillApplicableCount ? Number(newBillApplicableCount) : null,
         }),
       });
       const data = await res.json();
@@ -322,6 +326,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
         setIsAddingBill(false);
         setNewBillType('');
         setNewBillAmount('');
+        setNewBillApplicableCount('');
         setNewBillPayer('mess_fund');
         if (newBillPayer !== 'mess_fund') {
           toast.success('বিল যুক্ত হয়েছে এবং পরিশোধকারী সদস্যের অ্যাকাউন্টে জমা হিসেবে ক্রেডিট করা হয়েছে!');
@@ -334,6 +339,100 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
       }
     } catch (e: any) {
       toast.error(e.message || 'ত্রুটি ঘটেছে');
+    }
+  };
+
+  // Deposit Approval, Rejection & Deletion Handlers
+  const handleApproveDeposit = async (depositId: string, depositorName: string, amount: number) => {
+    try {
+      setProcessingDepositId(depositId);
+      const res = await fetch('/api/deposits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'approve_deposit',
+          depositId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`${depositorName}-এর ৳${amount.toLocaleString('bn-BD')} জমা অনুমোদিত হয়েছে!`);
+        onRefresh();
+      } else {
+        toast.error(data.error || 'অনুমোদন ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
+    } finally {
+      setProcessingDepositId(null);
+    }
+  };
+
+  const handleRejectDeposit = async (depositId: string, depositorName: string) => {
+    const isConfirmed = await confirmAction({
+      title: 'জমা বাতিল করতে চান?',
+      text: `${depositorName}-এর এই জমার রিকোয়েস্ট বাতিল করা হবে।`,
+      icon: 'warning',
+      confirmText: 'হ্যাঁ, বাতিল করুন',
+      confirmColor: '#e11d48',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      setProcessingDepositId(depositId);
+      const res = await fetch('/api/deposits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reject_deposit',
+          depositId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('জমার রিকোয়েস্ট বাতিল করা হয়েছে');
+        onRefresh();
+      } else {
+        toast.error(data.error || 'বাতিল করতে ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
+    } finally {
+      setProcessingDepositId(null);
+    }
+  };
+
+  const handleDeleteDeposit = async (depositId: string, depositorName: string, amount: number) => {
+    const isConfirmed = await confirmAction({
+      title: 'জমা স্থায়ীভাবে মুছতে চান?',
+      text: `${depositorName}-এর ৳${amount.toLocaleString('bn-BD')} জমার রেকর্ড মুছে ফেলা হবে।`,
+      icon: 'warning',
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      confirmColor: '#e11d48',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      setProcessingDepositId(depositId);
+      const res = await fetch('/api/deposits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_deposit',
+          depositId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('জমার রেকর্ড সফলভাবে মুছে ফেলা হয়েছে');
+        onRefresh();
+      } else {
+        toast.error(data.error || 'মুছতে ব্যর্থ হয়েছে');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'ত্রুটি ঘটেছে');
+    } finally {
+      setProcessingDepositId(null);
     }
   };
 
@@ -740,19 +839,35 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
             {bills.length === 0 ? (
               <p className="py-4 text-xs text-slate-500 text-center">কোনো ইউটিলিটি বিল যুক্ত করা হয়নি</p>
             ) : (
-              bills.map((bill) => (
-                <div key={bill._id} className="py-2.5 flex items-center justify-between text-xs">
-                  <div>
-                    <span className="text-slate-200 font-medium">{bill.type} বিল</span>
-                    {bill.paidByUserId && (
-                      <span className="ml-2 text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-semibold">
-                        সদস্যের পকেট থেকে পরিশোধিত
-                      </span>
-                    )}
+              bills.map((bill) => {
+                const activeNonExempt = members.filter((m) => !m.isUtilityExempt);
+                const divisor = bill.applicableCount && bill.applicableCount > 0
+                  ? bill.applicableCount
+                  : (activeNonExempt.length || 1);
+                const perPerson = Math.round(bill.amount / divisor);
+
+                return (
+                  <div key={bill._id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1.5">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-slate-200 font-bold">{bill.type} বিল</span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                          {bill.applicableCount ? `${bill.applicableCount} জনের মাঝে ভাগ` : `সকল সদস্য (${activeNonExempt.length} জন)`}
+                        </span>
+                        {bill.paidByUserId && (
+                          <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-semibold">
+                            সদস্যের পকেট থেকে পরিশোধিত
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        জনপ্রতি ভাগ: <strong className="text-slate-200 font-mono">{formatTaka(perPerson)}</strong>
+                      </div>
+                    </div>
+                    <span className="font-mono text-slate-200 font-bold text-sm">{formatTaka(bill.amount)}</span>
                   </div>
-                  <span className="font-mono text-slate-200 font-bold">{formatTaka(bill.amount)}</span>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -786,12 +901,12 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
                     <label className="text-[11px] text-slate-400 block mb-1">বিলের নাম / ধরণ</label>
                     <input
                       type="text"
-                      placeholder="যেমন: খালা বিল / বিদ্যুৎ বিল / ইন্টারনেট"
+                      placeholder="যেমন: খালা বিল / বিদ্যুৎ বিল"
                       value={newBillType}
                       onChange={(e) => setNewBillType(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200"
@@ -802,11 +917,23 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                     <label className="text-[11px] text-slate-400 block mb-1">টাকার পরিমাণ (৳)</label>
                     <input
                       type="number"
-                      placeholder="টাকা"
+                      placeholder="যেমন: ১৫০০"
                       value={newBillAmount}
                       onChange={(e) => setNewBillAmount(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 font-mono"
                       required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">কয়জনের জন্য প্রযোজ্য</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      placeholder={`ডিফল্ট: ${members.filter((m) => !m.isUtilityExempt).length || members.length || 1} জন`}
+                      value={newBillApplicableCount}
+                      onChange={(e) => setNewBillApplicableCount(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 font-mono"
                     />
                   </div>
                 </div>
@@ -984,57 +1111,144 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
       </div>
 
       {/* Deposits History List */}
-      <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-bold text-white flex items-center gap-2">
-            <Wallet className="w-4 h-4 text-emerald-400" />
-            সদস্যদের জমার ইতিহাস ({deposits.length})
-          </h4>
-          <span className="text-xs text-slate-400">
-            সাধারণ জমা ও বিলের অগ্রিম পেমেন্ট রেকর্ড
-          </span>
+      <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-emerald-400" />
+              সদস্যদের জমার ইতিহাস ({deposits.length})
+            </h4>
+            <p className="text-xs text-slate-400 mt-0.5">
+              সাধারণ জমা, বড় বাজার ও ইউটিলিটি ফান্ডে সদস্যদের পরিশোধিত বা রিকোয়েস্টকৃত জমার রেকর্ড
+            </p>
+          </div>
+          <button
+            onClick={onOpenDepositModal}
+            className="self-start sm:self-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>নতুন জমা এন্ট্রি</span>
+          </button>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/40">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                <th className="py-2.5 px-3">সদস্য</th>
-                <th className="py-2.5 px-3">তারিখ</th>
-                <th className="py-2.5 px-3">ধরণ</th>
-                <th className="py-2.5 px-3">বিবরণ / নোট</th>
-                <th className="py-2.5 px-3 text-right">পরিমাণ</th>
+              <tr className="border-b border-slate-800 text-slate-400 font-semibold bg-slate-950/80 text-[11px] uppercase tracking-wider">
+                <th className="py-3 px-3.5">সদস্য</th>
+                <th className="py-3 px-3.5">তারিখ ও মাধ্যম</th>
+                <th className="py-3 px-3.5">খাত / ধরন</th>
+                <th className="py-3 px-3.5">স্ট্যাটাস</th>
+                <th className="py-3 px-3.5">বিবরণ / নোট</th>
+                <th className="py-3 px-3.5 text-right">পরিমাণ</th>
+                {isManager && <th className="py-3 px-3.5 text-right">অ্যাকশন</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {deposits.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-slate-500">
+                  <td colSpan={isManager ? 7 : 6} className="py-8 text-center text-slate-500 text-xs">
                     কোনো জমার রেকর্ড নেই
                   </td>
                 </tr>
               ) : (
-                deposits.map((d) => (
-                  <tr key={d._id} className="hover:bg-slate-900/40">
-                    <td className="py-2.5 px-3 font-medium text-slate-200">{d.userName}</td>
-                    <td className="py-2.5 px-3 font-mono text-slate-400">{d.date}</td>
-                    <td className="py-2.5 px-3">
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                          d.type === 'big_bazar'
-                            ? 'bg-purple-500/20 text-purple-300'
-                            : 'bg-emerald-500/20 text-emerald-300'
-                        }`}
-                      >
-                        {d.type === 'big_bazar' ? 'বড় বাজার' : 'সাধারণ জমা'}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-slate-400 max-w-xs truncate">{d.notes || '—'}</td>
-                    <td className="py-2.5 px-3 text-right font-bold font-mono text-emerald-400">
-                      {formatTaka(d.amount)}
-                    </td>
-                  </tr>
-                ))
+                deposits.map((d) => {
+                  const isPending = d.status === 'pending' || !d.isPaid;
+                  const isRejected = d.status === 'rejected';
+                  const isApproved = d.isPaid || d.status === 'approved';
+                  const isProcessing = processingDepositId === d._id;
+
+                  const typeLabelMap: Record<string, { label: string; color: string }> = {
+                    general: { label: 'সাধারণ জমা', color: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
+                    utility: { label: '💡 ইউটিলিটি ফান্ড', color: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' },
+                    big_bazar: { label: '🛒 বড় বাজার', color: 'bg-purple-500/15 text-purple-300 border-purple-500/30' },
+                    rent: { label: '🏠 বাসা ভাড়া', color: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30' },
+                  };
+                  const typeInfo = typeLabelMap[d.type] || typeLabelMap.general;
+
+                  return (
+                    <tr key={d._id} className="hover:bg-slate-900/60 transition-colors">
+                      <td className="py-3 px-3.5 font-medium text-slate-200">
+                        {d.userId === 'mess_fund' ? (
+                          <span className="text-amber-400 font-bold flex items-center gap-1">
+                            🏦 মেস সাধারণ তহবিল
+                          </span>
+                        ) : (
+                          d.userName
+                        )}
+                      </td>
+                      <td className="py-3 px-3.5">
+                        <div className="font-mono text-slate-300 text-xs">{d.date}</div>
+                        <div className="text-[10px] text-slate-500 capitalize">{d.paymentMethod || 'cash'}</div>
+                      </td>
+                      <td className="py-3 px-3.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${typeInfo.color}`}>
+                          {typeInfo.label}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3.5">
+                        {isApproved ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            <CheckCircle className="w-3 h-3 text-emerald-400" />
+                            অনুমোদিত
+                          </span>
+                        ) : isRejected ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                            <X className="w-3 h-3 text-rose-400" />
+                            বাতিলকৃত
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                            <Clock className="w-3 h-3 text-amber-400" />
+                            অপেক্ষমাণ
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3.5 text-slate-400 max-w-xs truncate" title={d.notes}>
+                        {d.notes || '—'}
+                      </td>
+                      <td className="py-3 px-3.5 text-right font-bold font-mono text-emerald-400 text-sm">
+                        {formatTaka(d.amount)}
+                      </td>
+                      {isManager && (
+                        <td className="py-3 px-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {isPending && (
+                              <>
+                                <button
+                                  onClick={() => handleApproveDeposit(d._id, d.userName, d.amount)}
+                                  disabled={isProcessing}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  title="জমা অনুমোদন করুন"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  <span>অনুমোদন</span>
+                                </button>
+                                <button
+                                  onClick={() => handleRejectDeposit(d._id, d.userName)}
+                                  disabled={isProcessing}
+                                  className="px-2 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/30 text-rose-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  title="জমা বাতিল করুন"
+                                >
+                                  <X className="w-3 h-3" />
+                                  <span>বাতিল</span>
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => handleDeleteDeposit(d._id, d.userName, d.amount)}
+                              disabled={isProcessing}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-500/30 transition cursor-pointer disabled:opacity-50"
+                              title="জমা রেকর্ড স্থায়ীভাবে মুছে ফেলুন"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

@@ -23,6 +23,7 @@ export async function POST(request: Request) {
       amount,
       splitMethod = 'equal',
       paidByUserId,
+      applicableCount,
     } = body;
 
     if (!type || !amount || amount <= 0) {
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
           $set: {
             amount: Number(amount),
             splitMethod,
+            applicableCount: applicableCount ? Math.max(1, Number(applicableCount)) : null,
             paidByUserId: paidByUserId && paidByUserId !== 'mess_fund' ? paidByUserId : null,
             updatedAt: new Date(),
           },

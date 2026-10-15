@@ -79,13 +79,20 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
   const rawMealRate = totalMealUnits > 0 ? mealPoolTotal / totalMealUnits : 0;
   const mealRate = Math.round(rawMealRate * 100) / 100; // 2 decimal places
 
-  // 4. Utility bills (distributed among active members who are NOT exempt)
+  // 4. Utility bills (distributed according to applicable headcount / non-exempt active members)
   const totalUtility = utilityBills.reduce((sum, u) => sum + u.amount, 0);
   const nonExemptActiveMembers = activeMembers.filter((m) => !m.isUtilityExempt);
   const nonExemptCount = nonExemptActiveMembers.length || 1;
-  const utilitySharePerActiveMember = nonExemptActiveMembers.length > 0
-    ? totalUtility / nonExemptCount
-    : 0;
+  let utilitySharePerActiveMember = 0;
+  if (nonExemptActiveMembers.length > 0) {
+    for (const bill of utilityBills) {
+      const divisor =
+        bill.applicableCount && bill.applicableCount > 0
+          ? bill.applicableCount
+          : nonExemptCount;
+      utilitySharePerActiveMember += bill.amount / divisor;
+    }
+  }
 
   // 5. Fixed Bazar shares
   const memberFixedShareMap = new Map<string, number>();
@@ -134,13 +141,19 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
   const memberDepositsMap = new Map<string, { general: number; bigBazar: number }>();
   members.forEach((m) => memberDepositsMap.set(m.userId, { general: 0, bigBazar: 0 }));
 
+  let messFundDepositsTotal = 0;
+
   for (const dep of deposits) {
-    if (dep.isPaid && memberDepositsMap.has(dep.userId)) {
-      const entry = memberDepositsMap.get(dep.userId)!;
-      if (dep.type === 'big_bazar') {
-        entry.bigBazar += dep.amount;
-      } else {
-        entry.general += dep.amount;
+    if (dep.isPaid) {
+      if (dep.userId === 'mess_fund') {
+        messFundDepositsTotal += dep.amount;
+      } else if (memberDepositsMap.has(dep.userId)) {
+        const entry = memberDepositsMap.get(dep.userId)!;
+        if (dep.type === 'big_bazar') {
+          entry.bigBazar += dep.amount;
+        } else {
+          entry.general += dep.amount;
+        }
       }
     }
   }
@@ -235,8 +248,9 @@ export function calculateBilling(input: BillingEngineInput): BillingEngineOutput
     allMembersSummary,
     totals: {
       totalDues: sumRoundedDues,
-      totalCredits: sumCredits,
-      netBalance: sumCredits - sumRoundedDues,
+      totalCredits: sumCredits + messFundDepositsTotal,
+      totalMessFundDeposits: messFundDepositsTotal,
+      netBalance: (sumCredits + messFundDepositsTotal) - sumRoundedDues,
       roundingDifference,
     },
   };

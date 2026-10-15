@@ -306,6 +306,8 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
 
       <DepositModal
         members={members}
+        currentUser={currentUser}
+        cycleId={currentCycleId}
         isOpen={isDepositOpen}
         onClose={closeDeposit}
         onSuccess={() => {

@@ -125,6 +125,8 @@ export interface BillDoc {
   type: string; // 'পানি', 'গ্যাস', 'বিদ্যুৎ', 'ইন্টারনেট', 'ময়লা', custom
   amount: number;
   splitMethod: 'equal';
+  applicableCount?: number | null; // headcount if divided among a specific number of members
+  paidByUserId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -232,6 +234,8 @@ export interface SlotRequestDoc {
   updatedAt?: Date;
 }
 
+export type DepositStatus = 'approved' | 'pending' | 'rejected';
+
 // 13. Deposits
 export interface DepositDoc {
   _id?: ObjectId | string;
@@ -240,8 +244,14 @@ export interface DepositDoc {
   messId: string;
   amount: number;
   date: string;
-  type: DepositType; // 'general' | 'big_bazar'
+  type: DepositType; // 'general' | 'big_bazar' | 'utility' | 'rent'
   isPaid: boolean;
+  status?: DepositStatus; // 'approved' | 'pending' | 'rejected'
+  paymentMethod?: string;
+  paidAt?: Date | string | null;
+  approvedBy?: string;
+  approvedAt?: Date | null;
+  rejectedBy?: string;
   notes?: string;
   createdAt: Date;
 }

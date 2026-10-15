@@ -77,12 +77,19 @@ export const KPICards: React.FC<KPICardsProps> = ({
             <span className="text-xs text-purple-300 font-medium">জন সক্রিয় সদস্য</span>
           </div>
           <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-2.5">
-            <span>
-              মোট জমা: <strong className="text-emerald-400">{formatTaka(calculation.totals.totalCredits)}</strong>
-            </span>
-            <span>
-              মোট খরচ: <strong className="text-rose-400">{formatTaka(calculation.totals.totalDues)}</strong>
-            </span>
+            <div>
+              <span>মোট জমা: </span>
+              <strong className="text-emerald-400 font-mono">{formatTaka(calculation.totals.totalCredits)}</strong>
+              {(calculation.totals.totalMessFundDeposits || 0) > 0 && (
+                <span className="text-[10px] text-slate-500 block">
+                  (তহবিল: {formatTaka(calculation.totals.totalMessFundDeposits || 0)})
+                </span>
+              )}
+            </div>
+            <div className="text-right">
+              <span>মোট খরচ: </span>
+              <strong className="text-rose-400 font-mono">{formatTaka(calculation.totals.totalDues)}</strong>
+            </div>
           </div>
         </div>
       ) : (

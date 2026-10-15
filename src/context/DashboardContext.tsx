@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
+import { usePathname } from 'next/navigation';
 import { AppUser } from '@/lib/session';
 import { MemberBillingResult } from '@/billing-engine/types';
 
@@ -51,6 +52,7 @@ const DashboardContext = createContext<DashboardContextType | undefined>(undefin
 
 export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
 
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -143,7 +145,7 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (status === 'authenticated' && currentUser?.id) {
       refreshData();
     }
-  }, [status, currentUser?.id, refreshData]);
+  }, [status, currentUser?.id, pathname, refreshData]);
 
   return (
     <DashboardContext.Provider
