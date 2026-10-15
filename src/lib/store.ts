@@ -188,7 +188,7 @@ export class MessStore {
         type: b.type,
         splitType: b.splitType,
         customMemberIds: b.customMemberIds,
-        isApproved: b.status !== 'rejected',
+        isApproved: b.status === 'approved',
         paidFromBigBazarFund: b.paidFromBigBazarFund,
       }));
 

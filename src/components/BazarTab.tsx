@@ -24,6 +24,7 @@ import {
   ExternalLink,
   Receipt,
   CheckCircle,
+  Check,
 } from '@/components/icons';
 import { formatTaka } from '@/lib/money';
 import { AppUser } from '@/lib/session';
@@ -69,6 +70,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
   const [editDate, setEditDate] = useState('');
   const [editType, setEditType] = useState('regular');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [processingBazarId, setProcessingBazarId] = useState<string | null>(null);
 
   const isSuperAdmin = currentUser.role === 'super_admin';
   const isManager = currentUser.role === 'admin' || isSuperAdmin;
@@ -112,10 +114,10 @@ export const BazarTab: React.FC<BazarTabProps> = ({
     return Array.from(map.values());
   }, [members, bazars]);
 
-  // Helper to compute member's total bazar and fixed spending
+  // Helper to compute member's total bazar and fixed spending (only approved bazars count)
   const getMemberSpending = (userId: string) => {
     const bazarTotal = bazars
-      .filter((b) => b.userId === userId)
+      .filter((b) => b.userId === userId && b.status === 'approved')
       .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
     const fixedTotal = fixedEvents
@@ -155,22 +157,22 @@ export const BazarTab: React.FC<BazarTabProps> = ({
     });
   }, [bazars, activeTypeFilter, selectedMemberId, selectedDate, searchQuery]);
 
-  // Aggregate stats across all bazars
+  // Aggregate stats across all bazars (only approved bazars count in meal pool / fund totals)
   const totalRegularBazar = useMemo(() => {
     return bazars
-      .filter((b) => b.type === 'regular' || !b.type)
+      .filter((b) => (b.type === 'regular' || !b.type) && b.status === 'approved')
       .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
   }, [bazars]);
 
   const totalBigBazar = useMemo(() => {
     return bazars
-      .filter((b) => b.type === 'big')
+      .filter((b) => b.type === 'big' && b.status === 'approved')
       .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
   }, [bazars]);
 
   const totalExtraBazar = useMemo(() => {
     return bazars
-      .filter((b) => b.type === 'extra')
+      .filter((b) => b.type === 'extra' && b.status === 'approved')
       .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
   }, [bazars]);
 
@@ -232,6 +234,69 @@ export const BazarTab: React.FC<BazarTabProps> = ({
       toast.error('নেটওয়ার্ক ত্রুটি ঘটেছে');
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  // Approve bazar entry
+  const handleApproveBazar = async (id: string, desc: string) => {
+    try {
+      setProcessingBazarId(id);
+      const res = await fetch('/api/bazars', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          status: 'approved',
+          adminUserId: currentUser.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`"${desc || 'বাজার'}" সফলভাবে অনুমোদন করা হয়েছে!`);
+        onRefresh();
+      } else {
+        toast.error(data.error || 'অনুমোদন ব্যর্থ হয়েছে');
+      }
+    } catch {
+      toast.error('নেটওয়ার্ক ত্রুটি ঘটেছে');
+    } finally {
+      setProcessingBazarId(null);
+    }
+  };
+
+  // Reject bazar entry
+  const handleRejectBazar = async (id: string, desc: string) => {
+    const isConfirmed = await confirmAction({
+      title: 'বাজার এন্ট্রি বাতিল করবেন?',
+      text: `"${desc || 'এই বাজার'}" বাতিল করা হবে এবং হিসাবে যুক্ত হবে না।`,
+      icon: 'warning',
+      confirmText: 'হ্যাঁ, বাতিল করুন',
+      confirmColor: '#e11d48',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      setProcessingBazarId(id);
+      const res = await fetch('/api/bazars', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          status: 'rejected',
+          adminUserId: currentUser.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`"${desc || 'বাজার'}" বাতিল করা হয়েছে`);
+        onRefresh();
+      } else {
+        toast.error(data.error || 'বাতিল করতে ব্যর্থ হয়েছে');
+      }
+    } catch {
+      toast.error('নেটওয়ার্ক ত্রুটি ঘটেছে');
+    } finally {
+      setProcessingBazarId(null);
     }
   };
 
@@ -672,6 +737,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                     <th className="py-3 px-4">বিবরণ ও ফর্দ</th>
                     <th className="py-3 px-4">ধরণ</th>
                     <th className="py-3 px-4">ক্রেতার নাম</th>
+                    <th className="py-3 px-4 text-center">স্ট্যাটাস</th>
                     <th className="py-3 px-4 text-right">টাকার পরিমাণ</th>
                     <th className="py-3 px-4 text-center">অ্যাকশন</th>
                   </tr>
@@ -681,6 +747,8 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                     const isCreator = b.userId === currentUser.id;
                     const canEditOrDelete = isManager || isCreator;
                     const hasItems = b.items && b.items.length > 0;
+                    const isPending = !b.status || b.status === 'pending';
+                    const isApproved = b.status === 'approved';
 
                     return (
                       <tr key={b._id} className="hover:bg-slate-800/40 transition-colors group">
@@ -730,13 +798,30 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                               <span className="font-bold text-white text-xs block">{b.userName || 'অজানা'}</span>
                               <span className="text-[10px] text-slate-400 block capitalize">
                                 {b.userRole === 'super_admin'
-                                  ? 'সুপার এডমিন'
-                                  : b.userRole === 'admin'
-                                  ? 'ম্যানেজার'
-                                  : 'সদস্য'}
+                                   ? 'সুপার এডমিন'
+                                   : b.userRole === 'admin'
+                                   ? 'ম্যানেজার'
+                                   : 'সদস্য'}
                               </span>
                             </div>
                           </div>
+                        </td>
+
+                        {/* Status Badge */}
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          {isApproved ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              অনুমোদিত
+                            </span>
+                          ) : b.status === 'rejected' ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                              বাতিল
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              পেন্ডিং
+                            </span>
+                          )}
                         </td>
 
                         {/* Amount */}
@@ -744,9 +829,34 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                           {formatTaka(b.amount)}
                         </td>
 
-                        {/* Actions: View Details, Edit, Delete */}
+                        {/* Actions: View Details, Approve, Reject, Edit, Delete */}
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1.5">
+                            {/* Manager Quick Approve */}
+                            {isManager && !isApproved && (
+                              <button
+                                onClick={() => handleApproveBazar(b._id, b.description)}
+                                disabled={processingBazarId === b._id}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                                title="বাজার এন্ট্রি অনুমোদন করুন"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>অনুমোদন</span>
+                              </button>
+                            )}
+
+                            {/* Manager Quick Reject */}
+                            {isManager && isPending && (
+                              <button
+                                onClick={() => handleRejectBazar(b._id, b.description)}
+                                disabled={processingBazarId === b._id}
+                                className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 text-xs transition-colors cursor-pointer"
+                                title="বাজার এন্ট্রি বাতিল করুন"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
                             {/* View Details Button */}
                             <button
                               onClick={() => setViewingDetailsBazar(b)}
@@ -811,6 +921,19 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                           >
                             {b.type === 'regular' ? 'রেগুলার' : b.type === 'big' ? 'বড় বাজার' : 'এক্সট্রা'}
                           </span>
+                          {b.status === 'approved' ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              অনুমোদিত
+                            </span>
+                          ) : b.status === 'rejected' ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                              বাতিল
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              পেন্ডিং
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2 text-[11px] text-slate-400">
@@ -846,24 +969,46 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                         <span>বিস্তারিত দেখুন</span>
                       </button>
 
-                      {canEditOrDelete && (
-                        <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5">
+                        {isManager && b.status !== 'approved' && (
                           <button
-                            onClick={() => startEdit(b)}
-                            className="p-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 text-xs cursor-pointer"
-                            title="এডিট"
+                            onClick={() => handleApproveBazar(b._id, b.description)}
+                            disabled={processingBazarId === b._id}
+                            className="p-1.5 rounded-lg bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold cursor-pointer"
+                            title="অনুমোদন করুন"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Check className="w-3.5 h-3.5" />
                           </button>
+                        )}
+                        {isManager && (!b.status || b.status === 'pending') && (
                           <button
-                            onClick={() => handleDeleteBazar(b._id, b.description)}
-                            className="p-1.5 rounded-lg bg-rose-600/20 text-rose-300 border border-rose-500/30 text-xs cursor-pointer"
-                            title="মুছুন"
+                            onClick={() => handleRejectBazar(b._id, b.description)}
+                            disabled={processingBazarId === b._id}
+                            className="p-1.5 rounded-lg bg-rose-600/20 text-rose-300 border border-rose-500/40 text-xs cursor-pointer"
+                            title="বাতিল করুন"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <X className="w-3.5 h-3.5" />
                           </button>
-                        </div>
-                      )}
+                        )}
+                        {canEditOrDelete && (
+                          <>
+                            <button
+                              onClick={() => startEdit(b)}
+                              className="p-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 text-xs cursor-pointer"
+                              title="এডিট"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBazar(b._id, b.description)}
+                              className="p-1.5 rounded-lg bg-rose-600/20 text-rose-300 border border-rose-500/30 text-xs cursor-pointer"
+                              title="মুছুন"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

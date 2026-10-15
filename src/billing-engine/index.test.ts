@@ -278,5 +278,67 @@ describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
     // Total utility across mess
     expect(result.totalUtility).toBe(4600);
   });
+
+  it('excludes pending bazar entries from calculations until approved', () => {
+    const members = [
+      { userId: 'u1', name: 'User 1', roomRent: 2000, isActive: true },
+      { userId: 'u2', name: 'User 2', roomRent: 2000, isActive: true },
+    ];
+    const mealRecords = [
+      { userId: 'u1', date: '2026-10-01', slotId: 'all', weight: 10, consumed: true },
+      { userId: 'u2', date: '2026-10-01', slotId: 'all', weight: 10, consumed: true },
+    ];
+
+    // Case 1: Bazar is pending (isApproved: false)
+    const pendingResult = calculateBilling({
+      members,
+      mealRecords,
+      fixedEvents: [],
+      bazarItems: [
+        {
+          id: 'b_pending',
+          userId: 'u1',
+          amount: 5000,
+          type: 'regular',
+          isApproved: false, // pending
+        },
+      ],
+      deposits: [],
+      utilityBills: [],
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+    });
+
+    expect(pendingResult.totalRegularBazar).toBe(0);
+    expect(pendingResult.mealPoolTotal).toBe(0);
+    expect(pendingResult.mealRate).toBe(0);
+    expect(pendingResult.memberResults['u1'].approvedBazarSpentOwnMoney).toBe(0);
+    expect(pendingResult.memberResults['u1'].totalCredits).toBe(0);
+
+    // Case 2: Bazar is approved (isApproved: true)
+    const approvedResult = calculateBilling({
+      members,
+      mealRecords,
+      fixedEvents: [],
+      bazarItems: [
+        {
+          id: 'b_approved',
+          userId: 'u1',
+          amount: 5000,
+          type: 'regular',
+          isApproved: true, // approved
+        },
+      ],
+      deposits: [],
+      utilityBills: [],
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+    });
+
+    expect(approvedResult.totalRegularBazar).toBe(5000);
+    expect(approvedResult.mealPoolTotal).toBe(5000);
+    expect(approvedResult.mealRate).toBe(250); // 5000 / 20 meal units
+    expect(approvedResult.memberResults['u1'].approvedBazarSpentOwnMoney).toBe(5000);
+    expect(approvedResult.memberResults['u1'].totalCredits).toBe(5000);
+  });
 });
+
 

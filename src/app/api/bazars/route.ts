@@ -99,7 +99,7 @@ export async function POST(request: Request) {
       : 0;
     const finalAmount = Number(amount) > 0 ? Number(amount) : itemsTotal;
 
-    // Direct addition for legitimate bazars (Approved directly as requested)
+    // Bazar entries are always pending until manager/admin approval (SRS Rule 3)
     const newEntry: BazarDoc = {
       _id: `baz_${Date.now()}`,
       userId,
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
       type,
       splitType,
       customMemberIds,
-      status: 'approved',
+      status: 'pending',
       paidFromBigBazarFund,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       bazar: newEntry,
-      message: 'বাজারের খরচ সফলভাবে সরাসরি যুক্ত হয়েছে',
+      message: 'বাজারের খরচ সফলভাবে জমা হয়েছে এবং মেস ম্যানেজারের অনুমোদনের অপেক্ষায় রয়েছে',
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
