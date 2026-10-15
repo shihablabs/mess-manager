@@ -269,7 +269,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed lg:sticky top-0 left-0 z-50 lg:z-30 h-screen w-72 bg-slate-900/95 lg:bg-slate-900/80 backdrop-blur-xl border-r border-slate-800/80 flex flex-col transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:sticky top-0 left-0 z-50 lg:z-30 h-[100dvh] max-h-[100dvh] lg:h-screen lg:max-h-screen w-72 bg-slate-900/95 lg:bg-slate-900/80 backdrop-blur-xl border-r border-slate-800/80 flex flex-col overflow-hidden transition-transform duration-300 ease-in-out ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -330,7 +330,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         )}
 
         {/* Navigation Sections */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 py-1">
             প্রধান মেনু ও মডিউল
           </div>
@@ -424,43 +424,41 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           })}
         </div>
 
-        {/* Quick Emergency Action Box */}
-        <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 space-y-2">
-          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1">
-            জরুরি শর্টকাট
+        {/* Quick Emergency Action Box: অগ্রিম টাকা জমা ও বাজার জমা পাশাপাশি */}
+        <div className="shrink-0 p-3 pb-safe border-t border-slate-800/80 bg-slate-950/90 space-y-2">
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1 flex items-center justify-between">
+            <span>জরুরি শর্টকাট</span>
+            <span className="text-[9px] text-slate-500 font-medium">২টি অ্যাকশন</span>
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-2 gap-2">
+            {/* অগ্রিম টাকা জমা */}
             <button
+              type="button"
               onClick={() => {
-                onOpenMealRequest();
+                onOpenDeposit();
                 onMobileClose();
               }}
-              className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/20 text-indigo-300 text-[11px] font-bold transition-all cursor-pointer"
+              className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600/20 to-teal-600/20 hover:from-emerald-600/30 hover:to-teal-600/30 border border-emerald-500/30 hover:border-emerald-500/50 text-emerald-300 hover:text-white text-[11px] font-bold transition-all shadow-sm cursor-pointer group active:scale-95"
+              title="মেসে অগ্রিম টাকা জমা প্রদান করুন"
             >
-              <Utensils className="w-3 h-3 text-indigo-400" />
-              <span>মিল আবেদন</span>
+              <CreditCard className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
+              <span className="truncate">অগ্রিম টাকা জমা</span>
             </button>
+
+            {/* বাজার জমা */}
             <button
+              type="button"
               onClick={() => {
                 onOpenNewBazar();
                 onMobileClose();
               }}
-              className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/20 text-emerald-300 text-[11px] font-bold transition-all cursor-pointer"
+              className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600/20 to-purple-600/20 hover:from-indigo-600/30 hover:to-purple-600/30 border border-indigo-500/30 hover:border-indigo-500/50 text-indigo-300 hover:text-white text-[11px] font-bold transition-all shadow-sm cursor-pointer group active:scale-95"
+              title="নতুন বাজার খরচ জমা দিন"
             >
-              <ShoppingBag className="w-3 h-3 text-emerald-400" />
-              <span>বাজার জমা</span>
+              <ShoppingBag className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform shrink-0" />
+              <span className="truncate">বাজার জমা</span>
             </button>
           </div>
-          <button
-            onClick={() => {
-              onOpenDeposit();
-              onMobileClose();
-            }}
-            className="w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-purple-600/15 hover:bg-purple-600/25 border border-purple-500/20 text-purple-300 text-[11px] font-bold transition-all cursor-pointer"
-          >
-            <CreditCard className="w-3 h-3 text-purple-400" />
-            <span>অগ্রিম টাকা জমা প্রদান</span>
-          </button>
         </div>
       </aside>
     </>
