@@ -271,6 +271,8 @@ export interface CycleSnapshotDoc {
   closedAt: Date;
   closedBy: string;
   mealRate: number;
+  remainingMealRate?: number;
+  roundingDifference?: number;
   totalMealUnits: number;
   mealPoolTotal: number;
   totalRegularBazar: number;

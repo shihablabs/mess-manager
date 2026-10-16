@@ -156,6 +156,7 @@ export class MessStore {
     return {
       mealRate: snap.mealRate,
       rawMealRate: snap.mealRate,
+      remainingMealRate: snap.remainingMealRate,
       totalMealUnits: snap.totalMealUnits,
       mealPoolTotal: snap.mealPoolTotal,
       totalRegularBazar: snap.totalRegularBazar,
@@ -170,7 +171,7 @@ export class MessStore {
         totalDues: sumDues,
         totalCredits: sumCredits,
         netBalance: sumCredits - sumDues,
-        roundingDifference: 0,
+        roundingDifference: snap.roundingDifference ?? 0,
         unrecoveredRent: snap.unrecoveredRent || 0,
       },
     };

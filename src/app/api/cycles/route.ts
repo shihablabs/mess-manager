@@ -148,6 +148,8 @@ export async function POST(request: Request) {
         closedAt: new Date(),
         closedBy: adminUserId || 'admin',
         mealRate: finalBilling.mealRate,
+        remainingMealRate: finalBilling.remainingMealRate,
+        roundingDifference: finalBilling.totals.roundingDifference,
         totalMealUnits: finalBilling.totalMealUnits,
         mealPoolTotal: finalBilling.mealPoolTotal,
         totalRegularBazar: finalBilling.totalRegularBazar,

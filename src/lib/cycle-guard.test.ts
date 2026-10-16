@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import dns from 'dns';
 import path from 'path';
 import * as dotenv from 'dotenv';
@@ -48,7 +48,7 @@ function makeReq(body: any, method = 'POST', url = 'http://localhost:3000/api'):
 }
 
 describe('Central assertCycleOpen Guard on Closed Cycles', () => {
-  beforeAll(async () => {
+  beforeEach(async () => {
     const db = await getDb(SIM_DB_NAME);
     if (!db || !db.databaseName.includes('sim')) {
       throw new Error('Not connected to simulation database!');
@@ -68,6 +68,7 @@ describe('Central assertCycleOpen Guard on Closed Cycles', () => {
     });
 
     // Seed dummy items linked to closed cycle
+    await db.collection('bazars').deleteMany({ _id: 'bazar_closed_test' as any });
     await db.collection('bazars').insertOne({
       _id: 'bazar_closed_test' as any,
       cycleId: 'cycle_closed_test',
@@ -77,6 +78,7 @@ describe('Central assertCycleOpen Guard on Closed Cycles', () => {
       type: 'regular',
     });
 
+    await db.collection('deposits').deleteMany({ _id: 'deposit_closed_test' as any });
     await db.collection('deposits').insertOne({
       _id: 'deposit_closed_test' as any,
       cycleId: 'cycle_closed_test',
@@ -87,6 +89,7 @@ describe('Central assertCycleOpen Guard on Closed Cycles', () => {
       isPaid: false,
     });
 
+    await db.collection('bills').deleteMany({ _id: 'bill_closed_test' as any });
     await db.collection('bills').insertOne({
       _id: 'bill_closed_test' as any,
       cycleId: 'cycle_closed_test',
@@ -94,6 +97,7 @@ describe('Central assertCycleOpen Guard on Closed Cycles', () => {
       amount: 1200,
     });
 
+    await db.collection('meal_requests').deleteMany({ _id: 'mr_closed_test' as any });
     await db.collection('meal_requests').insertOne({
       _id: 'mr_closed_test' as any,
       cycleId: 'cycle_closed_test',
