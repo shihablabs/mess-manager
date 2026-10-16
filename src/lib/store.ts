@@ -15,10 +15,10 @@ import {
   CycleSnapshotDoc,
   AuditLogDoc,
   UserRole,
-} from '@/models/types';
-import { calculateBilling, generateBazarSlotRanges } from '@/billing-engine';
-import { BillingEngineInput, BillingEngineOutput } from '@/billing-engine/types';
-import { getDb, isMongoConfigured } from '@/lib/db';
+} from '../models/types';
+import { calculateBilling, generateBazarSlotRanges } from '../billing-engine';
+import { BillingEngineInput, BillingEngineOutput, MemberBillingResult } from '../billing-engine/types';
+import { getDb, isMongoConfigured } from './db';
 
 export class MessStore {
   mess: MessDoc = {
@@ -118,9 +118,56 @@ export class MessStore {
     }
   }
 
-  // Real-time calculation helper
+  // Transforms frozen CycleSnapshot into full BillingEngineOutput
+  public snapshotToBillingOutput(snap: CycleSnapshotDoc): BillingEngineOutput {
+    const memberResults: Record<string, MemberBillingResult> = {};
+    const allMembersSummary: MemberBillingResult[] = (snap.memberBalances || []).map((mb) => {
+      const status: 'পাওনাদার' | 'দেনাদার' | 'পরিশোধিত' =
+        mb.netBalance > 0 ? 'পাওনাদার' : mb.netBalance < 0 ? 'দেনাদার' : 'পরিশোধিত';
+
+      const res: MemberBillingResult = {
+        userId: mb.userId,
+        name: mb.name,
+        mealUnits: mb.mealUnits,
+        regularMealCost: mb.mealCost,
+        fixedShare: mb.fixedShare,
+        utilityShare: mb.utilityShare,
+        roomRent: mb.roomRent,
+        extraShareNonPool: mb.extraShare || 0,
+        totalDues: mb.totalDues,
+        totalCredits: mb.totalCredits,
+        netBalance: mb.netBalance,
+        status,
+      };
+      memberResults[mb.userId] = res;
+      return res;
+    });
+
+    return {
+      mealRate: snap.mealRate,
+      totalMealUnits: snap.totalMealUnits,
+      mealPoolTotal: snap.mealPoolTotal,
+      totalRegularBazar: snap.totalRegularBazar,
+      totalBigBazarCost: snap.totalBigBazar,
+      bigBazarCarryToNextCycle: snap.bigBazarCarryToNext,
+      totalUtility: snap.totalUtility,
+      memberResults,
+      allMembersSummary,
+    };
+  }
+
+  // Real-time calculation helper (or frozen snapshot when cycle is closed)
   public computeCurrentCycleBilling(cycleId = 'cycle_1'): BillingEngineOutput {
     const cycle = this.cycles.find((c) => c._id === cycleId);
+
+    // If cycle is closed, snapshot is the single source of truth (SRS Section 4.7 & Decision চ)
+    if (cycle && cycle.status === 'closed') {
+      const snap = this.cycleSnapshots.find((s) => s.cycleId === cycleId);
+      if (snap) {
+        return this.snapshotToBillingOutput(snap);
+      }
+    }
+
     // Super admin is strictly an overseer/controller and never part of dining calculations
     const membersInput = this.users
       .filter((u) => u.role !== 'super_admin')
@@ -255,6 +302,7 @@ export async function getStore(): Promise<MessStore> {
       deposits,
       bills,
       auditLogs,
+      cycleSnapshots,
     ] = await Promise.all([
       db.collection('messes').find().toArray(),
       db.collection('users').find().toArray(),
@@ -270,6 +318,7 @@ export async function getStore(): Promise<MessStore> {
       db.collection('deposits').find().toArray(),
       db.collection('bills').find().toArray(),
       db.collection('audit_logs').find().toArray(),
+      db.collection('cycle_snapshots').find().toArray(),
     ]);
 
     if (messes.length > 0) store.mess = { ...messes[0], _id: messes[0]._id.toString() } as any;
@@ -286,6 +335,7 @@ export async function getStore(): Promise<MessStore> {
     if (deposits.length > 0) store.deposits = deposits.map((d: any) => ({ ...d, _id: d._id.toString() }));
     if (bills.length > 0) store.bills = bills.map((b: any) => ({ ...b, _id: b._id.toString() }));
     if (auditLogs.length > 0) store.auditLogs = auditLogs.map((a: any) => ({ ...a, _id: a._id.toString() }));
+    if (cycleSnapshots.length > 0) store.cycleSnapshots = cycleSnapshots.map((cs: any) => ({ ...cs, _id: cs._id.toString() }));
 
     return store;
   } catch (err) {

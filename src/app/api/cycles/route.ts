@@ -141,6 +141,12 @@ export async function POST(request: Request) {
         summaryNote: `চক্র সমাপ্তি: মিল রেট ৳${finalBilling.mealRate}, মোট মিল ${finalBilling.totalMealUnits}`,
       };
 
+      // Update in-memory store with frozen cycle state & snapshot (Decision চ)
+      cycle.status = 'closed';
+      cycle.closedAt = snapshot.closedAt;
+      cycle.bigBazarCarryToNext = Number(carryAmount) || 0;
+      store.cycleSnapshots.push(snapshot);
+
       if (db) {
         await db.collection('cycle_snapshots').insertOne(snapshot as any);
         await db.collection('cycles').updateOne(

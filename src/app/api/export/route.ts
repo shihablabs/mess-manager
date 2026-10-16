@@ -12,10 +12,12 @@ export async function GET(request: Request) {
     const cycle = store.cycles.find((c) => c._id === cycleId);
 
     if (format === 'json') {
+      const snapshot = store.cycleSnapshots.find((s) => s.cycleId === cycleId);
       const fullBackup = {
         exportDate: new Date().toISOString(),
         mess: store.mess,
         cycle,
+        snapshot: snapshot || null,
         bills: store.bills.filter((b) => b.cycleId === cycleId),
         bazars: store.bazars.filter((b) => b.cycleId === cycleId),
         meals: store.meals.filter((m) => m.cycleId === cycleId),
