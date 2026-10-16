@@ -54,14 +54,12 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
   onSelectMemberId,
   className = '',
 }) => {
-  if (!memberResult) return null;
-
-  const isPlus = memberResult.netBalance >= 0;
-  const netBalance = memberResult.netBalance;
+  const isPlus = (memberResult?.netBalance ?? 0) >= 0;
+  const netBalance = memberResult?.netBalance ?? 0;
 
   // Filter and sort this specific member's deposits
   const memberDeposits = useMemo(() => {
-    if (!deposits || !memberResult.userId) return [];
+    if (!deposits || !memberResult?.userId) return [];
     const list = deposits.filter(
       (d) => String(d.userId) === String(memberResult.userId)
     );
@@ -70,7 +68,9 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
       const timeB = new Date(b.date || b.createdAt || 0).getTime();
       return timeB - timeA;
     });
-  }, [deposits, memberResult.userId]);
+  }, [deposits, memberResult?.userId]);
+
+  if (!memberResult) return null;
 
   // Helper for Payment Method badge
   const getMethodBadge = (method?: string) => {

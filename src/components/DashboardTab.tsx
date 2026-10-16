@@ -38,12 +38,10 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   const [sortBy, setSortBy] = useState<'name' | 'mealUnits' | 'totalDues' | 'netBalance'>('name');
   const [sortAsc, setSortAsc] = useState(true);
 
-  if (!calculation) return null;
-
   // Build member avatar map
   const memberMap = useMemo(() => {
     const map = new Map<string, any>();
-    members.forEach((m: any) => {
+    (members || []).forEach((m: any) => {
       const id = m.userId || m._id;
       if (id) map.set(id, m);
     });
@@ -52,6 +50,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
   // Filtered & sorted members summary (DataTable)
   const filteredMembers = useMemo(() => {
+    if (!calculation?.allMembersSummary) return [];
     let list = [...calculation.allMembersSummary];
 
     // Filter by search query
@@ -78,7 +77,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     });
 
     return list;
-  }, [calculation.allMembersSummary, searchQuery, statusFilter, sortBy, sortAsc]);
+  }, [calculation?.allMembersSummary, searchQuery, statusFilter, sortBy, sortAsc]);
 
   const toggleSort = (col: typeof sortBy) => {
     if (sortBy === col) {
@@ -88,6 +87,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
       setSortAsc(true);
     }
   };
+
+  if (!calculation) return null;
 
   const refundCount = calculation.allMembersSummary.filter((m) => m.netBalance >= 0).length;
   const dueCount = calculation.allMembersSummary.filter((m) => m.netBalance < 0).length;

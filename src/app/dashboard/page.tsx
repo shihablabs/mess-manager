@@ -26,21 +26,12 @@ export default function DashboardOverviewPage() {
 
   const [selectedAdminMemberId, setSelectedAdminMemberId] = useState<string>('');
 
-  if (isLoading && !summaryData) {
-    return (
-      <GlobalLoader
-        message="ড্যাশবোর্ড ও আর্থিক তথ্য লোড হচ্ছে..."
-        subMessage="মেস হিসাবের লাইভ সামারি প্রস্তুত করা হচ্ছে"
-      />
-    );
-  }
-
   const isSuperAdmin = currentUser?.role === 'super_admin';
   const isManager = currentUser?.role === 'admin';
 
   // Dining members list (non super_admin)
   const diningMembers = useMemo(() => {
-    return members.filter((m) => m.role !== 'super_admin');
+    return (members || []).filter((m) => m.role !== 'super_admin');
   }, [members]);
 
   // Determine active personal statement for the user
@@ -69,6 +60,15 @@ export default function DashboardOverviewPage() {
     diningMembers,
     currentUser?.id,
   ]);
+
+  if (isLoading && !summaryData) {
+    return (
+      <GlobalLoader
+        message="ড্যাশবোর্ড ও আর্থিক তথ্য লোড হচ্ছে..."
+        subMessage="মেস হিসাবের লাইভ সামারি প্রস্তুত করা হচ্ছে"
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
