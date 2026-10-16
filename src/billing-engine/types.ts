@@ -124,6 +124,7 @@ export interface MemberBillingResult {
   closingBalance?: number; // Final net balance stored in snapshot for carry-over
   openingBalance?: number; // Starting balance brought forward
   unrecoveredRent?: number; // Rent waived due to pro-rata departure
+  rentSettlementType?: 'pro_rata' | 'full_month';
 }
 
 export interface BillingEngineOutput {
