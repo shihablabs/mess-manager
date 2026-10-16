@@ -154,7 +154,7 @@ export async function POST(request: Request) {
                   updatedAt: new Date(),
                 },
                 $setOnInsert: {
-                  _id: `meal_${sId[0]}_${userId}_${dateStr}`,
+                  _id: `meal_${sId[0]}_${effectiveUserId}_${dateStr}`,
                   messId: store.mess._id as string,
                   createdAt: new Date(),
                 },
@@ -340,9 +340,10 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const auth = await requireRole(['admin', 'super_admin']);
+    const auth = await requireActiveMember();
     if (!auth.authorized) return auth.response;
     const caller = auth.user;
+    const isManager = caller.role === 'admin' || caller.role === 'super_admin';
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -353,9 +354,17 @@ export async function DELETE(request: Request) {
     const store = await getStore();
     const db = await getDb();
 
-    const reqItem: any = store.mealRequests.find((r) => String(r._id) === String(id));
-    if (!reqItem && !db) {
+    let reqItem: any = store.mealRequests.find((r) => String(r._id) === String(id));
+    if (!reqItem && db) {
+      reqItem = await db.collection('meal_requests').findOne(idFilter(id));
+    }
+
+    if (!reqItem) {
       return NextResponse.json({ success: false, error: 'অনুরোধ পাওয়া যায়নি' }, { status: 404 });
+    }
+
+    if (!isManager && String(reqItem.userId) !== String(caller.id) && String(reqItem.userId) !== String(caller.email)) {
+      return NextResponse.json({ success: false, error: 'অন্যের অনুরোধ বাতিল করার অনুমতি নেই' }, { status: 403 });
     }
 
     const cycleClosedResponse = await assertCycleOpen(reqItem?.cycleId || '', { db });

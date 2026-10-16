@@ -4,10 +4,13 @@ import React from 'react';
 import { useDashboard } from '@/context/DashboardContext';
 import { MealsTab } from '@/components/MealsTab';
 import { GlobalLoader } from '@/components/GlobalLoader';
-
 import { MasterErrorBoundary } from '@/components/MasterErrorBoundary';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function MealsManagementPage() {
+  const { language } = useLanguage();
+  const isBangla = language === 'bn';
+
   const {
     currentUser,
     members,
@@ -22,8 +25,12 @@ export default function MealsManagementPage() {
   if (isLoading && (!members || members.length === 0)) {
     return (
       <GlobalLoader
-        message="মিল খাতার তথ্য লোড হচ্ছে..."
-        subMessage="সদস্যদের মিল হাজিরা ও আবেদন লোড করা হচ্ছে"
+        message={isBangla ? 'মিল খাতার তথ্য লোড হচ্ছে...' : 'Loading Meal Register...'}
+        subMessage={
+          isBangla
+            ? 'সদস্যদের মিল হাজিরা ও আবেদন লোড করা হচ্ছে'
+            : 'Loading member meal attendance and requests'
+        }
       />
     );
   }
@@ -32,7 +39,14 @@ export default function MealsManagementPage() {
 
   return (
     <div className="space-y-6">
-      <MasterErrorBoundary fallbackTitle="মিল খাতা লোড করতে সমস্যা হয়েছে">
+      <MasterErrorBoundary
+        fallbackTitle={isBangla ? 'মিল খাতা লোড করতে সমস্যা হয়েছে' : 'Error Loading Meal Register'}
+        fallbackMessage={
+          isBangla
+            ? 'সিস্টেমটি ক্র্যাশ হওয়া রোধ করা হয়েছে। আপনি নিচের বাটনে ক্লিক করে এটি পুনরায় লোড করতে পারেন।'
+            : 'System crash prevented. You can reload this module using the button below.'
+        }
+      >
         <MealsTab
           currentUser={currentUser}
           members={members}

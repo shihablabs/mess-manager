@@ -31,12 +31,14 @@ import {
   Trash2,
   X,
   ShoppingBag,
+  Info,
 } from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import { formatTaka, formatMealUnits } from '@/lib/money';
 import { toast } from 'sonner';
 import { confirmAction } from '@/lib/alerts';
 import { MemberLeaveModal } from '@/components/MemberLeaveModal';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface MealsTabProps {
   currentUser: AppUser;
@@ -59,6 +61,10 @@ export const MealsTab: React.FC<MealsTabProps> = ({
   onRefresh,
   onOpenRequestModal,
 }) => {
+  const { t, language } = useLanguage();
+  const isBangla = language === 'bn';
+  const isManager = currentUser.role === 'admin' || currentUser.role === 'super_admin';
+
   // Sub-tabs: register (মাসিক পূর্ণাঙ্গ মাস্টার খাতা), sheet (দৈনিক ইনপুট), logs (তারিখভিত্তিক লগ), requests (অনুরোধ)
   const [subTab, setSubTab] = useState<'register' | 'sheet' | 'logs' | 'requests'>('register');
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -135,15 +141,19 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`${editingLogItem.date} তারিখের মিল সফলভাবে সংশোধন করা হয়েছে!`);
+        toast.success(
+          isBangla
+            ? `${editingLogItem.date} তারিখের মিল সফলভাবে সংশোধন করা হয়েছে!`
+            : `Meals for ${editingLogItem.date} updated successfully!`
+        );
         setEditingLogItem(null);
         await fetchAllCycleMeals();
         onRefresh();
       } else {
-        toast.error(data.error || 'মিল সংশোধন ব্যর্থ হয়েছে');
+        toast.error(data.error || (isBangla ? 'মিল সংশোধন ব্যর্থ হয়েছে' : 'Failed to update meals'));
       }
     } catch (e: any) {
-      toast.error('নেটওয়ার্ক ত্রুটি');
+      toast.error(isBangla ? 'নেটওয়ার্ক ত্রুটি' : 'Network error');
     } finally {
       setIsSavingLogEdit(false);
     }
@@ -151,9 +161,12 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
   const handleDeleteMealLog = async (date: string, userId: string, memberName: string) => {
     const isConfirmed = await confirmAction({
-      title: 'মিল রেকর্ড বাতিলকরণ',
-      text: `আপনি কি নিশ্চিত যে ${memberName}-এর ${date} তারিখের মিল ০/বাতিল করতে চান?`,
-      confirmText: 'হ্যাঁ, বাতিল করুন',
+      title: isBangla ? 'মিল রেকর্ড বাতিলকরণ' : 'Reset Meal Record',
+      text: isBangla
+        ? `আপনি কি নিশ্চিত যে ${memberName}-এর ${date} তারিখের মিল ০/বাতিল করতে চান?`
+        : `Are you sure you want to reset meals for ${memberName} on ${date} to 0?`,
+      confirmText: isBangla ? 'হ্যাঁ, বাতিল করুন' : 'Yes, Reset',
+      cancelText: isBangla ? 'না' : 'Cancel',
       confirmColor: '#e11d48',
       icon: 'warning',
     });
@@ -164,14 +177,18 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`${memberName} এর ${date} তারিখের মিল ০/বাতিল করা হয়েছে!`);
+        toast.success(
+          isBangla
+            ? `${memberName} এর ${date} তারিখের মিল ০/বাতিল করা হয়েছে!`
+            : `Meals for ${memberName} on ${date} reset to 0!`
+        );
         await fetchAllCycleMeals();
         onRefresh();
       } else {
-        toast.error(data.error || 'মুছে ফেলতে ব্যর্থ হয়েছে');
+        toast.error(data.error || (isBangla ? 'মুছে ফেলতে ব্যর্থ হয়েছে' : 'Failed to delete'));
       }
     } catch (e: any) {
-      toast.error('নেটওয়ার্ক ত্রুটি');
+      toast.error(isBangla ? 'নেটওয়ার্ক ত্রুটি' : 'Network error');
     }
   };
 
@@ -333,16 +350,24 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
       const data = await res.json();
       if (data.success) {
-        setSaveSuccessMsg(`${selectedDate} তারিখের মিল সংরক্ষিত হয়েছে!`);
+        setSaveSuccessMsg(
+          isBangla
+            ? `${selectedDate} তারিখের মিল সংরক্ষিত হয়েছে!`
+            : `Meals saved for ${selectedDate}!`
+        );
         setTimeout(() => setSaveSuccessMsg(null), 3500);
-        toast.success(`${selectedDate} তারিখের মিল হাজিরা ডাটাবেজে সংরক্ষিত হয়েছে!`);
+        toast.success(
+          isBangla
+            ? `${selectedDate} তারিখের মিল হাজিরা ডাটাবেজে সংরক্ষিত হয়েছে!`
+            : `Meal attendance saved to database for ${selectedDate}!`
+        );
         fetchAllCycleMeals();
         onRefresh();
       } else {
-        toast.error(data.error || 'সংরক্ষণ ব্যর্থ হয়েছে');
+        toast.error(data.error || (isBangla ? 'সংরক্ষণ ব্যর্থ হয়েছে' : 'Failed to save'));
       }
     } catch (e: any) {
-      toast.error(e.message || 'ত্রুটি ঘটেছে');
+      toast.error(e.message || (isBangla ? 'ত্রুটি ঘটেছে' : 'An error occurred'));
     } finally {
       setIsSaving(false);
     }
@@ -362,15 +387,19 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(status === 'approved' ? 'অনুরোধ অনুমোদিত হয়েছে' : 'অনুরোধ বাতিল করা হয়েছে');
+        toast.success(
+          status === 'approved'
+            ? (isBangla ? 'অনুরোধ অনুমোদিত হয়েছে' : 'Request approved successfully')
+            : (isBangla ? 'অনুরোধ বাতিল করা হয়েছে' : 'Request rejected')
+        );
         onRefresh();
         fetchDateMeals(selectedDate);
         fetchAllCycleMeals();
       } else {
-        toast.error(data.error || 'ব্যর্থ হয়েছে');
+        toast.error(data.error || (isBangla ? 'ব্যর্থ হয়েছে' : 'Failed'));
       }
     } catch (e: any) {
-      toast.error(e.message || 'ত্রুটি ঘটেছে');
+      toast.error(e.message || (isBangla ? 'ত্রুটি ঘটেছে' : 'An error occurred'));
     } finally {
       setProcessingId(null);
     }
@@ -386,13 +415,17 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(status === 'approved' ? 'বাজার খরচ অনুমোদিত হয়েছে!' : 'বাজার খরচ বাতিল করা হয়েছে');
+        toast.success(
+          status === 'approved'
+            ? (isBangla ? 'বাজার খরচ অনুমোদিত হয়েছে!' : 'Bazar expense approved!')
+            : (isBangla ? 'বাজার খরচ বাতিল করা হয়েছে' : 'Bazar expense rejected')
+        );
         onRefresh();
       } else {
-        toast.error(data.error || 'ব্যর্থ হয়েছে');
+        toast.error(data.error || (isBangla ? 'ব্যর্থ হয়েছে' : 'Failed'));
       }
     } catch {
-      toast.error('নেটওয়ার্ক সমস্যা');
+      toast.error(isBangla ? 'নেটওয়ার্ক সমস্যা' : 'Network issue');
     } finally {
       setProcessingId(null);
     }
@@ -400,10 +433,12 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
   const handleEndLeaveToday = async (leave: any) => {
     const isConfirmed = await confirmAction({
-      title: 'সদস্যের ছুটি আজই সমাপ্ত করবেন?',
-      text: `${leave.userName || 'সদস্য'} আগে মেসে ফিরে এসেছেন? আজ থেকে তাঁর মিল পুনরায় চালু করা হবে।`,
-      confirmText: 'হ্যাঁ, ছুটি সমাপ্ত ও মিল চালু করুন',
-      cancelText: 'বাতিল',
+      title: isBangla ? 'সদস্যের ছুটি আজই সমাপ্ত করবেন?' : 'End member leave today?',
+      text: isBangla
+        ? `${leave.userName || 'সদস্য'} আগে মেসে ফিরে এসেছেন? আজ থেকে তাঁর মিল পুনরায় চালু করা হবে।`
+        : `Has ${leave.userName || 'member'} returned early? Their meals will be resumed from today.`,
+      confirmText: isBangla ? 'হ্যাঁ, ছুটি সমাপ্ত ও মিল চালু করুন' : 'Yes, End Leave & Resume Meals',
+      cancelText: isBangla ? 'বাতিল' : 'Cancel',
       confirmColor: '#10b981',
     });
     if (!isConfirmed) return;
@@ -420,19 +455,25 @@ export const MealsTab: React.FC<MealsTabProps> = ({
         body: JSON.stringify({
           id: leave._id,
           endDate: yesterdayStr,
-          adminNote: 'সদস্য আগে ফিরে আসায় ছুটি আজ সমাপ্ত করা হয়েছে',
+          adminNote: isBangla
+            ? 'সদস্য আগে ফিরে আসায় ছুটি আজ সমাপ্ত করা হয়েছে'
+            : 'Leave ended early as member returned',
         }),
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('ছুটি সফলভাবে সমাপ্ত করা হয়েছে এবং আজকের পর থেকে মিল চালু করা হয়েছে!');
+        toast.success(
+          isBangla
+            ? 'ছুটি সফলভাবে সমাপ্ত করা হয়েছে এবং আজকের পর থেকে মিল চালু করা হয়েছে!'
+            : 'Leave ended successfully and meals resumed!'
+        );
         onRefresh();
         fetchDateMeals(selectedDate);
       } else {
-        toast.error(data.error || 'ব্যর্থ হয়েছে');
+        toast.error(data.error || (isBangla ? 'ব্যর্থ হয়েছে' : 'Failed to end leave'));
       }
     } catch {
-      toast.error('নেটওয়ার্ক ত্রুটি');
+      toast.error(isBangla ? 'নেটওয়ার্ক ত্রুটি' : 'Network error');
     } finally {
       setProcessingId(null);
     }
@@ -440,10 +481,12 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
   const handleDeleteLeave = async (id: string, memberName: string) => {
     const isConfirmed = await confirmAction({
-      title: 'ছুটি বাতিল করবেন?',
-      text: `${memberName}-এর এই ছুটির রেকর্ড বাতিল করা হবে এবং মিলগুলো পুনরায় সক্রিয় করা হবে।`,
-      confirmText: 'হ্যাঁ, বাতিল করুন',
-      cancelText: 'না',
+      title: isBangla ? 'ছুটি বাতিল করবেন?' : 'Cancel leave schedule?',
+      text: isBangla
+        ? `${memberName}-এর এই ছুটির রেকর্ড বাতিল করা হবে এবং মিলগুলো পুনরায় সক্রিয় করা হবে।`
+        : `Leave schedule for ${memberName} will be cancelled and meals restored.`,
+      confirmText: isBangla ? 'হ্যাঁ, বাতিল করুন' : 'Yes, Cancel Leave',
+      cancelText: isBangla ? 'না' : 'No',
       confirmColor: '#e11d48',
     });
     if (!isConfirmed) return;
@@ -455,14 +498,18 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('ছুটি বাতিল ও মিল পুনরুদ্ধার সম্পন্ন হয়েছে!');
+        toast.success(
+          isBangla
+            ? 'ছুটি বাতিল ও মিল পুনরুদ্ধার সম্পন্ন হয়েছে!'
+            : 'Leave cancelled and meals restored successfully!'
+        );
         onRefresh();
         fetchDateMeals(selectedDate);
       } else {
-        toast.error(data.error || 'ব্যর্থ হয়েছে');
+        toast.error(data.error || (isBangla ? 'ব্যর্থ হয়েছে' : 'Failed to cancel leave'));
       }
     } catch {
-      toast.error('নেটওয়ার্ক ত্রুটি');
+      toast.error(isBangla ? 'নেটওয়ার্ক ত্রুটি' : 'Network error');
     } finally {
       setProcessingId(null);
     }
@@ -739,39 +786,45 @@ export const MealsTab: React.FC<MealsTabProps> = ({
         <div>
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <Utensils className="w-5 h-5 text-indigo-400" />
-            মাসিক পূর্ণাঙ্গ মিল খাতা ও হাজিরা ব্যবস্থাপনা
+            {isBangla ? 'মাসিক পূর্ণাঙ্গ মিল খাতা ও হাজিরা ব্যবস্থাপনা' : 'Monthly Meal Register & Attendance'}
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            চলমান চক্র: <strong className="text-slate-200">{cycle?.name || 'অক্টোবর ২০২৬'}</strong> | লাইভ মিল রেট: <strong className="text-emerald-400">৳{liveMealRate}</strong>
+            {isBangla ? 'চলমান চক্র: ' : 'Active Cycle: '}
+            <strong className="text-slate-200">{cycle?.name || (isBangla ? 'চলতি চক্র' : 'Current Cycle')}</strong>
+            {' | '}
+            {isBangla ? 'লাইভ মিল রেট: ' : 'Live Meal Rate: '}
+            <strong className="text-emerald-400">৳{liveMealRate}</strong>
           </p>
         </div>
 
         {currentUser.role !== 'super_admin' ? (
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {canEditMeals && (
-              <button
-                onClick={() => {
-                  setEditingLeave(null);
-                  setIsLeaveModalOpen(true);
-                }}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-amber-300 border border-amber-500/30 text-xs font-semibold px-3.5 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer"
-              >
-                <Calendar className="w-4 h-4 text-amber-400" />
-                <span>ছুটি / মিল বন্ধ শিডিউল</span>
-              </button>
-            )}
+            <button
+              onClick={() => {
+                setEditingLeave(null);
+                setIsLeaveModalOpen(true);
+              }}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-amber-300 border border-amber-500/30 text-xs font-semibold px-3.5 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer"
+            >
+              <Calendar className="w-4 h-4 text-amber-400" />
+              <span>
+                {isManager
+                  ? (isBangla ? 'ছুটি / মিল বন্ধ শিডিউল' : 'Schedule Member Leave')
+                  : (isBangla ? 'ছুটির আবেদন (Leave Request)' : 'Request Leave / Vacation')}
+              </span>
+            </button>
             <button
               onClick={onOpenRequestModal}
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              মিল অফ/অন আবেদন
+              <span>{isBangla ? 'মিল অফ/অন আবেদন' : 'Meal On/Off Request'}</span>
             </button>
           </div>
         ) : (
           <div className="text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20 px-3.5 py-2 rounded-xl flex items-center gap-1.5">
             <Shield className="w-4 h-4 text-amber-400" />
-            <span>সুপার অ্যাডমিন অডিট ভিউ</span>
+            <span>{isBangla ? 'সুপার অ্যাডমিন অডিট ভিউ' : 'Super Admin Audit View'}</span>
           </div>
         )}
       </div>
@@ -787,7 +840,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           }`}
         >
           <Table className="w-4 h-4" />
-          মাসিক মাস্টার মিল রেজিস্টার (DataTable)
+          {isBangla ? 'মাসিক মাস্টার মিল রেজিস্টার' : 'Monthly Master Register'}
         </button>
 
         <button
@@ -799,7 +852,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           }`}
         >
           <Calendar className="w-4 h-4" />
-          দৈনিক হাজিরা ইনপুট শিট
+          {isBangla ? 'দৈনিক হাজিরা ইনপুট শিট' : 'Daily Attendance Sheet'}
         </button>
 
         <button
@@ -811,7 +864,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           }`}
         >
           <FileText className="w-4 h-4" />
-          তারিখভিত্তিক বিস্তারিত মিল লগ
+          {isBangla ? 'তারিখভিত্তিক বিস্তারিত মিল লগ' : 'Date-wise Meal Logs'}
         </button>
 
         <button
@@ -823,7 +876,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           }`}
         >
           <Clock className="w-4 h-4" />
-          অনুরোধ ও অনুমোদন হাব
+          {isBangla ? 'অনুরোধ ও অনুমোদন হাব' : 'Requests & Approvals Hub'}
           {(pendingRequests.length + pendingBazars.length) > 0 && (
             <span className="ml-1 px-1.5 py-0.2 text-[10px] bg-amber-500 text-slate-950 font-black rounded-full animate-pulse">
               {pendingRequests.length + pendingBazars.length}
@@ -839,53 +892,57 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="glass-panel rounded-2xl p-4 border border-emerald-500/20 bg-emerald-950/10">
               <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span>সর্বমোট মাসিক মিল</span>
+                <span>{isBangla ? 'সর্বমোট মাসিক মিল' : 'Total Monthly Meals'}</span>
                 <Utensils className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono mt-1">
-                {formatMealUnits(totalMonthUnits)} <span className="text-xs font-normal text-slate-400">ইউনিট</span>
+                {formatMealUnits(totalMonthUnits)} <span className="text-xs font-normal text-slate-400">{isBangla ? 'ইউনিট' : 'Units'}</span>
               </div>
               <div className="text-[10px] text-slate-400 mt-1">
-                সকাল: {totalMonthMorning} | রাত: {totalMonthNight}
+                {isBangla
+                  ? `সকাল: ${totalMonthMorning} | রাত: ${totalMonthNight}`
+                  : `Morning: ${totalMonthMorning} | Night: ${totalMonthNight}`}
               </div>
             </div>
 
             <div className="glass-panel rounded-2xl p-4 border border-indigo-500/20 bg-indigo-950/10">
               <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span>সক্রিয় মিল বর্ডার</span>
+                <span>{isBangla ? 'সক্রিয় মিল বর্ডার' : 'Active Dining Members'}</span>
                 <UserCheck className="w-4 h-4 text-indigo-400" />
               </div>
               <div className="text-xl sm:text-2xl font-black text-indigo-300 font-mono mt-1">
-                {memberMonthlyStats.length} <span className="text-xs font-normal text-slate-400">জন</span>
+                {memberMonthlyStats.length} <span className="text-xs font-normal text-slate-400">{isBangla ? 'জন' : 'Members'}</span>
               </div>
               <div className="text-[10px] text-slate-400 mt-1">
-                সদস্য প্রতি গড়: {memberMonthlyStats.length > 0 ? formatMealUnits(totalMonthUnits / memberMonthlyStats.length) : 0} মিল
+                {isBangla
+                  ? `সদস্য প্রতি গড়: ${memberMonthlyStats.length > 0 ? formatMealUnits(totalMonthUnits / memberMonthlyStats.length) : 0} মিল`
+                  : `Avg per member: ${memberMonthlyStats.length > 0 ? formatMealUnits(totalMonthUnits / memberMonthlyStats.length) : 0} meals`}
               </div>
             </div>
 
             <div className="glass-panel rounded-2xl p-4 border border-purple-500/20 bg-purple-950/10">
               <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span>লাইভ মিল রেট</span>
+                <span>{isBangla ? 'লাইভ মিল রেট' : 'Live Meal Rate'}</span>
                 <Zap className="w-4 h-4 text-purple-400" />
               </div>
               <div className="text-xl sm:text-2xl font-black text-purple-300 font-mono mt-1">
                 ৳{liveMealRate}
               </div>
               <div className="text-[10px] text-slate-400 mt-1">
-                অনুমোদিত বাজার ÷ মোট মিল
+                {isBangla ? 'অনুমোদিত বাজার ÷ মোট মিল' : 'Approved Bazar ÷ Total Meals'}
               </div>
             </div>
 
             <div className="glass-panel rounded-2xl p-4 border border-cyan-500/20 bg-cyan-950/10">
               <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span>আনুমানিক খাদ্য বিল</span>
+                <span>{isBangla ? 'আনুমানিক খাদ্য বিল' : 'Estimated Food Bill'}</span>
                 <Save className="w-4 h-4 text-cyan-400" />
               </div>
               <div className="text-xl sm:text-2xl font-black text-cyan-300 font-mono mt-1">
                 {formatTaka(totalEstimatedFoodCost)}
               </div>
               <div className="text-[10px] text-slate-400 mt-1">
-                চলমান চক্রের মোট মিল খরচ
+                {isBangla ? 'চলমান চক্রের মোট মিল খরচ' : 'Total food cost this cycle'}
               </div>
             </div>
           </div>
@@ -896,10 +953,16 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <Table className="w-4 h-4 text-emerald-400" />
-                  সদস্যদের মাসিক পূর্ণাঙ্গ মিল তালিকা ({filteredRegister.length} জন)
+                  <span>
+                    {isBangla
+                      ? `সদস্যদের মাসিক পূর্ণাঙ্গ মিল তালিকা (${filteredRegister.length} জন)`
+                      : `Monthly Member Meal Breakdown (${filteredRegister.length} Members)`}
+                  </span>
                 </h4>
                 <p className="text-xs text-slate-400">
-                  চলমান মাসে কার কয়টা সকালের ও রাতের মিল হয়েছে এবং আনুমানিক খাবার খরচের সারসংক্ষেপ
+                  {isBangla
+                    ? 'চলমান মাসে কার কয়টা সকালের ও রাতের মিল হয়েছে এবং আনুমানিক খাবার খরচের সারসংক্ষেপ'
+                    : 'Summary of breakfast, lunch, and dinner counts along with estimated food charges'}
                 </p>
               </div>
 
@@ -911,7 +974,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     type="text"
                     value={registerSearchQuery}
                     onChange={(e) => setRegisterSearchQuery(e.target.value)}
-                    placeholder="সদস্যের নাম দিয়ে খুঁজুন..."
+                    placeholder={isBangla ? 'সদস্যের নাম দিয়ে খুঁজুন...' : 'Search by member name...'}
                     className="w-full bg-slate-900 border border-slate-700/80 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 outline-none focus:border-indigo-500"
                   />
                   {registerSearchQuery && (
@@ -928,10 +991,10 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 <button
                   onClick={handleExportCSV}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-all cursor-pointer"
-                  title="সম্পূর্ণ মাসের মিল শিট CSV ফাইলে ডাউনলোড করুন"
+                  title={isBangla ? 'সম্পূর্ণ মাসের মিল শিট CSV ফাইলে ডাউনলোড করুন' : 'Download full month meals in CSV format'}
                 >
                   <Download className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>CSV এক্সপোর্ট</span>
+                  <span>{isBangla ? 'CSV এক্সপোর্ট' : 'Export CSV'}</span>
                 </button>
               </div>
             </div>
@@ -952,7 +1015,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                       className="py-3 px-3 cursor-pointer hover:text-white"
                     >
                       <div className="flex items-center gap-1.5">
-                        <span>সদস্যের বিবরণ</span>
+                        <span>{isBangla ? 'সদস্যের বিবরণ' : 'Member Details'}</span>
                         <ArrowUpDown className="w-3 h-3" />
                       </div>
                     </th>
@@ -968,7 +1031,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     >
                       <div className="flex items-center justify-center gap-1">
                         <Sun className="w-3 h-3 text-amber-400" />
-                        <span>সকাল</span>
+                        <span>{isBangla ? 'সকাল' : 'Breakfast'}</span>
                         <ArrowUpDown className="w-3 h-3" />
                       </div>
                     </th>
@@ -984,7 +1047,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     >
                       <div className="flex items-center justify-center gap-1">
                         <Coffee className="w-3 h-3 text-orange-400" />
-                        <span>দুপুর</span>
+                        <span>{isBangla ? 'দুপুর' : 'Lunch'}</span>
                         <ArrowUpDown className="w-3 h-3" />
                       </div>
                     </th>
@@ -1000,7 +1063,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     >
                       <div className="flex items-center justify-center gap-1">
                         <Moon className="w-3 h-3 text-indigo-400" />
-                        <span>রাত</span>
+                        <span>{isBangla ? 'রাত' : 'Dinner'}</span>
                         <ArrowUpDown className="w-3 h-3" />
                       </div>
                     </th>
@@ -1016,7 +1079,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     >
                       <div className="flex items-center justify-center gap-1">
                         <Utensils className="w-3 h-3 text-emerald-400" />
-                        <span>মোট মিল ইউনিট</span>
+                        <span>{isBangla ? 'মোট মিল ইউনিট' : 'Total Units'}</span>
                         <ArrowUpDown className="w-3 h-3" />
                       </div>
                     </th>
@@ -1031,12 +1094,12 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                       className="py-3 px-3 text-right cursor-pointer hover:text-white"
                     >
                       <div className="flex items-center justify-end gap-1">
-                        <span>খাবার খরচ</span>
+                        <span>{isBangla ? 'খাবার খরচ' : 'Food Cost'}</span>
                         <ArrowUpDown className="w-3 h-3" />
                       </div>
                     </th>
-                    <th className="py-3 px-3 text-center">উপস্থিতি</th>
-                    <th className="py-3 px-3 text-center">অ্যাকশন</th>
+                    <th className="py-3 px-3 text-center">{isBangla ? 'উপস্থিতি' : 'Attended'}</th>
+                    <th className="py-3 px-3 text-center">{isBangla ? 'অ্যাকশন' : 'Action'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
@@ -1044,91 +1107,109 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     <tr>
                       <td colSpan={8} className="py-8 text-center text-slate-500">
                         {registerSearchQuery
-                          ? `"${registerSearchQuery}" দিয়ে কোনো সদস্য পাওয়া যায়নি`
-                          : 'কোনো সদস্যের মিল রেকর্ড নেই'}
+                          ? (isBangla
+                              ? `"${registerSearchQuery}" দিয়ে কোনো সদস্য পাওয়া যায়নি`
+                              : `No members found matching "${registerSearchQuery}"`)
+                          : (isBangla ? 'কোনো সদস্যের মিল রেকর্ড নেই' : 'No meal records found')}
                       </td>
                     </tr>
                   ) : (
-                    filteredRegister.map((m) => (
-                      <tr key={m.userId} className="hover:bg-slate-900/60 transition-colors">
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={m.image}
-                              alt={m.name}
-                              className="w-8 h-8 rounded-xl object-cover border border-slate-700 shrink-0"
-                            />
-                            <div className="min-w-0">
-                              <div className="font-bold text-white text-xs truncate flex items-center gap-1.5">
-                                <span>{m.name}</span>
-                                {m.role === 'admin' && (
-                                  <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1 rounded font-normal">
-                                    ম্যানেজার
-                                  </span>
-                                )}
+                    filteredRegister.map((m) => {
+                      const isCurrentUserRow = m.userId === currentUser.id;
+                      return (
+                        <tr
+                          key={m.userId}
+                          className={`hover:bg-slate-900/60 transition-colors ${
+                            isCurrentUserRow ? 'bg-indigo-950/20' : ''
+                          }`}
+                        >
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={m.image}
+                                alt={m.name}
+                                className="w-8 h-8 rounded-xl object-cover border border-slate-700 shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="font-bold text-white text-xs truncate flex items-center gap-1.5">
+                                  <span>{m.name}</span>
+                                  {isCurrentUserRow && (
+                                    <span className="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1 rounded font-semibold">
+                                      {isBangla ? 'আপনি' : 'You'}
+                                    </span>
+                                  )}
+                                  {m.role === 'admin' && (
+                                    <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1 rounded font-normal">
+                                      {isBangla ? 'ম্যানেজার' : 'Manager'}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-slate-400 block truncate">
+                                  {m.email || (isBangla ? 'সদস্য' : 'Resident')}
+                                </span>
                               </div>
-                              <span className="text-[10px] text-slate-400 block truncate">
-                                {m.email || 'সদস্য'}
-                              </span>
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
-                          {m.morningTotal} টি
-                        </td>
+                          <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
+                            {m.morningTotal}
+                          </td>
 
-                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
-                          {m.lunchTotal} টি
-                        </td>
+                          <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
+                            {m.lunchTotal}
+                          </td>
 
-                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
-                          {m.nightTotal} টি
-                        </td>
+                          <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
+                            {m.nightTotal}
+                          </td>
 
-                        <td className="py-3 px-3 text-center">
-                          <span className="inline-block px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono font-extrabold text-xs">
-                            {formatMealUnits(m.totalUnits)}
-                          </span>
-                        </td>
+                          <td className="py-3 px-3 text-center">
+                            <span className="inline-block px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono font-extrabold text-xs">
+                              {formatMealUnits(m.totalUnits)}
+                            </span>
+                          </td>
 
-                        <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">
-                          {formatTaka(m.estimatedCost)}
-                        </td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">
+                            {formatTaka(m.estimatedCost)}
+                          </td>
 
-                        <td className="py-3 px-3 text-center text-[11px] text-slate-400">
-                          <span className="font-semibold text-slate-300">{m.attendedDaysCount}</span> দিন
-                        </td>
+                          <td className="py-3 px-3 text-center text-[11px] text-slate-400">
+                            <span className="font-semibold text-slate-300">{m.attendedDaysCount}</span>{' '}
+                            {isBangla ? 'দিন' : 'days'}
+                          </td>
 
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            onClick={() => {
-                              setLogUserFilter(m.userId);
-                              setSubTab('logs');
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-indigo-600/15 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-[10px] font-semibold transition-all cursor-pointer"
-                            title="এই সদস্যের সকল তারিখের বিস্তারিত লগ দেখুন"
-                          >
-                            লগ দেখুন
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                          <td className="py-3 px-3 text-center">
+                            <button
+                              onClick={() => {
+                                setLogUserFilter(m.userId);
+                                setSubTab('logs');
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600/15 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-[10px] font-semibold transition-all cursor-pointer"
+                              title={isBangla ? 'এই সদস্যের সকল তারিখের বিস্তারিত লগ দেখুন' : 'View all date logs for this member'}
+                            >
+                              {isBangla ? 'লগ দেখুন' : 'View Logs'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-900 border-t-2 border-slate-800 text-xs font-bold text-slate-200">
                     <td className="py-3 px-3">
-                      মোট ({filteredRegister.length} জন বর্ডার)
+                      {isBangla
+                        ? `মোট (${filteredRegister.length} জন বর্ডার)`
+                        : `Total (${filteredRegister.length} Dining Members)`}
                     </td>
                     <td className="py-3 px-3 text-center font-mono text-amber-300">
-                      {filteredRegister.reduce((sum, m) => sum + m.morningTotal, 0)} টি
+                      {filteredRegister.reduce((sum, m) => sum + m.morningTotal, 0)}
                     </td>
                     <td className="py-3 px-3 text-center font-mono text-orange-300">
-                      {filteredRegister.reduce((sum, m) => sum + m.lunchTotal, 0)} টি
+                      {filteredRegister.reduce((sum, m) => sum + m.lunchTotal, 0)}
                     </td>
                     <td className="py-3 px-3 text-center font-mono text-indigo-300">
-                      {filteredRegister.reduce((sum, m) => sum + m.nightTotal, 0)} টি
+                      {filteredRegister.reduce((sum, m) => sum + m.nightTotal, 0)}
                     </td>
                     <td className="py-3 px-3 text-center font-mono text-emerald-400 font-extrabold">
                       {formatMealUnits(filteredRegister.reduce((sum, m) => sum + m.totalUnits, 0))}
@@ -1137,7 +1218,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                       {formatTaka(filteredRegister.reduce((sum, m) => sum + m.estimatedCost, 0))}
                     </td>
                     <td colSpan={2} className="py-3 px-3 text-right text-[10px] text-slate-400">
-                      মাসিক চূড়ান্ত মিল রেট: ৳{liveMealRate}
+                      {isBangla ? 'মাসিক চূড়ান্ত মিল রেট:' : 'Cycle Meal Rate:'} ৳{liveMealRate}
                     </td>
                   </tr>
                 </tfoot>
@@ -1158,7 +1239,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 <button
                   onClick={() => changeDateByDays(-1)}
                   className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
-                  title="আগের দিন"
+                  title={isBangla ? 'আগের দিন' : 'Previous Day'}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -1175,7 +1256,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 <button
                   onClick={() => changeDateByDays(1)}
                   className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
-                  title="পরের দিন"
+                  title={isBangla ? 'পরের দিন' : 'Next Day'}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -1184,44 +1265,42 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   onClick={() => setSelectedDate(getTodayStr())}
                   className="text-xs px-2.5 py-2 rounded-xl bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 font-medium transition-all cursor-pointer"
                 >
-                  আজ
+                  {isBangla ? 'আজ' : 'Today'}
                 </button>
               </div>
 
               {/* Quick Fill Actions (Manager only) */}
-              {canEditMeals && (
+              {canEditMeals ? (
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                   <button
                     onClick={() => handleSetAll(1)}
                     className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors cursor-pointer"
                   >
-                    সবার মিল ১
+                    {isBangla ? 'সবার মিল ১' : 'All 1 Meal'}
                   </button>
                   <button
                     onClick={() => handleSetAll(0.5)}
                     className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 font-medium transition-colors cursor-pointer"
                   >
-                    সবার হাফ (০.৫)
+                    {isBangla ? 'সবার হাফ (০.৫)' : 'All Half (0.5)'}
                   </button>
                   <button
                     onClick={() => handleSetAll(0)}
                     className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors cursor-pointer"
                   >
-                    সবার মিল ০
+                    {isBangla ? 'সবার মিল ০' : 'All 0 Meal'}
                   </button>
-                  {canEditMeals && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingLeave(null);
-                        setIsLeaveModalOpen(true);
-                      }}
-                      className="text-xs px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                    >
-                      <Calendar className="w-3.5 h-3.5" />
-                      <span>+ ছুটি দিন</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingLeave(null);
+                      setIsLeaveModalOpen(true);
+                    }}
+                    className="text-xs px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>{isBangla ? '+ ছুটি দিন' : '+ Add Leave'}</span>
+                  </button>
                   <button
                     onClick={handleSaveMeals}
                     disabled={isSaving}
@@ -1232,8 +1311,19 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     ) : (
                       <Save className="w-3.5 h-3.5" />
                     )}
-                    {isSaving ? 'সংরক্ষণ হচ্ছে...' : 'হাজিরা সংরক্ষণ করুন'}
+                    {isSaving
+                      ? (isBangla ? 'সংরক্ষণ হচ্ছে...' : 'Saving...')
+                      : (isBangla ? 'হাজিরা সংরক্ষণ করুন' : 'Save Attendance')}
                   </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+                  <Info className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>
+                    {isBangla
+                      ? 'শুধুমাত্র মেস ম্যানেজার হাজিরা ইনপুট সংরক্ষণ করতে পারেন'
+                      : 'Only Mess Manager can enter daily attendance'}
+                  </span>
                 </div>
               )}
             </div>
@@ -1248,28 +1338,30 @@ export const MealsTab: React.FC<MealsTabProps> = ({
             {/* Daily Summary Stats Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-800/80">
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-[11px] text-slate-400">সকালের মিল</span>
-                <p className="text-base font-bold text-white mt-0.5">{totalMorningMeals} টি</p>
-                <span className="text-[10px] text-amber-400/80 font-mono">সকাল</span>
+                <span className="text-[11px] text-slate-400">{isBangla ? 'সকালের মিল' : 'Breakfast'}</span>
+                <p className="text-base font-bold text-white mt-0.5">{totalMorningMeals}</p>
+                <span className="text-[10px] text-amber-400/80 font-mono">{isBangla ? 'সকাল' : 'Morning'}</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-[11px] text-slate-400">দুপুরের মিল</span>
-                <p className="text-base font-bold text-white mt-0.5">{totalLunchMeals} টি</p>
-                <span className="text-[10px] text-orange-400/80 font-mono">দুপুর</span>
+                <span className="text-[11px] text-slate-400">{isBangla ? 'দুপুরের মিল' : 'Lunch'}</span>
+                <p className="text-base font-bold text-white mt-0.5">{totalLunchMeals}</p>
+                <span className="text-[10px] text-orange-400/80 font-mono">{isBangla ? 'দুপুর' : 'Midday'}</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-[11px] text-slate-400">রাতের মিল</span>
-                <p className="text-base font-bold text-white mt-0.5">{totalNightMeals} টি</p>
-                <span className="text-[10px] text-indigo-400/80 font-mono">রাত</span>
+                <span className="text-[11px] text-slate-400">{isBangla ? 'রাতের মিল' : 'Dinner'}</span>
+                <p className="text-base font-bold text-white mt-0.5">{totalNightMeals}</p>
+                <span className="text-[10px] text-indigo-400/80 font-mono">{isBangla ? 'রাত' : 'Night'}</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-[11px] text-indigo-400">মোট মিল ইউনিট</span>
+                <span className="text-[11px] text-indigo-400">{isBangla ? 'মোট মিল ইউনিট' : 'Total Units'}</span>
                 <p className="text-base font-bold text-indigo-300 mt-0.5 font-mono">{formatMealUnits(totalMealUnits)}</p>
                 <span className="text-[10px] text-indigo-400/80 font-mono">{totalMorningMeals} + {totalLunchMeals} + {totalNightMeals}</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-[11px] text-slate-400">ডাইনিং সদস্য সংখ্যা</span>
-                <p className="text-base font-bold text-white mt-0.5">{members.filter((m) => m.role !== 'super_admin').length} জন</p>
+                <span className="text-[11px] text-slate-400">{isBangla ? 'ডাইনিং সদস্য সংখ্যা' : 'Dining Members'}</span>
+                <p className="text-base font-bold text-white mt-0.5">
+                  {members.filter((m) => m.role !== 'super_admin').length} {isBangla ? 'জন' : 'members'}
+                </p>
               </div>
             </div>
           </div>
@@ -1280,10 +1372,16 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <UserCheck className="w-4 h-4 text-indigo-400" />
-                  {selectedDate} তারিখের ব্যক্তিগত মিল তালিকা
+                  <span>
+                    {isBangla
+                      ? `${selectedDate} তারিখের ব্যক্তিগত মিল তালিকা`
+                      : `Meal Attendance for ${selectedDate}`}
+                  </span>
                 </h4>
                 <p className="text-xs text-slate-400">
-                  সদস্যদের সকাল, দুপুর ও রাতের মিল পরিবর্তন করতে + / - বাটনে ক্লিক করুন
+                  {isBangla
+                    ? 'সদস্যদের সকাল, দুপুর ও রাতের মিল পরিবর্তন করতে + / - বাটনে ক্লিক করুন'
+                    : 'Adjust morning, lunch, and dinner attendance using the +/- controls'}
                 </p>
               </div>
             </div>
@@ -1291,7 +1389,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
             {isLoadingDateMeals ? (
               <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
                 <RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
-                <span>তারিখের মিল লোড হচ্ছে...</span>
+                <span>{isBangla ? 'তারিখের মিল লোড হচ্ছে...' : 'Loading date meals...'}</span>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1302,6 +1400,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     const entry = dailyEntries[uId] || { morning: 0, lunch: 1, night: 1 };
                     const userTotal = entry.morning + (entry.lunch || 0) + entry.night;
                     const leaveInfo = getMemberLeaveForDate(uId, selectedDate);
+                    const isCurrentUser = uId === currentUser.id;
 
                     return (
                       <div
@@ -1309,6 +1408,8 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                         className={`p-3.5 rounded-xl border transition-all space-y-3 ${
                           leaveInfo
                             ? 'bg-amber-950/20 border-amber-500/40 shadow-sm shadow-amber-500/5'
+                            : isCurrentUser
+                            ? 'bg-indigo-950/20 border-indigo-500/30'
                             : 'bg-slate-900/70 border-slate-800/80 hover:border-slate-700'
                         }`}
                       >
@@ -1320,23 +1421,30 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                               className="w-8 h-8 rounded-xl object-cover border border-slate-700"
                             />
                             <div className="truncate">
-                              <span className="font-semibold text-slate-200 text-xs block truncate">
-                                {member.name}
-                              </span>
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="font-semibold text-slate-200 text-xs block truncate">
+                                  {member.name}
+                                </span>
+                                {isCurrentUser && (
+                                  <span className="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1 rounded font-semibold shrink-0">
+                                    {isBangla ? 'আপনি' : 'You'}
+                                  </span>
+                                )}
+                              </div>
                               {leaveInfo ? (
                                 <span className="text-[10px] text-amber-300 font-medium block truncate flex items-center gap-1">
-                                  🌴 ছুটিতে আছেন ({leaveInfo.startDate} হতে {leaveInfo.endDate})
+                                  🌴 {isBangla ? 'ছুটিতে আছেন' : 'On Leave'} ({leaveInfo.startDate} {isBangla ? 'হতে' : 'to'} {leaveInfo.endDate})
                                 </span>
                               ) : (
                                 <span className="text-[10px] text-slate-500 block truncate">
-                                  {member.email || 'মেস সদস্য'}
+                                  {member.email || (isBangla ? 'মেস সদস্য' : 'Resident')}
                                 </span>
                               )}
                             </div>
                           </div>
 
                           <div className="text-right shrink-0">
-                            <span className="text-[10px] text-slate-400 block">মোট ইউনিট</span>
+                            <span className="text-[10px] text-slate-400 block">{isBangla ? 'মোট ইউনিট' : 'Total Units'}</span>
                             <span className={`font-mono font-bold text-xs ${leaveInfo && userTotal === 0 ? 'text-amber-400' : 'text-indigo-300'}`}>
                               {formatMealUnits(userTotal)}
                             </span>
@@ -1347,13 +1455,13 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                         <div className="grid grid-cols-3 gap-1.5 text-xs">
                           {/* Morning */}
                           <div className="flex flex-col items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60 gap-1.5">
-                            <span className="text-[11px] font-semibold text-amber-300">সকাল</span>
+                            <span className="text-[11px] font-semibold text-amber-300">{isBangla ? 'সকাল' : 'Breakfast'}</span>
                             <div className="flex items-center gap-1">
                               {canEditMeals && (
                                 <button
                                   onClick={() => updateCount(uId, 'morning', -0.5)}
                                   className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
-                                  title="০.৫ কমান"
+                                  title={isBangla ? '০.৫ কমান' : 'Reduce 0.5'}
                                 >
                                   -
                                 </button>
@@ -1365,7 +1473,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                                 <button
                                   onClick={() => updateCount(uId, 'morning', 0.5)}
                                   className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
-                                  title="০.৫ বাড়ান"
+                                  title={isBangla ? '০.৫ বাড়ান' : 'Increase 0.5'}
                                 >
                                   +
                                 </button>
@@ -1375,13 +1483,13 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
                           {/* Lunch */}
                           <div className="flex flex-col items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60 gap-1.5">
-                            <span className="text-[11px] font-semibold text-orange-300">দুপুর</span>
+                            <span className="text-[11px] font-semibold text-orange-300">{isBangla ? 'দুপুর' : 'Lunch'}</span>
                             <div className="flex items-center gap-1">
                               {canEditMeals && (
                                 <button
                                   onClick={() => updateCount(uId, 'lunch', -0.5)}
                                   className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
-                                  title="০.৫ কমান"
+                                  title={isBangla ? '০.৫ কমান' : 'Reduce 0.5'}
                                 >
                                   -
                                 </button>
@@ -1393,7 +1501,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                                 <button
                                   onClick={() => updateCount(uId, 'lunch', 0.5)}
                                   className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
-                                  title="০.৫ বাড়ান"
+                                  title={isBangla ? '০.৫ বাড়ান' : 'Increase 0.5'}
                                 >
                                   +
                                 </button>
@@ -1403,13 +1511,13 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
                           {/* Night */}
                           <div className="flex flex-col items-center justify-between bg-slate-950/60 p-2 rounded-lg border border-slate-800/60 gap-1.5">
-                            <span className="text-[11px] font-semibold text-indigo-300">রাত</span>
+                            <span className="text-[11px] font-semibold text-indigo-300">{isBangla ? 'রাত' : 'Dinner'}</span>
                             <div className="flex items-center gap-1">
                               {canEditMeals && (
                                 <button
                                   onClick={() => updateCount(uId, 'night', -0.5)}
                                   className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
-                                  title="০.৫ কমান"
+                                  title={isBangla ? '০.৫ কমান' : 'Reduce 0.5'}
                                 >
                                   -
                                 </button>
@@ -1421,7 +1529,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                                 <button
                                   onClick={() => updateCount(uId, 'night', 0.5)}
                                   className="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center transition-colors cursor-pointer"
-                                  title="০.৫ বাড়ান"
+                                  title={isBangla ? '০.৫ বাড়ান' : 'Increase 0.5'}
                                 >
                                   +
                                 </button>
@@ -1434,7 +1542,9 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                         {leaveInfo && (
                           <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-amber-500/20">
                             <span className="text-amber-400/90 text-[10px] font-medium">
-                              {userTotal === 0 ? 'অটো বন্ধ (ছুটি চলছে)' : 'মিল সক্রিয় করা হয়েছে'}
+                              {userTotal === 0
+                                ? (isBangla ? 'অটো বন্ধ (ছুটি চলছে)' : 'Auto Off (On Leave)')
+                                : (isBangla ? 'মিল সক্রিয় করা হয়েছে' : 'Meals Resumed')}
                             </span>
                             {canEditMeals && userTotal === 0 && (
                               <button
@@ -1445,7 +1555,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                                 }}
                                 className="text-[10px] text-amber-300 hover:text-amber-200 font-semibold underline cursor-pointer"
                               >
-                                আগে ফিরেছেন? মিল ১ করুন
+                                {isBangla ? 'আগে ফিরেছেন? মিল ১ করুন' : 'Returned early? Set to 1'}
                               </button>
                             )}
                           </div>
@@ -1467,10 +1577,16 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <FileText className="w-4 h-4 text-indigo-400" />
-                  তারিখভিত্তিক বিস্তারিত মিল লগ ({filteredDailyLogs.length} রেকর্ড)
+                  <span>
+                    {isBangla
+                      ? `তারিখভিত্তিক বিস্তারিত মিল লগ (${filteredDailyLogs.length} রেকর্ড)`
+                      : `Date-wise Detailed Meal Logs (${filteredDailyLogs.length} Records)`}
+                  </span>
                 </h4>
                 <p className="text-xs text-slate-400">
-                  প্রতিদিনের সকাল ও রাতের মিলের বিস্তারিত উপস্থিতি ইতিহাস
+                  {isBangla
+                    ? 'প্রতিদিনের সকাল ও রাতের মিলের বিস্তারিত উপস্থিতি ইতিহাস'
+                    : 'Daily breakfast, lunch, and dinner attendance records across dates'}
                 </p>
               </div>
 
@@ -1482,7 +1598,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   onChange={(e) => setLogDateFilter(e.target.value)}
                   className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 outline-none cursor-pointer"
                 >
-                  <option value="">সকল তারিখ</option>
+                  <option value="">{isBangla ? 'সকল তারিখ' : 'All Dates'}</option>
                   {uniqueDates.map((d) => (
                     <option key={d} value={d}>
                       {d}
@@ -1496,7 +1612,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   onChange={(e) => setLogUserFilter(e.target.value)}
                   className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 outline-none cursor-pointer"
                 >
-                  <option value="">সকল সদস্য</option>
+                  <option value="">{isBangla ? 'সকল সদস্য' : 'All Members'}</option>
                   {members
                     .filter((m) => m.role !== 'super_admin')
                     .map((m) => (
@@ -1513,7 +1629,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     type="text"
                     value={logSearchQuery}
                     onChange={(e) => setLogSearchQuery(e.target.value)}
-                    placeholder="খুঁজুন..."
+                    placeholder={isBangla ? 'খুঁজুন...' : 'Search logs...'}
                     className="bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 outline-none w-36 sm:w-44 focus:border-indigo-500"
                   />
                   {logSearchQuery && (
@@ -1533,15 +1649,15 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-900/80 border-b border-slate-800 text-slate-400 font-bold">
-                    <th className="py-2.5 px-3">তারিখ</th>
-                    <th className="py-2.5 px-3">সদস্যের নাম</th>
-                    <th className="py-2.5 px-3 text-center">সকালের মিল</th>
-                    <th className="py-2.5 px-3 text-center">দুপুরের মিল</th>
-                    <th className="py-2.5 px-3 text-center">রাতের মিল</th>
-                    <th className="py-2.5 px-3 text-center">মোট মিল ইউনিট</th>
-                    <th className="py-2.5 px-3 text-center">স্ট্যাটাস</th>
+                    <th className="py-2.5 px-3">{isBangla ? 'তারিখ' : 'Date'}</th>
+                    <th className="py-2.5 px-3">{isBangla ? 'সদস্যের নাম' : 'Member Name'}</th>
+                    <th className="py-2.5 px-3 text-center">{isBangla ? 'সকালের মিল' : 'Breakfast'}</th>
+                    <th className="py-2.5 px-3 text-center">{isBangla ? 'দুপুরের মিল' : 'Lunch'}</th>
+                    <th className="py-2.5 px-3 text-center">{isBangla ? 'রাতের মিল' : 'Dinner'}</th>
+                    <th className="py-2.5 px-3 text-center">{isBangla ? 'মোট মিল ইউনিট' : 'Total Units'}</th>
+                    <th className="py-2.5 px-3 text-center">{isBangla ? 'স্ট্যাটাস' : 'Status'}</th>
                     {canEditMeals && (
-                      <th className="py-2.5 px-3 text-center">অ্যাকশন</th>
+                      <th className="py-2.5 px-3 text-center">{isBangla ? 'অ্যাকশন' : 'Action'}</th>
                     )}
                   </tr>
                 </thead>
@@ -1549,7 +1665,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   {filteredDailyLogs.length === 0 ? (
                     <tr>
                       <td colSpan={canEditMeals ? 8 : 7} className="py-8 text-center text-slate-500">
-                        কোনো মিল লগ পাওয়া যায়নি
+                        {isBangla ? 'কোনো মিল লগ পাওয়া যায়নি' : 'No meal logs found'}
                       </td>
                     </tr>
                   ) : (
@@ -1588,7 +1704,9 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                                 : 'bg-rose-500/15 text-rose-400'
                             }`}
                           >
-                            {row.total > 0 ? 'খাবার চালু' : 'মিল অফ'}
+                            {row.total > 0
+                              ? (isBangla ? 'খাবার চালু' : 'Active')
+                              : (isBangla ? 'মিল অফ' : 'Meal Off')}
                           </span>
                         </td>
                         {canEditMeals && (
@@ -1606,14 +1724,14 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                                   })
                                 }
                                 className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 transition-colors cursor-pointer"
-                                title="মিল সংশোধন বা এডিট করুন"
+                                title={isBangla ? 'মিল সংশোধন বা এডিট করুন' : 'Edit meal record'}
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => handleDeleteMealLog(row.date, row.userId, row.name)}
                                 className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
-                                title="মিল ০ বা ডিলিট করুন"
+                                title={isBangla ? 'মিল ০ বা ডিলিট করুন' : 'Reset meal to 0'}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1640,7 +1758,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   <Utensils className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white">মিল সংশোধন</h4>
+                  <h4 className="text-sm font-bold text-white">{isBangla ? 'মিল সংশোধন' : 'Edit Meal Record'}</h4>
                   <p className="text-[11px] text-slate-400 font-mono">
                     {editingLogItem.date} • {editingLogItem.name}
                   </p>
@@ -1658,8 +1776,8 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               {/* Morning Meal Input */}
               <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-semibold text-amber-300 block">সকালের মিল</span>
-                  <span className="text-[10px] text-slate-500 block">সকালের খাবার</span>
+                  <span className="text-xs font-semibold text-amber-300 block">{isBangla ? 'সকালের মিল' : 'Breakfast'}</span>
+                  <span className="text-[10px] text-slate-500 block">{isBangla ? 'সকালের খাবার' : 'Morning Slot'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -1703,8 +1821,8 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               {/* Lunch Meal Input */}
               <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-semibold text-orange-300 block">দুপুরের মিল</span>
-                  <span className="text-[10px] text-slate-500 block">দুপুরের খাবার</span>
+                  <span className="text-xs font-semibold text-orange-300 block">{isBangla ? 'দুপুরের মিল' : 'Lunch'}</span>
+                  <span className="text-[10px] text-slate-500 block">{isBangla ? 'দুপুরের খাবার' : 'Midday Slot'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -1748,8 +1866,8 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               {/* Night Meal Input */}
               <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-semibold text-indigo-300 block">রাতের মিল</span>
-                  <span className="text-[10px] text-slate-500 block">রাতের খাবার</span>
+                  <span className="text-xs font-semibold text-indigo-300 block">{isBangla ? 'রাতের মিল' : 'Dinner'}</span>
+                  <span className="text-[10px] text-slate-500 block">{isBangla ? 'রাতের খাবার' : 'Night Slot'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -1792,9 +1910,9 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
               {/* Real-time Units Calculation Preview */}
               <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/30 flex items-center justify-between">
-                <span className="text-xs text-indigo-300">হিসাবকৃত মোট মিল ইউনিট:</span>
+                <span className="text-xs text-indigo-300">{isBangla ? 'হিসাবকৃত মোট মিল ইউনিট:' : 'Calculated Total Units:'}</span>
                 <span className="font-mono font-bold text-sm text-indigo-200">
-                  {formatMealUnits(editingLogItem.morning + (editingLogItem.lunch || 0) + editingLogItem.night)} ইউনিট
+                  {formatMealUnits(editingLogItem.morning + (editingLogItem.lunch || 0) + editingLogItem.night)} {isBangla ? 'ইউনিট' : 'Units'}
                 </span>
               </div>
             </div>
@@ -1805,7 +1923,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 onClick={() => setEditingLogItem(null)}
                 className="px-3 py-1.5 rounded-xl text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                বাতিল
+                {isBangla ? 'বাতিল' : 'Cancel'}
               </button>
               <button
                 type="button"
@@ -1818,7 +1936,9 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                 ) : (
                   <Save className="w-3.5 h-3.5" />
                 )}
-                {isSavingLogEdit ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
+                {isSavingLogEdit
+                  ? (isBangla ? 'সংরক্ষণ হচ্ছে...' : 'Saving...')
+                  : (isBangla ? 'সংরক্ষণ করুন' : 'Save Changes')}
               </button>
             </div>
           </div>
@@ -1839,7 +1959,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               }`}
             >
               <Utensils className="w-3.5 h-3.5" />
-              <span>মিলের আবেদন</span>
+              <span>{isBangla ? 'মিলের আবেদন' : 'Meal Requests'}</span>
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-500/30 font-mono">
                 {requests.length}
               </span>
@@ -1854,7 +1974,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               }`}
             >
               <ShoppingBag className="w-3.5 h-3.5" />
-              <span>বাজার খরচের আবেদন</span>
+              <span>{isBangla ? 'বাজার খরচের আবেদন' : 'Bazar Requests'}</span>
               <span
                 className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                   pendingBazars.length > 0
@@ -1875,7 +1995,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
-              <span>মেসের ছুটি ও অনুপস্থিতি শিডিউল</span>
+              <span>{isBangla ? 'মেসের ছুটি ও অনুপস্থিতি শিডিউল' : 'Leave Schedules'}</span>
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-mono">
                 {activeLeaves.length}
               </span>
@@ -1892,7 +2012,11 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   type="text"
                   value={requestSearch}
                   onChange={(e) => setRequestSearch(e.target.value)}
-                  placeholder="সদস্যের নাম বা কারণ দিয়ে খুঁজুন..."
+                  placeholder={
+                    isBangla
+                      ? 'সদস্যের নাম বা কারণ দিয়ে খুঁজুন...'
+                      : 'Search by member name or reason...'
+                  }
                   className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                 />
                 {requestSearch && (
@@ -1918,12 +2042,20 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     }`}
                   >
                     {st === 'all'
-                      ? 'সব অবস্থা'
+                      ? isBangla
+                        ? 'সব অবস্থা'
+                        : 'All Status'
                       : st === 'pending'
-                      ? 'অপেক্ষমান'
+                      ? isBangla
+                        ? 'অপেক্ষমান'
+                        : 'Pending'
                       : st === 'approved'
-                      ? 'অনুমোদিত'
-                      : 'বাতিল'}
+                      ? isBangla
+                        ? 'অনুমোদিত'
+                        : 'Approved'
+                      : isBangla
+                      ? 'বাতিল'
+                      : 'Rejected'}
                   </button>
                 ))}
               </div>
@@ -1941,7 +2073,17 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                           : 'text-slate-400 hover:text-slate-300'
                       }`}
                     >
-                      {tp === 'all' ? 'সব ধরন' : tp === 'off' ? 'মিল অফ / ছুটি' : 'মিল অন'}
+                      {tp === 'all'
+                        ? isBangla
+                          ? 'সব ধরন'
+                          : 'All Types'
+                        : tp === 'off'
+                        ? isBangla
+                          ? 'মিল অফ / ছুটি'
+                          : 'Meal Off / Leave'
+                        : isBangla
+                        ? 'মিল চালু'
+                        : 'Meal On'}
                     </button>
                   ))}
                 </div>
@@ -1954,7 +2096,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
             <div className="space-y-3">
               {filteredMealRequests.length === 0 ? (
                 <div className="glass-panel rounded-2xl p-8 text-center text-xs text-slate-500 border border-slate-800">
-                  কোনো মিল অনুরোধ পাওয়া যায়নি
+                  {isBangla ? 'কোনো মিল অনুরোধ পাওয়া যায়নি' : 'No meal requests found'}
                 </div>
               ) : (
                 filteredMealRequests.map((req) => (
@@ -1965,7 +2107,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-white text-sm">
-                          {req.userName || 'সদস্য'}
+                          {req.userName || (isBangla ? 'সদস্য' : 'Member')}
                         </span>
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded ${
@@ -1974,11 +2116,18 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                               : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                           }`}
                         >
-                          {req.action === 'off' ? 'মিল অফ (Off / ছুটি)' : 'মিল চালু (On)'}
+                          {req.action === 'off'
+                            ? isBangla
+                              ? 'মিল অফ (Off / ছুটি)'
+                              : 'Meal Off / Leave'
+                            : isBangla
+                            ? 'মিল চালু (On)'
+                            : 'Meal On'}
                         </span>
                         {req.isLate && (
                           <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-1 font-semibold">
-                            <AlertTriangle className="w-3 h-3" /> Late রিকোয়েস্ট
+                            <AlertTriangle className="w-3 h-3" />{' '}
+                            {isBangla ? 'Late রিকোয়েস্ট' : 'Late Request'}
                           </span>
                         )}
                         <span
@@ -1991,24 +2140,34 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                           }`}
                         >
                           {req.status === 'pending'
-                            ? 'অপেক্ষমান'
+                            ? isBangla
+                              ? 'অপেক্ষমান'
+                              : 'Pending'
                             : req.status === 'approved'
-                            ? 'অনুমোদিত'
-                            : 'বাতিল'}
+                            ? isBangla
+                              ? 'অনুমোদিত'
+                              : 'Approved'
+                            : isBangla
+                            ? 'বাতিল'
+                            : 'Rejected'}
                         </span>
                       </div>
                       <p className="text-xs text-slate-400">
                         {req.startDate && req.endDate && req.startDate !== req.endDate ? (
                           <span>
-                            মেয়াদ: <strong className="text-slate-200">{req.startDate}</strong> থেকে{' '}
+                            {isBangla ? 'মেয়াদ:' : 'Period:'}{' '}
+                            <strong className="text-slate-200">{req.startDate}</strong>{' '}
+                            {isBangla ? 'থেকে' : 'to'}{' '}
                             <strong className="text-slate-200">{req.endDate}</strong>
                           </span>
                         ) : (
                           <span>
-                            তারিখ: <strong className="text-slate-200">{req.date}</strong>
+                            {isBangla ? 'তারিখ:' : 'Date:'}{' '}
+                            <strong className="text-slate-200">{req.date}</strong>
                           </span>
                         )}{' '}
-                        | স্লট: <strong className="text-slate-300">{req.slotName}</strong>
+                        | {isBangla ? 'স্লট:' : 'Slot:'}{' '}
+                        <strong className="text-slate-300">{req.slotName}</strong>
                         {req.reason && (
                           <span className="text-slate-300"> — &quot;{req.reason}&quot;</span>
                         )}
@@ -2023,7 +2182,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                           className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
                         >
                           <CheckCircle className="w-3.5 h-3.5" />
-                          অনুমোদন
+                          {isBangla ? 'অনুমোদন' : 'Approve'}
                         </button>
                         <button
                           onClick={() => handleReview(req._id, 'rejected')}
@@ -2031,7 +2190,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                           className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
                         >
                           <XCircle className="w-3.5 h-3.5" />
-                          বাতিল
+                          {isBangla ? 'বাতিল' : 'Reject'}
                         </button>
                       </div>
                     )}
@@ -2046,12 +2205,18 @@ export const MealsTab: React.FC<MealsTabProps> = ({
             <div className="space-y-3">
               {filteredBazarRequests.length === 0 ? (
                 <div className="glass-panel rounded-2xl p-8 text-center text-xs text-slate-500 border border-slate-800">
-                  কোনো অপেক্ষমান বা জমাকৃত বাজার খরচের আবেদন নেই
+                  {isBangla
+                    ? 'কোনো অপেক্ষমান বা জমাকৃত বাজার খরচের আবেদন নেই'
+                    : 'No pending or submitted bazar requests'}
                 </div>
               ) : (
                 filteredBazarRequests.map((b) => {
                   const buyer = members.find((m) => (m.userId || m._id) === b.userId);
-                  const buyerName = buyer?.displayName || buyer?.name || b.userName || 'সদস্য';
+                  const buyerName =
+                    buyer?.displayName ||
+                    buyer?.name ||
+                    b.userName ||
+                    (isBangla ? 'সদস্য' : 'Member');
                   const isPending = b.status === 'pending';
 
                   return (
@@ -2078,24 +2243,39 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                             }`}
                           >
                             {isPending
-                              ? 'অনুমোদনের অপেক্ষায়'
+                              ? isBangla
+                                ? 'অনুমোদনের অপেক্ষায়'
+                                : 'Pending Approval'
                               : b.status === 'approved'
-                              ? 'অনুমোদিত'
-                              : 'বাতিল'}
+                              ? isBangla
+                                ? 'অনুমোদিত'
+                                : 'Approved'
+                              : isBangla
+                              ? 'বাতিল'
+                              : 'Rejected'}
                           </span>
                         </div>
                         <p className="text-xs text-slate-300">
-                          {b.description || 'বাজার খরচের ভাউচার'}
+                          {b.description ||
+                            (isBangla ? 'বাজার খরচের ভাউচার' : 'Bazar expense voucher')}
                           {b.type && (
                             <span className="text-slate-500 ml-1.5">
                               (
                               {b.type === 'regular'
-                                ? 'রেগুলার'
+                                ? isBangla
+                                  ? 'রেগুলার'
+                                  : 'Regular'
                                 : b.type === 'big'
-                                ? 'বড় বাজার'
+                                ? isBangla
+                                  ? 'বড় বাজার'
+                                  : 'Big Bazar'
                                 : b.type === 'fixed'
-                                ? 'ফিক্সড ভোজ'
-                                : 'অতিরিক্ত বাজার'}
+                                ? isBangla
+                                  ? 'ফিক্সড ভোজ'
+                                  : 'Fixed Feast'
+                                : isBangla
+                                ? 'অতিরিক্ত বাজার'
+                                : 'Extra Bazar'}
                               )
                             </span>
                           )}
@@ -2110,7 +2290,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                             className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
                           >
                             <CheckCircle className="w-3.5 h-3.5" />
-                            অনুমোদন
+                            {isBangla ? 'অনুমোদন' : 'Approve'}
                           </button>
                           <button
                             onClick={() => handleReviewBazar(b._id, 'rejected')}
@@ -2118,7 +2298,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                             className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
                           >
                             <XCircle className="w-3.5 h-3.5" />
-                            বাতিল
+                            {isBangla ? 'বাতিল' : 'Reject'}
                           </button>
                         </div>
                       )}
@@ -2132,27 +2312,35 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           {/* CATEGORY 3: ACTIVE LEAVES & ABSENCE SCHEDULE */}
           {requestCategory === 'leaves' && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between pb-1">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-1">
                 <span className="text-xs text-slate-400">
-                  নির্ধারিত ছুটির দিনগুলোতে সদস্যের মিল দৈনিক ইনপুট শিটে স্বয়ংক্রিয়ভাবে ০ থাকবে
+                  {isBangla
+                    ? 'নির্ধারিত ছুটির দিনগুলোতে সদস্যের মিল দৈনিক ইনপুট শিটে স্বয়ংক্রিয়ভাবে ০ থাকবে'
+                    : 'On scheduled leave days, member meal will automatically default to 0 on the daily input sheet'}
                 </span>
-                {canEditMeals && (
-                  <button
-                    onClick={() => {
-                      setEditingLeave(null);
-                      setIsLeaveModalOpen(true);
-                    }}
-                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-semibold transition-all cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    নতুন ছুটি নির্ধারণ
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    setEditingLeave(null);
+                    setIsLeaveModalOpen(true);
+                  }}
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-semibold transition-all cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {canEditMeals
+                    ? isBangla
+                      ? 'নতুন ছুটি নির্ধারণ'
+                      : 'Schedule Member Leave'
+                    : isBangla
+                    ? '+ ছুটির আবেদন'
+                    : '+ Request Leave'}
+                </button>
               </div>
 
               {activeLeaves.length === 0 ? (
                 <div className="glass-panel rounded-2xl p-8 text-center text-xs text-slate-500 border border-slate-800">
-                  বর্তমানে কোনো সদস্যের নির্ধারিত ছুটি সক্রিয় নেই।
+                  {isBangla
+                    ? 'বর্তমানে কোনো সদস্যের নির্ধারিত ছুটি সক্রিয় নেই।'
+                    : 'No active scheduled leaves at the moment.'}
                 </div>
               ) : (
                 activeLeaves.map((leave) => {
@@ -2163,6 +2351,11 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                       (new Date(eDate).getTime() - new Date(sDate).getTime()) /
                         (1000 * 60 * 60 * 24)
                     ) + 1;
+                  const currentUId =
+                    currentUser?.id ||
+                    (currentUser as any)?._id ||
+                    (currentUser as any)?.userId;
+                  const isMyLeave = Boolean(currentUId && leave.userId === currentUId);
 
                   return (
                     <div
@@ -2172,52 +2365,93 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-white text-sm">
-                            {leave.userName || 'সদস্য'}
+                            {leave.userName || (isBangla ? 'সদস্য' : 'Member')}
                           </span>
+                          {isMyLeave && (
+                            <span className="text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-full">
+                              {isBangla ? 'আপনার ছুটি' : 'Your Leave'}
+                            </span>
+                          )}
                           <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-mono">
-                            🌴 {days} দিন ছুটি
+                            🌴 {days} {isBangla ? 'দিন ছুটি' : 'days leave'}
                           </span>
                           <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                            {sDate} হতে {eDate}
+                            {sDate} {isBangla ? 'হতে' : 'to'} {eDate}
                           </span>
                         </div>
                         <p className="text-xs text-slate-300">
-                          {leave.reason ? `কারণ: "${leave.reason}"` : 'ব্যক্তিগত ছুটি'}
+                          {leave.reason
+                            ? isBangla
+                              ? `কারণ: "${leave.reason}"`
+                              : `Reason: "${leave.reason}"`
+                            : isBangla
+                            ? 'ব্যক্তিগত ছুটি'
+                            : 'Personal Leave'}
                         </p>
                       </div>
 
-                      {canEditMeals && (
-                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                          <button
-                            onClick={() => {
-                              setEditingLeave(leave);
-                              setIsLeaveModalOpen(true);
-                            }}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
-                            title="ছুটির তারিখ সংশোধন করুন"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                            তারিখ সংশোধন
-                          </button>
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        {canEditMeals ? (
+                          <>
+                            <button
+                              onClick={() => {
+                                setEditingLeave(leave);
+                                setIsLeaveModalOpen(true);
+                              }}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+                              title={
+                                isBangla
+                                  ? 'ছুটির তারিখ সংশোধন করুন'
+                                  : 'Edit leave dates'
+                              }
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              {isBangla ? 'তারিখ সংশোধন' : 'Edit Dates'}
+                            </button>
+                            <button
+                              onClick={() => handleEndLeaveToday(leave)}
+                              disabled={processingId === leave._id}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer"
+                              title={
+                                isBangla
+                                  ? 'সদস্য আগে ফিরে আসলে ছুটি আজই সমাপ্ত করুন'
+                                  : 'End leave today and resume meals if member returned early'
+                              }
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              {isBangla ? 'ছুটি সমাপ্ত ও মিল চালু' : 'End Leave & Resume Meals'}
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeleteLeave(leave._id, leave.userName || 'সদস্য')
+                              }
+                              disabled={processingId === leave._id}
+                              className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all cursor-pointer"
+                              title={
+                                isBangla
+                                  ? 'ছুটি সম্পূর্ণ বাতিল ও মুছুন'
+                                  : 'Delete leave schedule completely'
+                              }
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        ) : isMyLeave ? (
                           <button
                             onClick={() => handleEndLeaveToday(leave)}
                             disabled={processingId === leave._id}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer"
-                            title="সদস্য আগে ফিরে আসলে ছুটি আজই সমাপ্ত করুন"
+                            title={
+                              isBangla
+                                ? 'আগে ফিরে আসলে ছুটি আজই সমাপ্ত করে মিল চালু করুন'
+                                : 'End leave today and resume meals if returned early'
+                            }
                           >
                             <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            ছুটি সমাপ্ত ও মিল চালু
+                            {isBangla ? 'আগে ফিরেছি, মিল চালু করুন' : 'I am Back, Resume Meals'}
                           </button>
-                          <button
-                            onClick={() => handleDeleteLeave(leave._id, leave.userName || 'সদস্য')}
-                            disabled={processingId === leave._id}
-                            className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all cursor-pointer"
-                            title="ছুটি সম্পূর্ণ বাতিল ও মুছুন"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                        ) : null}
+                      </div>
                     </div>
                   );
                 })
@@ -2235,6 +2469,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           setEditingLeave(null);
         }}
         members={members}
+        currentUser={currentUser}
         existingLeave={editingLeave}
         onSuccess={() => {
           onRefresh();
