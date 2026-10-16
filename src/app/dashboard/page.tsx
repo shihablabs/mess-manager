@@ -121,35 +121,7 @@ export default function DashboardOverviewPage() {
         </div>
       </div>
 
-      {/* 2. MEMBER'S PERSONAL FINANCIAL STATEMENT (সদস্যের ব্যক্তিগত আর্থিক হিসাব বিবরণী) */}
-      {activeBillingResult && (
-        <MasterErrorBoundary fallbackTitle="ব্যক্তিগত আর্থিক বিবরণী লোড করতে সমস্যা হয়েছে">
-          <MemberFinancialStatementCard
-            memberResult={activeBillingResult}
-            mealRate={summaryData?.calculation?.mealRate || 0}
-            cycleName={summaryData?.cycle?.name || 'অক্টোবর ২০২৬'}
-            deposits={deposits}
-            isViewingSelf={!isSuperAdmin}
-            showMemberPicker={isSuperAdmin}
-            allMembers={diningMembers}
-            onSelectMemberId={setSelectedAdminMemberId}
-            onOpenDeposit={openDeposit}
-            onOpenStatement={openStatement}
-            title={
-              isSuperAdmin
-                ? `${activeBillingResult.name}-এর ব্যক্তিগত আর্থিক হিসাব বিবরণী`
-                : 'আপনার ব্যক্তিগত আর্থিক হিসাব বিবরণী'
-            }
-            subtitle={
-              isSuperAdmin
-                ? 'সুপার অ্যাডমিন মোডে সদস্যের নির্ধারিত বাসা ভাড়া, ইউটিলিটি, মিল খরচ ও সকল জমার কিস্তি সরাসরি নিরীক্ষা করছেন।'
-                : 'আপনার নির্ধারিত বাসা ভাড়া, মেস ইউটিলিটি, মিল খরচ এবং জমাকৃত প্রতিটি কিস্তির (২০০, ৩০০, ৫০০ ইত্যাদি) স্বচ্ছ হিসাব।'
-            }
-          />
-        </MasterErrorBoundary>
-      )}
-
-      {/* 3. KPI Summary Cards */}
+      {/* 2. TOP 4 CORE STAT CARDS (লাইভ মিল রেট, মোট মিল, মেস বাজার, মেস ফান্ড) */}
       {summaryData?.calculation && currentUser && (
         <MasterErrorBoundary fallbackTitle="কেপিআই কার্ড লোড করতে সমস্যা হয়েছে">
           <KPICards
@@ -161,6 +133,34 @@ export default function DashboardOverviewPage() {
             }
             pendingCounts={summaryData.pendingCounts || { mealRequests: 0, bazars: 0 }}
             currentUser={currentUser}
+          />
+        </MasterErrorBoundary>
+      )}
+
+      {/* 3. MEMBER'S PERSONAL FINANCIAL STATEMENT (মাঝখানে ব্যক্তিগত হিসাব) */}
+      {activeBillingResult && (
+        <MasterErrorBoundary fallbackTitle="ব্যক্তিগত আর্থিক বিবরণী লোড করতে সমস্যা হয়েছে">
+          <MemberFinancialStatementCard
+            memberResult={activeBillingResult}
+            mealRate={summaryData?.calculation?.mealRate || 0}
+            cycleName={summaryData?.cycle?.name || 'চলতি চক্র'}
+            deposits={deposits}
+            isViewingSelf={!isSuperAdmin}
+            showMemberPicker={isSuperAdmin}
+            allMembers={diningMembers}
+            onSelectMemberId={setSelectedAdminMemberId}
+            onOpenDeposit={openDeposit}
+            onOpenStatement={openStatement}
+            title={
+              isSuperAdmin
+                ? `${activeBillingResult.name}-এর ব্যক্তিগত আর্থিক হিসাব বিবরণী`
+                : 'আপনার ব্যক্তিগত হিসাব বিবরণী'
+            }
+            subtitle={
+              isSuperAdmin
+                ? 'সদস্যের নির্ধারিত বাসা ভাড়া, ইউটিলিটি, মিল খরচ ও সকল জমার কিস্তি নিরীক্ষা করছেন।'
+                : 'আপনার নির্ধারিত বাসা ভাড়া, মেস ইউটিলিটি, মিল খরচ এবং জমাকৃত প্রতিটি কিস্তির স্বচ্ছ হিসাব।'
+            }
           />
         </MasterErrorBoundary>
       )}

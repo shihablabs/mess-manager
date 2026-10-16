@@ -594,8 +594,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             <div className="flex justify-between py-1.5 border-b border-slate-800">
               <span className="text-slate-400">
                 {language === "en"
-                  ? "Approved Regular Bazar (B_regular)"
-                  : "অনুমোদিত রেগুলার বাজার (B_regular)"}
+                  ? "Approved Regular Bazar"
+                  : "অনুমোদিত রেগুলার বাজার"}
               </span>
               <span className="font-mono text-slate-200">
                 {formatTaka(calculation.totalRegularBazar)}
@@ -604,8 +604,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             <div className="flex justify-between py-1.5 border-b border-slate-800">
               <span className="text-slate-400">
                 {language === "en"
-                  ? "Extra Bazar in Pool (B_extra pool)"
-                  : "মিল পুলে এক্সট্রা বাজার (B_extra pool)"}
+                  ? "Extra Bazar in Meal Pool"
+                  : "মিল পুলে অতিরিক্ত বাজার"}
               </span>
               <span className="font-mono text-slate-200">
                 {formatTaka(calculation.totalExtraBazarPool)}
@@ -614,8 +614,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             <div className="flex justify-between py-1.5 border-b border-slate-800">
               <span className="text-slate-400">
                 {language === "en"
-                  ? "Big Bazar Cost minus Carry (S_big - L_carry)"
-                  : "বড় বাজারের খরচ বাদ ক্যারি (S_big - L_carry)"}
+                  ? "Allocated Big Bazar Cost"
+                  : "বড় বাজারের কার্যকরী খরচ"}
               </span>
               <span className="font-mono text-slate-200">
                 {formatTaka(
@@ -627,8 +627,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             <div className="flex justify-between py-1.5 border-b border-slate-800 font-semibold">
               <span className="text-slate-300">
                 {language === "en"
-                  ? "Total Meal Pool (Meal Pool Total)"
-                  : "মোট মিল পুল (Meal Pool Total)"}
+                  ? "Total Meal Fund"
+                  : "মোট খাদ্য / মিল ফান্ড"}
               </span>
               <span className="font-mono text-indigo-400">
                 {formatTaka(calculation.mealPoolTotal)}
@@ -637,8 +637,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             <div className="flex justify-between py-1.5 border-b border-slate-800">
               <span className="text-slate-400">
                 {language === "en"
-                  ? "Total Active Meal Units (U_total)"
-                  : "সক্রিয় মোট মিল ইউনিট (U_total)"}
+                  ? "Total Active Meals"
+                  : "সর্বমোট মিল ইউনিট"}
               </span>
               <span className="font-mono text-slate-200">
                 {calculation.totalMealUnits}{" "}
@@ -648,8 +648,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             <div className="flex justify-between py-2 bg-indigo-950/30 px-3 rounded-xl border border-indigo-500/20 font-bold">
               <span className="text-indigo-300">
                 {language === "en"
-                  ? "Meal Rate = Pool ÷ Total Meals"
-                  : "মিল রেট = পুল ÷ মোট মিল"}
+                  ? "Live Meal Rate (Fund ÷ Meals)"
+                  : "লাইভ মিল রেট (ফান্ড ÷ মিল সংখ্যা)"}
               </span>
               <span className="font-mono text-indigo-300 text-sm">
                 {formatTaka(calculation.mealRate, { decimals: 2 })}

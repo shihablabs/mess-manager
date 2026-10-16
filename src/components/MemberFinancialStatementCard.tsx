@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { MemberBillingResult } from '@/billing-engine/types';
 import { formatTaka, formatMealUnits } from '@/lib/money';
 import {
@@ -21,6 +21,8 @@ import {
   AlertCircle,
   Tag,
   Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from '@/components/icons';
 
 interface MemberFinancialStatementCardProps {
@@ -56,6 +58,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
 }) => {
   const isPlus = (memberResult?.netBalance ?? 0) >= 0;
   const netBalance = memberResult?.netBalance ?? 0;
+  const [showFullDetails, setShowFullDetails] = useState(false);
 
   // Filter and sort this specific member's deposits
   const memberDeposits = useMemo(() => {
@@ -211,88 +214,160 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
         </div>
       </div>
 
-      {/* 2. HERO BALANCES STRIP (Total Dues, Total Paid, Net Balance) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 relative z-10">
-        {/* Total Dues / Expenses */}
-        <div className="p-4 sm:p-4.5 rounded-2xl bg-slate-950/60 border border-amber-500/20 space-y-1.5">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="flex items-center gap-1.5 font-medium">
-              <Utensils className="w-4 h-4 text-amber-400" />
-              মোট খরচ ও দেনা (Dues)
-            </span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">
-              দাবি
-            </span>
+      {/* 2. REASSURING PERSONAL STATUS BANNER */}
+      <div
+        className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+          isPlus
+            ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900/80 to-slate-900/90 border-emerald-500/30'
+            : 'bg-gradient-to-r from-indigo-950/40 via-slate-900/80 to-slate-900/90 border-indigo-500/30'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div
+              className={`p-3 rounded-2xl shrink-0 ${
+                isPlus
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+              }`}
+            >
+              {isPlus ? <CheckCircle className="w-6 h-6" /> : <Wallet className="w-6 h-6" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm sm:text-base font-bold text-white">
+                  {isPlus
+                    ? 'চমৎকার! আপনার কোনো বকেয়া নেই'
+                    : 'চলতি মাসের ব্যক্তিগত ব্যালেন্স স্থিতি'}
+                </h4>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    isPlus
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  }`}
+                >
+                  {isPlus ? 'উদ্বৃত্ত / ফেরত পাবেন' : 'পরিশোধ বাকি'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                {isPlus
+                  ? `মেস ফান্ডে আপনার মোট ${formatTaka(netBalance)} টাকা অগ্রিম (পাওনা) জমা রয়েছে।`
+                  : `চলতি মাসে পরিশোধের জন্য নিট বাকি: ${formatTaka(Math.abs(netBalance))} — নির্ধারিত মেস অ্যাকাউন্টে জমা দিয়ে ক্লিয়ার করুন।`}
+              </p>
+            </div>
           </div>
-          <div className="text-2xl font-black text-amber-400 font-mono">
-            {formatTaka(memberResult.totalDues)}
-          </div>
-          <p className="text-[11px] text-slate-400 leading-tight">
-            বাসা ভাড়া ({formatTaka(memberResult.roomRent)}) + মিল ও অন্যান্য মেস বিল
-          </p>
-        </div>
 
-        {/* Total Credits / Payments */}
-        <div className="p-4 sm:p-4.5 rounded-2xl bg-slate-950/60 border border-emerald-500/20 space-y-1.5">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="flex items-center gap-1.5 font-medium">
-              <Wallet className="w-4 h-4 text-emerald-400" />
-              মোট পরিশোধ ও জমা (Credits)
-            </span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-              পরিশোধিত
-            </span>
+          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            {onOpenDeposit && (
+              <button
+                onClick={onOpenDeposit}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>টাকা জমা দিন</span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowFullDetails(!showFullDetails)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+            >
+              {showFullDetails ? (
+                <>
+                  <span>সংক্ষিপ্ত করুন</span>
+                  <ChevronUp className="w-3.5 h-3.5 text-indigo-400" />
+                </>
+              ) : (
+                <>
+                  <span>বিস্তারিত হিসাব</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-indigo-400" />
+                </>
+              )}
+            </button>
           </div>
-          <div className="text-2xl font-black text-emerald-400 font-mono">
+        </div>
+      </div>
+
+      {/* 3. 4-PILLAR CLEAN PERSONAL SUMMARY CARDS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 relative z-10">
+        {/* A. Total Credits */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 space-y-1">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span className="flex items-center gap-1 font-medium">
+              <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+              আপনার মোট জমা
+            </span>
+            <span className="text-[10px] text-emerald-400 font-semibold">{memberDeposits.length} কিস্তি</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
             {formatTaka(memberResult.totalCredits)}
           </div>
-          <p className="text-[11px] text-slate-400 leading-tight">
-            মোট {memberDeposits.length}টি কিস্তিতে জমা + নিজস্ব বাজার খরচ
-          </p>
+          <p className="text-[10px] text-slate-400">ক্যাশ/বিকাশে মেস ফান্ডে জমা</p>
         </div>
 
-        {/* Net Balance (Plus/Minus Status) */}
+        {/* B. Meal Cost */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 space-y-1">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span className="flex items-center gap-1 font-medium">
+              <Utensils className="w-3.5 h-3.5 text-indigo-400" />
+              খাবারের মিল খরচ
+            </span>
+            <span className="text-[10px] text-indigo-300 font-semibold font-mono">{formatMealUnits(memberResult.mealUnits)} মিল</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-white font-mono">
+            {formatTaka(memberResult.regularMealCost)}
+          </div>
+          <p className="text-[10px] text-slate-400">{formatMealUnits(memberResult.mealUnits)} মিল × ৳{formatTaka(mealRate, { decimals: 2 })}</p>
+        </div>
+
+        {/* C. Room Rent & Utility */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 space-y-1">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span className="flex items-center gap-1 font-medium">
+              <Home className="w-3.5 h-3.5 text-amber-400" />
+              বাসা ভাড়া ও বিল
+            </span>
+            <span className="text-[10px] text-amber-300 font-semibold">ফিক্সড</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-white font-mono">
+            {formatTaka(memberResult.roomRent + memberResult.utilityShare)}
+          </div>
+          <p className="text-[10px] text-slate-400">ভাড়া {formatTaka(memberResult.roomRent)} + ইউটিলিটি</p>
+        </div>
+
+        {/* D. Net Balance */}
         <div
-          className={`p-4 sm:p-4.5 rounded-2xl border space-y-1.5 relative overflow-hidden ${
+          className={`p-3.5 sm:p-4 rounded-2xl border space-y-1 ${
             isPlus
-              ? 'bg-gradient-to-br from-emerald-950/50 to-slate-950/80 border-emerald-500/40 shadow-lg shadow-emerald-500/5'
-              : 'bg-gradient-to-br from-rose-950/50 to-slate-950/80 border-rose-500/40 shadow-lg shadow-rose-500/5'
+              ? 'bg-emerald-950/30 border-emerald-500/40'
+              : 'bg-indigo-950/30 border-indigo-500/40'
           }`}
         >
           <div className="flex items-center justify-between text-xs font-semibold">
-            <span className={`flex items-center gap-1.5 ${isPlus ? 'text-emerald-300' : 'text-rose-300'}`}>
-              {isPlus ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-              অবশিষ্ট ব্যালেন্স
+            <span className={`flex items-center gap-1 ${isPlus ? 'text-emerald-300' : 'text-indigo-300'}`}>
+              {isPlus ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              বর্তমান স্থিতি
             </span>
-            <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                isPlus
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                  : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-              }`}
-            >
-              {isPlus ? 'পাওনা (Refund)' : 'বকেয়া (Payable)'}
+            <span className={`text-[10px] font-bold ${isPlus ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {isPlus ? 'পাওনা' : 'বাকি'}
             </span>
           </div>
-
           <div
-            className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${
-              isPlus ? 'text-emerald-400' : 'text-rose-400'
+            className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${
+              isPlus ? 'text-emerald-400' : 'text-indigo-300'
             }`}
           >
             {isPlus ? `+${formatTaka(netBalance)}` : `-${formatTaka(Math.abs(netBalance))}`}
           </div>
-
-          <p className="text-[11px] text-slate-300 leading-tight">
-            {isPlus
-              ? '✓ মেস ফান্ডে এই টাকা আপনার অগ্রিম রয়েছে।'
-              : '⚠️ মেসের ফান্ডে আপনার এই টাকা বকেয়া রয়েছে।'}
+          <p className="text-[10px] text-slate-300">
+            {isPlus ? '✓ মেস থেকে পাবেন' : 'মেসে জমা দেওয়া বাকি'}
           </p>
         </div>
       </div>
 
-      {/* 3. DUAL-COLUMN BREAKDOWN: EXPENSES (LEFT) vs ITEMIZED DEPOSITS (RIGHT) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 relative z-10">
+      {/* 4. DUAL-COLUMN BREAKDOWN (COLLAPSIBLE) */}
+      {showFullDetails && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 relative z-10 pt-2 border-t border-slate-800/80">
         {/* ================= LEFT COLUMN: EXPENSES BREAKDOWN ================= */}
         <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/40 border border-slate-800 space-y-4 flex flex-col justify-between">
           <div className="space-y-3">
@@ -550,6 +625,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
           </div>
         </div>
       </div>
+      )}
 
       {/* [UX CLEANUP]: ব্যবহারকারীকে অনাবশ্যক সূত্র দেখানো বাদ দেওয়া হয়েছে — কার্ডের উপরে ইতিমধ্যে 'বর্তমান অবস্থা ও নিট ব্যালেন্স' স্পষ্টভাবে প্রদর্শিত হচ্ছে */}
       {/* 
