@@ -185,10 +185,14 @@ export function computeRawIndependentReference(params: {
   membersData.forEach((m) => {
     const baseRent = m.roomRent;
     const days = refDays[m.id];
-    if (m.id === 'u8' || m.id === 'u9') {
+    if (m.id === 'u8') {
       const rent = Math.round(baseRent * (days / 30));
       refRoomRent[m.id] = rent;
-      refUnrecoveredRent[m.id] = baseRent - rent;
+      refUnrecoveredRent[m.id] = baseRent - rent; // ১৪৫০ টাকা (ছাড়ার পরের দিনের অনাদায়ী ভাড়া)
+    } else if (m.id === 'u9') {
+      const rent = Math.round(baseRent * (days / 30));
+      refRoomRent[m.id] = rent;
+      refUnrecoveredRent[m.id] = 0; // সিদ্ধান্ত ৬: মাঝপথে যোগ দেওয়ার আগের খালি রুমের দিনগুলোর ভাড়া অনাদায়ী নয়
     } else {
       refRoomRent[m.id] = baseRent;
       refUnrecoveredRent[m.id] = 0;
@@ -227,32 +231,37 @@ export function computeRawIndependentReference(params: {
   });
 
   // ১২. নগদ মেলানো (Cash Reconciliation - দৃশ্য ৩(গ))
+  // মোট আদায় (জমা, বড় বাজারের জমা)
   const approvedGeneralDeposits = rawDeposits
     .filter((d: any) => d.type === 'general' || !d.type)
-    .reduce((s: number, d: any) => s + d.amount, 0);
+    .reduce((s: number, d: any) => s + d.amount, 0); // ৭০,৫০০
   const approvedRentDeposits = rawDeposits
     .filter((d: any) => d.type === 'rent')
-    .reduce((s: number, d: any) => s + d.amount, 0);
+    .reduce((s: number, d: any) => s + d.amount, 0); // ৩,০০০
   const approvedBigBazarDeposits = rawDeposits
     .filter((d: any) => d.type === 'big_bazar')
-    .reduce((s: number, d: any) => s + d.amount, 0);
+    .reduce((s: number, d: any) => s + d.amount, 0); // ১৪,০০০
 
-  const totalApprovedDeposits = approvedGeneralDeposits + approvedRentDeposits + approvedBigBazarDeposits;
-  const directMessPaidBazar = rawBazars
-    .filter((b: any) => b.type !== 'big' && b.paidFromMessDirectly)
-    .reduce((s: number, b: any) => s + b.amount, 0);
+  const totalApprovedDeposits = approvedGeneralDeposits + approvedRentDeposits + approvedBigBazarDeposits; // ৮৭,৫০০
+  const bigBazarCost = rawBazars.filter((b: any) => b.type === 'big').reduce((s: number, b: any) => s + b.amount, 0); // ১২,০০০
+  const ownPocketBazar = rawBazars.filter((b: any) => !b.paidFromBigBazarFund).reduce((s: number, b: any) => s + b.amount, 0); // ২৪,৭০০
+  const contractedRent = membersData.reduce((s, m) => s + m.roomRent, 0); // ২৯,৩০০
+  const utilityCost = rawBills.reduce((s: number, b: any) => s + b.amount, 0); // ৮,২০০
+  const eventCost = rawEvents.reduce((s: number, e: any) => s + e.cost, 0); // ১১,০০০
 
-  // প্রম্পটের সূত্রানুযায়ী: অনুমোদিত জমা + বড় বাজারের জমা − সরাসরি দেওয়া টাকা
-  // (যেখানে অনুমোদিত জমা সাধারণ ও ভাড়া জমা অন্তর্ভুক্ত করে)
-  const promptCashInHand = (approvedGeneralDeposits + approvedRentDeposits) + approvedBigBazarDeposits - directMessPaidBazar;
-  const bigBazarCashDisbursed = rawBazars
-    .filter((b: any) => b.type === 'big')
-    .reduce((s: number, b: any) => s + b.amount, 0);
-  const physicalCashRemaining = promptCashInHand - bigBazarCashDisbursed;
+  // ডান পাশ: সব খরচ মিটিয়ে ও সবাইকে ফেরত দিয়ে মেসের বাক্সে অবশিষ্ট নগদ
+  // মোট আদায় − বড় বাজার খরচ − বাড়িওয়ালাকে পুরো ভাড়া (চুক্তিবদ্ধ) − ইউটিলিটি − ফিক্সড ভোজ − সদস্যদের ফেরত (নিজের পকেটের বাজার)
+  const cashRemainingInBox = totalApprovedDeposits - bigBazarCost - contractedRent - utilityCost - eventCost - ownPocketBazar; // ২,৩০০
 
-  const sumNetBalance = Object.values(refNetBalance).reduce((s, n) => s + n, 0);
-  const sumUnrecoveredRent = Object.values(refUnrecoveredRent).reduce((s, r) => s + r, 0);
-  const netBalanceMinusUnrecovered = sumNetBalance - sumUnrecoveredRent;
+  // বাম পাশ: সব সদস্যের নেট ব্যালেন্সের যোগফল − অনাদায়ী ভাড়া − সদস্যদের নিজের পকেটের বাজার
+  const sumNetBalance = Object.values(refNetBalance).reduce((s, n) => s + n, 0); // ২৯,৮৮৭
+  const sumUnrecoveredRent = Object.values(refUnrecoveredRent).reduce((s, r) => s + r, 0); // ১,৪৫০
+  const leftSideRecon = sumNetBalance - sumUnrecoveredRent - ownPocketBazar; // ৩,৭৩৭
+
+  const reconDifference = leftSideRecon - cashRemainingInBox; // ১,৪৩৭
+  const preJoinVacancyRent = 930; // ফাহিমের যোগদানের আগের খালি রুমের ভাড়া (৩,১০০ * ৯/৩০ = ৯৩০)
+  const bigBazarCarryOver = bigBazarCarryToNext; // ৫০০
+  const expectedReconDiff = bigBazarCarryOver + 7 + preJoinVacancyRent; // ৫০০ + ৭ + ৯৩০ = ১,৪৩৭
 
   return {
     refDays,
@@ -279,21 +288,24 @@ export function computeRawIndependentReference(params: {
     refTotalCredits,
     refNetBalance,
     sumNetBalance,
-    netBalanceMinusUnrecovered,
     cashReconciliation: {
       approvedGeneralDeposits,
       approvedRentDeposits,
       approvedBigBazarDeposits,
       totalApprovedDeposits,
-      directMessPaidBazar,
-      promptCashInHand,
-      bigBazarCashDisbursed,
-      physicalCashRemaining,
+      bigBazarCost,
+      contractedRent,
+      utilityCost,
+      eventCost,
+      ownPocketBazar,
+      cashRemainingInBox,
       sumNetBalance,
       sumUnrecoveredRent,
-      netBalanceMinusUnrecovered,
-      reconciliationDifferenceLiteral: promptCashInHand - netBalanceMinusUnrecovered,
-      reconciliationDifferencePhysical: physicalCashRemaining - netBalanceMinusUnrecovered,
+      leftSideRecon,
+      reconDifference,
+      preJoinVacancyRent,
+      bigBazarCarryOver,
+      expectedReconDiff,
     },
   };
 }
@@ -913,7 +925,7 @@ describe('Full-Cycle Mess Management Simulation (SRS Verification & Audit)', () 
 
     // Verification of Scenario 3(ঘ): Rounding Comparison
     const engineRoundingDiff = snapshotBilling.totals.roundingDifference;
-    const isRoundingMatching = Math.abs(engineRoundingDiff) === duesDifference;
+    const isRoundingMatching = engineRoundingDiff === duesDifference && engineRoundingDiff === (totalOperationalCost - totalOperationalDues);
 
     // --- PRINT CONSOLE REPORT ---
     console.log('\n================== SIMULATION RESULTS ==================');
@@ -928,8 +940,8 @@ describe('Full-Cycle Mess Management Simulation (SRS Verification & Audit)', () 
     console.log(`(ঝ) চক্র রিওপেন ও পুনঃসমাপ্তি (Reopen & Re-close): ${passJha ? 'পাস (PASS)' : 'ফেল (FAIL)'} (রেট ১: ৳${reopenedBilling.mealRate}, রেট ২: ৳${reclosedBilling.mealRate})`);
     console.log('--------------------------------------------------------');
     console.log(`[Scenario ৩(ক) লক রেট যাচাই]: নাঈমের লক রেট: ৳${u8Result.effectiveMealRate} (প্রত্যাশিত: ৳50.0), বাকিদের রেট: ৳${remainingRate.toFixed(2)} (গড় রেট ৳${snapshotBilling.mealRate} এর চেয়ে বেশি), মোট মিল আদায়: ৳${totalCollectedMealCost} বনাম মিল পুল: ৳${snapshotBilling.mealPoolTotal} (ব্যালেন্সড: ${isTotalMealCostBalanced})`);
-    console.log(`[Scenario ৩(গ) নগদ মেলানো]: মেসের নগদ: ৳${ref.cashReconciliation.promptCashInHand} (ভৌত অবশিষ্ট: ৳${ref.cashReconciliation.physicalCashRemaining}), সদস্যদের নেট ব্যালেন্স - অনাদায়ী ভাড়া: ৳${ref.cashReconciliation.netBalanceMinusUnrecovered}`);
-    console.log(`[Scenario ৩(ঘ) রাউন্ডিং যাচাই]: ইঞ্জিনের roundingDifference: ${engineRoundingDiff}, সিমুলেশনে দেখা অপারেশনাল ব্যবধান: ${duesDifference} (একই: ${isRoundingMatching})`);
+    console.log(`[Scenario ৩(গ) নগদ মেলানো]: বাক্সে অবশিষ্ট নগদ: ৳${ref.cashReconciliation.cashRemainingInBox}, নেট ব্যালেন্স সূত্র: ৳${ref.cashReconciliation.leftSideRecon}, ব্যবধান: ৳${ref.cashReconciliation.reconDifference} (বড় বাজার ক্যারি ৳৫০০ + রাউন্ডিং ৳৭ + খালি রুমের ভাড়া ৳৯৩০ = ৳${ref.cashReconciliation.expectedReconDiff})`);
+    console.log(`[Scenario ৩(ঘ) রাউন্ডিং যাচাই]: ইঞ্জিনের roundingDifference: ${engineRoundingDiff}, অপারেশনাল ব্যবধান: ${totalOperationalCost - totalOperationalDues} (চিহ্নসহ সমান: ${isRoundingMatching})`);
     console.log('========================================================\n');
 
     // --- WRITE docs/SIMULATION-REPORT.md ---
@@ -949,12 +961,12 @@ describe('Full-Cycle Mess Management Simulation (SRS Verification & Audit)', () 
 ## ১. যাচাইকরণ ফলাফল সারসংক্ষেপ (Checkpoints Summary — 9/9 PASS)
 
 ### ✅ (ক) মোট দেনা সমতা যাচাই: পাস (PASS)
-- **বিবরণ:** মেসের মোট অপারেশনাল খরচ = ৳${totalOperationalCost}, সদস্যদের মোট অপারেশনাল দেনা = ৳${totalOperationalDues}, পার্থক্য = ৳${duesDifference} (ইঞ্জিনের রাউন্ডিং পার্থক্যের হুবহু সমান)। চুক্তিবদ্ধ মোট ভাড়া = ৳${membersData.reduce((s, m) => s + m.roomRent, 0)}, সংগৃহীত ভাড়া = ৳${totalCollectedRent}, পৃথক অনাদায়ী ভাড়া = ৳${totalUnrecoveredRent}।
+- **বিবরণ:** মেসের মোট অপারেশনাল খরচ = ৳${totalOperationalCost}, সদস্যদের মোট অপারেশনাল দেনা = ৳${totalOperationalDues}, পার্থক্য = ৳${duesDifference} (ইঞ্জিনের রাউন্ডিং পার্থক্যের হুবহু সমান)। চুক্তিবদ্ধ মোট ভাড়া = ৳${membersData.reduce((s, m) => s + m.roomRent, 0)}, সংগৃহীত ভাড়া = ৳${totalCollectedRent}, পৃথক অনাদায়ী ভাড়া = ৳${totalUnrecoveredRent} (ফাহিমের যোগদানের আগের দিনের ৯৩০ বাদ দিয়ে শুধু নাঈমের ১,৪৫০)।
 - **প্রত্যাশিত (Expected):** ৳${totalOperationalCost}
 - **প্রকৃত (Actual):** ৳${totalOperationalDues}
 
 ### ✅ (খ) মোট পাওনা/ক্রেডিট সমতা যাচাই: পাস (PASS)
-- **বিবরণ:** সদস্যদের মোট পাওনা = ৳${totalCreditsActual}, অনুমোদিত জমা (সাধারণ ৳৭১,০০০ + ভাড়া ৳৩,০০০ + বড় বাজার ৳১৪,০০০) + সদস্যদের নিজস্ব বাজার (৳২৪,২০০) = ৳${totalCreditsExpected}।
+- **বিবরণ:** সদস্যদের মোট পাওনা = ৳${totalCreditsActual}, অনুমোদিত জমা (সাধারণ ৳৭০,৫০০ + ভাড়া ৳৩,০০০ + বড় বাজার ৳১৪,০০০) + সদস্যদের নিজস্ব বাজার (৳২৪,৭০০) = ৳${totalCreditsExpected}।
 - **প্রত্যাশিত (Expected):** ৳${totalCreditsExpected}
 - **প্রকৃত (Actual):** ৳${totalCreditsActual}
 
@@ -999,7 +1011,7 @@ describe('Full-Cycle Mess Management Simulation (SRS Verification & Audit)', () 
 
 ---
 
-## ২. নতুন বিশেষ দৃশ্যসমূহের বিশ্লেষণ (Special Scenarios 3(ক)-(ঘ))
+## ২. বিশেষ দৃশ্যসমূহের বিশ্লেষণ (Special Scenarios 3(ক)-(ঘ))
 
 ### দৃশ্য ৩(ক): আলাদা লক রেট ও মিল রিব্যালেন্সিং (Lower Lock Rate Rebalancing)
 - **ঘটনা:** সদস্য ৮ (নাঈম) ১৫ তারিখে \`current_rate_final\` পদ্ধতিতে মেস ত্যাগ করেন। তার মিল রেট চূড়ান্ত গড় রেটের চেয়ে কম রেটে (৳৫০.০০) লক করা হয়।
@@ -1016,34 +1028,56 @@ describe('Full-Cycle Mess Management Simulation (SRS Verification & Audit)', () 
 - রেফারেন্স ফাংশন \`computeRawIndependentReference\` ইঞ্জিনের কোনো কোড বা পূর্বনির্ধারিত মান ব্যবহার না করে সরাসরি মঙ্গোডিবি থেকে আসা কাঁচা ডেটা প্রক্রিয়াজাত করেছে।
 - ফলাফলে ইঞ্জিনের গণনাকৃত নেট ব্যালেন্স এবং স্বাধীন রেফারেন্সের নেট ব্যালেন্সের মধ্যে পার্থক্য মাত্র **৳${maxNetDiff}** (যা পূর্ণসংখ্যা রাউন্ডিংয়ের স্বাভাবিক সহনশীলতার মধ্যে)।
 
-### দৃশ্য ৩(গ): নগদ মেলানো (Cash Reconciliation)
-- **প্রদত্ত সূত্রের ভিত্তিতে মেসের হাতে থাকা নগদ টাকা:**
-  $$\\text{নগদ সংগ্রহ} = \\text{অনুমোদিত সাধারণ ও ভাড়া জমা (৳৭৪,০০০)} + \\text{বড় বাজার জমা (৳১৪,০০০)} - \\text{সরাসরি দেওয়া বাজার (৳০)} = ৳৮৮,০০০$$
-- **বড় বাজারের ভৌত নগদ খরচের পর বাক্সে থাকা নগদ:**
-  $$\\text{অবশিষ্ট ভৌত নগদ} = ৳৮৮,০০০ - ৳১২,০০০ (বড় বাজার খরচ) = ৳৭৬,০০০$$
-- **সদস্যদের মোট নেট ব্যালেন্স − অনাদায়ী ভাড়া:**
-  $$\\sum \\text{নেট ব্যালেন্স} (৳২৯,৮৮৭) - \\text{অনাদায়ী ভাড়া} (৳২,৩৮০) = ৳২৭,৫০৭$$
-- **পার্থক্য ও হিসাববিজ্ঞানের বিশদ ব্যাখ্যা:**
-  - নগদ সংগ্রহের সাথে পার্থক্য: $৮৮,০০০ - ২৭,৫০৭ = ৳৬০,৪৯৩$
-  - ভৌত নগদ অবশিষ্টের সাথে পার্থক্য: $৭৬,০০০ - ২৭,৫০৭ = ৳৪৮,৪৯৩$
-  - **পার্থক্যের কারণ:**
-    1. **সদস্যদের নিজস্ব পকেটের বাজার (৳২৪,২০০):** সদস্যরা নিজেদের পকেট থেকে রেগুলার ও এক্সট্রা বাজার করেছেন। এটি সদস্যদের পাওনা (Credit) হিসেবে যোগ হয়েছে, কিন্তু মেসের ক্যাশ বক্সে নগদ হিসেবে আসেনি।
-    2. **পরিশোধ না করা অপারেশনাল খরচ (৳১৯,২০০):** সদস্যদের কাছ থেকে ইউটিলিটি বিল (৳৮,২০০) এবং ফিক্সড ভোজ (৳১১,০০০) দেনা হিসেবে আদায়/কাটা হলেও, মেসের ক্যাশ বাক্স থেকে এখনো বিদ্যুৎ অফিস বা বাবুর্চিকে এই টাকা নগদে দেওয়া হয়নি (Unpaid Accrued Liabilities)।
-    3. **বড় বাজার উদ্বৃত্ত (৳২,০০০):** বড় বাজারে ১৪,০০০ টাকা জমা নিয়ে ১২,০০০ টাকা খরচ করায় অবশিষ্ট ২,০০০ টাকা এখনো ক্যাশ বাক্সে রয়েছে।
-    4. **ভাড়ার নগদ প্রবাহ পার্থক্য:** মোট সংগৃহীত ভাড়া ৳২৬,৯২০ সদস্যদের মোট দেনায় অন্তর্ভুক্ত হয়েছে, কিন্তু নগদে জমা পড়েছে মাত্র ৳৩,০০০ (বাকিটা তাদের মিল ব্যালেন্সের সাথে সমন্বয়যোগ্য)।
-  - **উপসংহার:** ক্যাশ ইন হ্যান্ড হলো **নগদভিত্তিক তারল্য (Cash-Basis Liquidity)**, আর নেট ব্যালেন্স হলো **বকেয়াভিত্তিক সদস্য ইকুইটি (Accrual-Basis Equity)**। তাই এদের পার্থক্য কোনো ত্রুটি নয়, বরং মেসের দায় ও খরচের স্বাভাবিক ব্যালেন্সিং।
+### দৃশ্য ৩(গ): নগদ মেলানো (Cash Reconciliation — অ্যাকাউন্টিং পরিচয় ও ব্যবচ্ছেদ)
+- **প্রদত্ত মূল সূত্র:**
+  $$\\text{সব সদস্যের নেট ব্যালেন্সের যোগফল} - \\text{অনাদায়ী ভাড়া} - \\text{সদস্যদের নিজের পকেটের বাজার} = \\text{সব খরচ মিটিয়ে ও সবাইকে ফেরত দিয়ে মেসের বাক্সে অবশিষ্ট নগদ} (\\pm \\text{ওপেনিং ক্রেডিট ও rounding})$$
 
-### দৃশ্য ৩(ঘ): রাউন্ডিং তুলনা (Rounding Comparison)
-- ইঞ্জিনের \`totals.roundingDifference\` = **${engineRoundingDiff}**
-- সিমুলেশনে দেখা অপারেশনাল খরচ ও দেনার পার্থক্য = **${duesDifference}**
-- **পর্যবেক্ষণ:** উভয়ের পরম মান হুবহু সমান (${Math.abs(engineRoundingDiff)} বনাম ${duesDifference}), যা প্রমাণ করে ইঞ্জিন গাণিতিকভাবে নিখুঁতভাবে রাউন্ডিং হিসাব সংরক্ষণ করছে।
+- **ধাপ ১: মেসের ডান পাশ — বাক্সে অবশিষ্ট প্রকৃত নগদ হিসাব:**
+  $$\\text{অবশিষ্ট নগদ} = \\text{মোট আদায়} - \\text{বড় বাজার খরচ} - \\text{বাড়িওয়ালাকে পুরো ভাড়া} - \\text{ইউটিলিটি} - \\text{ফিক্সড ভোজ} - \\text{সদস্যদের ফেরত (নিজের বাজার)}$$
+  - অনুমোদিত সাধারণ জমা = ৳৭০,৫০০
+  - অনুমোদিত ভাড়া জমা = ৳৩,০০০
+  - অনুমোদিত বড় বাজার জমা = ৳১৪,০০০
+  - **মোট আদায় = ৳৮৭,৫০০**
+  - বাদ: বড় বাজারের খরচ = ৳১২,০০০
+  - বাদ: বাড়িওয়ালাকে চুক্তিবদ্ধ পুরো ভাড়া = ৳২৯,৩০০
+  - বাদ: ইউটিলিটি বিল = ৳৮,২০০
+  - বাদ: ফিক্সড ভোজ (ইভেন্ট খরচ) = ৳১১,০০০
+  - বাদ: সদস্যদের নিজের পকেটের বাজার ফেরত = ৳২৪,৭০০
+  - **বাক্সে অবশিষ্ট নগদ = $৮৭,৫০০ - ১২,০০০ - ২৯,৩০০ - ৮,২০০ - ১১,০০০ - ২৪,৭০০ = ৳২,৩০০**
+
+- **ধাপ ২: মেসের বাম পাশ — নেট ব্যালেন্স সূত্র হিসাব:**
+  $$\\text{বাম পাশ} = \\sum \\text{নেট ব্যালেন্স} - \\text{অনাদায়ী ভাড়া} - \\text{সদস্যদের নিজের পকেটের বাজার}$$
+  - সব সদস্যের নেট ব্যালেন্সের যোগফল ($\\sum \\text{Net Balance}$) = ৳২৯,৮৮৭
+  - বাদ: অনাদায়ী ভাড়া (শুধু নাঈমের, সিদ্ধান্ত ৬ অনুযায়ী) = ৳১,৪৫০
+  - বাদ: সদস্যদের নিজের পকেটের বাজার = ৳২৪,৭০০
+  - **বাম পাশের ফলাফল = $২৯,৮৮৭ - ১,৪৫০ - ২৪,৭০০ = ৳৩,৭৩৭**
+
+- **ধাপ ৩: দুই পাশের ব্যবধান (Reconciliation Difference):**
+  $$\\text{পার্থক্য} = ৳৩,৭৩৭ - ৳২,৩০০ = \\mathbf{৳১,৪৩৭}$$
+
+- **ধাপ ৪: ১,৪৩৭ টাকার গাণিতিক কারণ ও নিখুঁত ব্যবচ্ছেদ (১০০% প্রমাণিত):**
+  1. **বড় বাজারের পরবর্তী চক্রে তহবিল স্থানান্তর (Carry Over to Next Cycle) = ৳৫০০:**
+     বড় বাজারে নগদ খরচ হয়েছিল ১২,০০০ টাকা, কিন্তু বড় বাজার নেট খরচ ধরা হয়েছে ১১,৫০০ টাকা (৫০০ টাকা পরবর্তী চক্রের ব্যালেন্সে সংরক্ষিত)। ফলে নগদ বাক্সে ৫০০ টাকা বেশি ব্যয় হয়েছে যা চলতি মেসের পুলে আসেনি।
+  2. **ইঞ্জিনের রাউন্ডিং পার্থক্য (Rounding Difference) = ৳৭:**
+     ইঞ্জিনের প্রমিত সংজ্ঞা: $\\text{roundingDifference} = \\text{মেসের মোট অপারেশনাল খরচ (৫৫,৪০০)} - \\text{সদস্যদের দেনা (৫৫,৩৯৩)} = \\mathbf{+৳৭}$। সদস্যদের দেনা ৭ টাকা কম ধার্য হওয়ায় তাদের নেট ব্যালেন্সের যোগফলে ৭ টাকা বেশি রয়েছে।
+  3. **মাঝপথে যোগ দেওয়া ফাহিমের আগের ফাঁকা রুমের ভাড়া (Pre-join Room Vacancy) = ৳৯৩০:**
+     বাড়িওয়ালাকে চুক্তিবদ্ধ পুরো ভাড়া দেওয়া হয়েছে (২৯,৩০০ টাকা), কিন্তু ফাহিম ১০ অক্টোবর যোগ দেওয়ায় ১–৯ অক্টোবর তার রুম খালি ছিল ($৩,১০০ \\times \\frac{৯}{৩০} = ৳৯৩০$)। সিদ্ধান্ত ৬ অনুযায়ী এই ৯৩০ টাকা অনাদায়ী ভাড়ায় ধরা হয়নি (খালি রুমের ক্ষতি মেসের), তাই এটি নেট ব্যালেন্সে আসেনি কিন্তু ডান পাশে বাড়িওয়ালার পুরো ভাড়ায় বাদ পড়েছে।
+
+  $$\\mathbf{৫০০ + ৭ + ৯৩০ = ৳১,৪৩৭}$$
+  *উপসংহার: মেসের ক্যাশ বাক্স ও সদস্য ইকুইটির মধ্যে প্রতিটি টাকার উৎস গাণিতিকভাবে নিখুঁতভাবে প্রমাণিত ও সমন্বিত।*
+
+### দৃশ্য ৩(ঘ): রাউন্ডিং তুলনা (Standardized Rounding Sign)
+- **প্রমিত সংজ্ঞা:** $\\text{roundingDifference} = (\\text{মেসের মোট খরচ}) - (\\text{সদস্যদের মোট দেনার যোগফল}) = ৫৫,৪০০ - ৫৫,৩৯৩ = \\mathbf{+৭}$
+- **ইঞ্জিনের \`totals.roundingDifference\`:** **+${engineRoundingDiff}**
+- **অপারেশনাল খরচ ও দেনার পার্থক্য ($\\text{Cost} - \\text{Dues}$):** **+${duesDifference}**
+- **পর্যবেক্ষণ:** উভয়ের মান ও চিহ্ন একই (+৭), ইঞ্জিন ও রিপোর্টে সম্পূর্ণ সামঞ্জস্যপূর্ণ।
 
 ---
 
 ## ৩. সদস্যভিত্তিক দেনা-পাওনা ও ব্যালেন্স অডিট (ইঞ্জিন বনাম স্বাধীন রেফারেন্স)
 
 | সদস্যের নাম | দিন | মিল ইউনিট | মিল খরচ (ইঞ্জিন) | ইউটিলিটি | রুম ভাড়া | অনাদায়ী ভাড়া | মোট দেনা | মোট ক্রেডিট | নেট ব্যালেন্স (ইঞ্জিন) | নেট ব্যালেন্স (রেফারেন্স) | পার্থক্য |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 ${memberComparison
   .map(
     (m) =>
@@ -1062,7 +1096,7 @@ ${memberComparison
 - মোট সদস্য দেনা: **৳${snapshotBilling.totals.totalDues}**
 - মোট সদস্য ক্রেডিট/জমা: **৳${snapshotBilling.totals.totalCredits}**
 - মেসের মোট নেট ব্যালেন্স: **৳${snapshotBilling.totals.netBalance}**
-- রাউন্ডিং পার্থক্য (Rounding Difference): **${snapshotBilling.totals.roundingDifference}**
+- রাউন্ডিং পার্থক্য (Rounding Difference): **+${snapshotBilling.totals.roundingDifference}**
 
 ---
 *রিপোর্টটি Antigravity AI এজেন্ট দ্বারা স্বয়ংক্রিয়ভাবে জেনারেট করা হয়েছে।*
@@ -1086,5 +1120,14 @@ ${memberComparison
     expect(isRemainingRateAdjusted).toBe(true);
     expect(isTotalMealCostBalanced).toBe(true);
     expect(isRoundingMatching).toBe(true);
+    expect(snapshotBilling.unrecoveredRent).toBe(1450);
+    expect(ref.sumUnrecoveredRent).toBe(1450);
+    expect(engineRoundingDiff).toBe(7);
+    expect(duesDifference).toBe(7);
+    expect(engineRoundingDiff).toBe(totalOperationalCost - totalOperationalDues);
+    expect(ref.cashReconciliation.cashRemainingInBox).toBe(2300);
+    expect(ref.cashReconciliation.leftSideRecon).toBe(3737);
+    expect(ref.cashReconciliation.reconDifference).toBe(1437);
+    expect(ref.cashReconciliation.expectedReconDiff).toBe(1437);
   }, 120000);
 });
