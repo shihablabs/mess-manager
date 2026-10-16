@@ -32,6 +32,7 @@ import { toast } from 'sonner';
 import Swal from 'sweetalert2';
 import { confirmAction } from '@/lib/alerts';
 import Link from 'next/link';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface BazarTabProps {
   currentUser: AppUser;
@@ -54,6 +55,8 @@ export const BazarTab: React.FC<BazarTabProps> = ({
   onOpenNewBazarModal,
   onOpenFixedEventModal,
 }) => {
+  const { t, language } = useLanguage();
+
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMemberId, setSelectedMemberId] = useState<string>('all');
@@ -114,26 +117,24 @@ export const BazarTab: React.FC<BazarTabProps> = ({
     return Array.from(map.values());
   }, [members, bazars]);
 
-  // Helper to compute member's total bazar and fixed spending (only approved bazars count)
+  // Helper to compute member's total bazar spending (excluding fixed feasts which are in Special Feast)
   const getMemberSpending = (userId: string) => {
     const bazarTotal = bazars
-      .filter((b) => b.userId === userId && b.status === 'approved')
+      .filter((b) => b.userId === userId && b.status === 'approved' && b.type !== 'fixed')
       .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
-
-    const fixedTotal = fixedEvents
-      .filter((e) => e.attendeeUserIds?.includes(userId) || e.attendees?.some((a: any) => (a.id || a._id) === userId))
-      .reduce((acc, curr) => acc + (Number(curr.perPersonCost) || 0), 0);
 
     return {
       bazarTotal,
-      fixedTotal,
-      grandTotal: bazarTotal + fixedTotal,
+      grandTotal: bazarTotal,
     };
   };
 
-  // Filtered bazars list
+  // Filtered bazars list (Special Feasts are exclusively managed in /dashboard/feasts)
   const filteredBazars = useMemo(() => {
     return bazars.filter((b) => {
+      // Exclude special feast vouchers from regular bazar list
+      if (b.type === 'fixed') return false;
+
       // Type filter
       if (activeTypeFilter !== 'all' && b.type !== activeTypeFilter) return false;
 
@@ -303,11 +304,13 @@ export const BazarTab: React.FC<BazarTabProps> = ({
   // Delete bazar entry
   const handleDeleteBazar = async (id: string, desc: string) => {
     const isConfirmed = await confirmAction({
-      title: 'বাজার এন্ট্রিটি মুছে ফেলতে চান?',
-      text: `"${desc || 'এই বাজার'}" তালিকা থেকে সম্পূর্ণ মুছে ফেলা হবে।`,
+      title: language === 'en' ? 'Delete bazar entry?' : 'বাজার এন্ট্রিটি মুছে ফেলতে চান?',
+      text: language === 'en'
+        ? `"${desc || 'This bazar'}" will be completely removed from records.`
+        : `"${desc || 'এই বাজার'}" তালিকা থেকে সম্পূর্ণ মুছে ফেলা হবে।`,
       icon: 'warning',
-      confirmText: 'হ্যাঁ, মুছে ফেলুন',
-      cancelText: 'বাতিল',
+      confirmText: language === 'en' ? 'Yes, Delete' : 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: language === 'en' ? 'Cancel' : 'বাতিল',
       confirmColor: '#e11d48',
     });
 
@@ -317,38 +320,13 @@ export const BazarTab: React.FC<BazarTabProps> = ({
       const res = await fetch(`/api/bazars?id=${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
-        toast.success('বাজার তালিকা থেকে মুছে ফেলা হয়েছে!');
+        toast.success(language === 'en' ? 'Bazar entry deleted successfully!' : 'বাজার তালিকা থেকে মুছে ফেলা হয়েছে!');
         onRefresh();
       } else {
-        toast.error(data.error || 'মুছে ফেলতে ব্যর্থ হয়েছে');
+        toast.error(data.error || (language === 'en' ? 'Failed to delete' : 'মুছে ফেলতে ব্যর্থ হয়েছে'));
       }
     } catch (err: any) {
-      toast.error('নেটওয়ার্ক ত্রুটি ঘটেছে');
-    }
-  };
-
-  const handleDeleteFixedEvent = async (id: string, title?: string) => {
-    const isConfirmed = await confirmAction({
-      title: 'বিশেষ ভোজ মুছে ফেলতে চান?',
-      text: `"${title || 'এই বিশেষ ভোজ'}" এবং এর সাথে সংযুক্ত বাজারের খরচ হিসাব থেকে মুছে ফেলা হবে।`,
-      confirmText: 'হ্যাঁ, মুছে ফেলুন',
-      cancelText: 'বাতিল',
-      confirmColor: '#e11d48',
-    });
-
-    if (!isConfirmed) return;
-
-    try {
-      const res = await fetch(`/api/fixed-events?id=${id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        toast.success('বিশেষ ভোজ এবং সংযুক্ত বাজার এন্ট্রি মুছে ফেলা হয়েছে!');
-        onRefresh();
-      } else {
-        toast.error(data.error || 'মুছে ফেলতে ব্যর্থ হয়েছে');
-      }
-    } catch (err: any) {
-      toast.error('নেটওয়ার্ক ত্রুটি ঘটেছে');
+      toast.error(language === 'en' ? 'Network error occurred' : 'নেটওয়ার্ক ত্রুটি ঘটেছে');
     }
   };
 
@@ -363,10 +341,12 @@ export const BazarTab: React.FC<BazarTabProps> = ({
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
-                বাজার তালিকা ও খরচের খাতা
+                {language === 'en' ? 'Bazar List & Expenses Ledger' : 'বাজার তালিকা ও খরচের খাতা'}
               </h2>
               <p className="text-xs text-slate-400">
-                সকল সদস্যের সরাসরি যুক্তকৃত বাজার, আইটেম ফর্দ এবং ফিক্সড ভোজের স্বয়ংক্রিয় হিসাব
+                {language === 'en'
+                  ? 'Member bazar vouchers, itemized breakdowns, and meal pool management'
+                  : 'সকল সদস্যের সরাসরি যুক্তকৃত বাজার, আইটেম ফর্দ এবং মিল পুলের স্বয়ংক্রিয় হিসাব'}
               </p>
             </div>
           </div>
@@ -378,25 +358,23 @@ export const BazarTab: React.FC<BazarTabProps> = ({
             className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer shadow-sm"
           >
             <Calendar className="w-4 h-4 text-indigo-400" />
-            <span>বাজার ডিউটি রোস্টার</span>
+            <span>{language === 'en' ? 'Duty Roster' : 'বাজার ডিউটি রোস্টার'}</span>
           </Link>
 
-          {isManager && onOpenFixedEventModal && (
-            <button
-              onClick={onOpenFixedEventModal}
-              className="flex items-center gap-1.5 bg-slate-800/90 hover:bg-slate-750 text-amber-300 text-xs font-semibold px-3.5 py-2.5 rounded-xl border border-amber-500/30 transition-all cursor-pointer shadow-sm"
-            >
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>ফিক্সড ভোজ শিডিউল</span>
-            </button>
-          )}
+          <Link
+            href="/dashboard/feasts"
+            className="flex items-center gap-1.5 bg-slate-800/90 hover:bg-slate-750 text-amber-300 text-xs font-semibold px-3.5 py-2.5 rounded-xl border border-amber-500/30 transition-all cursor-pointer shadow-sm"
+          >
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>{language === 'en' ? 'Special Feasts' : 'স্পেশাল ভোজ'}</span>
+          </Link>
 
           <button
             onClick={onOpenNewBazarModal}
             className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>নতুন বাজার এন্ট্রি করুন</span>
+            <span>{language === 'en' ? 'Add New Bazar' : 'নতুন বাজার এন্ট্রি করুন'}</span>
           </button>
         </div>
       </div>
@@ -408,19 +386,24 @@ export const BazarTab: React.FC<BazarTabProps> = ({
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span className="flex items-center gap-1.5 font-medium">
               <ShoppingBag className="w-4 h-4 text-amber-400" />
-              মোট রেগুলার বাজার
+              {language === 'en' ? 'Regular Meal Bazar' : 'মোট রেগুলার বাজার'}
             </span>
             <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-mono">
-              মিল পুল
+              {language === 'en' ? 'Meal Pool' : 'মিল পুল'}
             </span>
           </div>
           <div className="text-2xl font-black text-white font-mono">
             {formatTaka(totalRegularBazar)}
           </div>
           <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
-            <span>ভাউচার সংখ্যা: {bazars.filter((b) => b.type === 'regular' || !b.type).length} টি</span>
+            <span>
+              {language === 'en' ? 'Vouchers: ' : 'ভাউচার সংখ্যা: '}
+              {bazars.filter((b) => b.type === 'regular' || !b.type).length} {language === 'en' ? '' : 'টি'}
+            </span>
             {totalExtraBazar > 0 && (
-              <span className="text-emerald-400">এক্সট্রা: {formatTaka(totalExtraBazar)}</span>
+              <span className="text-emerald-400">
+                {language === 'en' ? 'Extra: ' : 'এক্সট্রা: '}{formatTaka(totalExtraBazar)}
+              </span>
             )}
           </div>
         </div>
@@ -430,40 +413,48 @@ export const BazarTab: React.FC<BazarTabProps> = ({
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span className="flex items-center gap-1.5 font-medium">
               <Package className="w-4 h-4 text-purple-400" />
-              বড় বাজার খরচ
+              {language === 'en' ? 'Big Bazar Cost' : 'বড় বাজার খরচ'}
             </span>
             <span className="text-[10px] bg-purple-500/10 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded-full font-mono">
-              মাসিক ফান্ড
+              {language === 'en' ? 'Monthly Fund' : 'মাসিক ফান্ড'}
             </span>
           </div>
           <div className="text-2xl font-black text-white font-mono">
             {formatTaka(totalBigBazar)}
           </div>
           <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
-            <span>চাল, তেল ও পাইকারি ভাউচার</span>
+            <span>{language === 'en' ? 'Wholesale Vouchers' : 'চাল, তেল ও পাইকারি ভাউচার'}</span>
             <span className="text-purple-300 font-bold">
-              {bazars.filter((b) => b.type === 'big').length} টি
+              {bazars.filter((b) => b.type === 'big').length} {language === 'en' ? '' : 'টি'}
             </span>
           </div>
         </div>
 
-        {/* Card 3: Fixed Feasts & Events */}
+        {/* Card 3: Extra & Non-Meal Bazar */}
         <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 bg-gradient-to-b from-slate-900/90 to-slate-950 space-y-1.5 relative overflow-hidden">
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span className="flex items-center gap-1.5 font-medium">
-              <Sparkles className="w-4 h-4 text-orange-400" />
-              ফিক্সড ভোজ ও বিশেষ মিল
+              <Tag className="w-4 h-4 text-emerald-400" />
+              {language === 'en' ? 'Extra / Other Bazar' : 'এক্সট্রা ও অন্যান্য বাজার'}
             </span>
-            <span className="text-[10px] bg-orange-500/10 text-orange-300 border border-orange-500/20 px-2 py-0.5 rounded-full font-mono">
-              উপস্থিতি ভাগ
+            <span className="text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
+              {language === 'en' ? 'Non-Meal' : 'নন-মিল'}
             </span>
           </div>
           <div className="text-2xl font-black text-white font-mono">
-            {formatTaka(totalFixedEventsCost)}
+            {formatTaka(totalExtraBazar)}
           </div>
           <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
-            <span>ইভেন্ট সংখ্যা: {fixedEvents.length} টি</span>
-            <span className="text-orange-300 font-medium">শুক্রবারের স্পেশাল</span>
+            <span>
+              {language === 'en' ? 'Vouchers: ' : 'ভাউচার: '}
+              {bazars.filter((b) => b.type === 'extra').length} {language === 'en' ? '' : 'টি'}
+            </span>
+            <Link
+              href="/dashboard/feasts"
+              className="text-amber-400 hover:text-amber-300 font-medium inline-flex items-center gap-1 transition-colors"
+            >
+              <span>{language === 'en' ? 'Special Feasts →' : 'স্পেশাল ভোজ →'}</span>
+            </Link>
           </div>
         </div>
 
@@ -472,7 +463,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
           <div className="flex items-center justify-between text-xs font-semibold">
             <span className="flex items-center gap-1.5 text-emerald-400">
               <Clock className="w-4 h-4 text-emerald-400" />
-              আজকের বাজার দায়িত্ব কার?
+              {language === 'en' ? "Today's Bazar Duty" : 'আজকের বাজার দায়িত্ব কার?'}
             </span>
             <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 animate-pulse">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
@@ -522,10 +513,10 @@ export const BazarTab: React.FC<BazarTabProps> = ({
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold text-white flex items-center gap-2">
               <User className="w-4 h-4 text-indigo-400" />
-              সদস্যদের চলতি মাসের মোট বাজার ও খরচ অবদান
+              {language === 'en' ? 'Member Monthly Bazar Contributions' : 'সদস্যদের চলতি মাসের মোট বাজার অবদান'}
             </h4>
             <span className="text-[11px] text-slate-400">
-              যেকোনো সদস্যের কার্ডে ক্লিক করে সরাসরি ফিল্টার করুন
+              {language === 'en' ? 'Click any member card to filter vouchers' : 'যেকোনো সদস্যের কার্ডে ক্লিক করে সরাসরি ফিল্টার করুন'}
             </span>
           </div>
 
@@ -559,15 +550,9 @@ export const BazarTab: React.FC<BazarTabProps> = ({
 
                   <div className="border-t border-slate-800/80 pt-1.5 space-y-0.5 text-[10px] font-mono">
                     <div className="flex justify-between text-slate-400">
-                      <span>বাজার:</span>
+                      <span>{language === 'en' ? 'Bazar:' : 'বাজার:'}</span>
                       <span className="text-emerald-400 font-bold">{formatTaka(spending.bazarTotal)}</span>
                     </div>
-                    {spending.fixedTotal > 0 && (
-                      <div className="flex justify-between text-slate-400">
-                        <span>ভোজ:</span>
-                        <span className="text-orange-400 font-bold">{formatTaka(spending.fixedTotal)}</span>
-                      </div>
-                    )}
                   </div>
                 </button>
               );
@@ -576,87 +561,34 @@ export const BazarTab: React.FC<BazarTabProps> = ({
         </div>
       )}
 
-      {/* 4. Friday Special Feasts (Fixed Bazar Events Section) */}
-      {fixedEvents && fixedEvents.length > 0 && (
-        <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 space-y-3 bg-slate-900/60">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-            <h4 className="text-xs font-bold text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              ফিক্সড বাজার / বিশেষ ভোজ ইভেন্ট ({fixedEvents.length} টি)
-            </h4>
-            <span className="text-[11px] text-slate-400">
-              শুধুমাত্র উপস্থিত সদস্যদের মাঝে এই খরচ বণ্টিত হয়
-            </span>
+      {/* 4. Special Feasts Link Banner (Separated into Dedicated Module) */}
+      <div className="glass-panel rounded-2xl p-4 border border-amber-500/20 bg-amber-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+            <Sparkles className="w-5 h-5" />
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {fixedEvents.map((evt) => (
-              <div
-                key={evt._id}
-                className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2 relative overflow-hidden group hover:border-amber-500/30 transition-all"
-              >
-                <div className="flex justify-between items-start gap-2">
-                  <span className="text-xs font-bold text-amber-300 leading-snug">{evt.title}</span>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                      {evt.date}
-                    </span>
-                    {isManager && (
-                      <button
-                        onClick={() => handleDeleteFixedEvent(evt._id, evt.title)}
-                        className="text-slate-500 hover:text-rose-400 p-0.5 rounded hover:bg-rose-500/10 transition-colors"
-                        title="বিশেষ ভোজ ও সংযুক্ত বাজার খরচ মুছুন"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Buyer info */}
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                  <ShoppingBag className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                  <span>
-                    বাজার করেছেন:{' '}
-                    <strong className="text-amber-200">
-                      {evt.buyerName || evt.buyer?.name || 'মেস ম্যানেজার'}
-                    </strong>
-                  </span>
-                </div>
-
-                {/* Itemized expenses if any */}
-                {evt.items && evt.items.length > 0 && (
-                  <div className="flex flex-wrap gap-1 pt-0.5">
-                    {evt.items.map((it: any, idx: number) => (
-                      <span
-                        key={idx}
-                        className="text-[10px] bg-slate-900 border border-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono"
-                      >
-                        {it.name}: ৳{it.amount}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-baseline justify-between pt-0.5">
-                  <span className="text-xs font-black text-white font-mono">
-                    ইভেন্ট খরচ: {formatTaka(evt.cost)}
-                  </span>
-                  <span className="text-[11px] text-slate-300">
-                    জনপ্রতি: <strong className="text-emerald-400 font-mono">{formatTaka(evt.perPersonCost)}</strong>
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-1.5 truncate">
-                  উপস্থিত ({evt.attendees?.length || evt.attendeeUserIds?.length || 0} জন):{' '}
-                  <span className="text-slate-300">
-                    {evt.attendees?.map((a: any) => a.name).join(', ') || 'কেউ নেই'}
-                  </span>
-                </div>
-              </div>
-            ))}
+          <div>
+            <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+              <span>{language === 'en' ? 'Special Feast & Event Hub' : 'স্পেশাল ভোজ ও ইভেন্ট হাব'}</span>
+              <span className="text-[10px] px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded font-semibold border border-amber-500/30">
+                {language === 'en' ? 'Dedicated Menu' : 'স্বতন্ত্র মেনু'}
+              </span>
+            </h4>
+            <p className="text-[11px] sm:text-xs text-slate-400">
+              {language === 'en'
+                ? 'Special feast requests, member attendance, buyer organizer credit, and settlement math are managed in the Special Feast menu.'
+                : 'বিশেষ ভোজের শিডিউল, আবেদন, উপস্থিত সদস্য তালিকা এবং কাটাকাটি হিসাব দেখতে স্পেশাল ভোজ মেনু ব্যবহার করুন।'}
+            </p>
           </div>
         </div>
-      )}
+        <Link
+          href="/dashboard/feasts"
+          className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0"
+        >
+          <span>{language === 'en' ? 'Open Special Feasts' : 'স্পেশাল ভোজ মেনু খুলুন'}</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
 
       {/* 5. Easy Search & Filter Toolbar */}
       <div className="glass-panel rounded-2xl p-4 border border-slate-800 space-y-3 bg-slate-900/80">
@@ -668,7 +600,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="পণ্যের নাম, জিনিস বা বিবরণ দিয়ে খুঁজুন..."
+              placeholder={language === 'en' ? 'Search by item, name or description...' : 'পণ্যের নাম, জিনিস বা বিবরণ দিয়ে খুঁজুন...'}
               className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
             />
             {searchQuery && (
@@ -687,10 +619,10 @@ export const BazarTab: React.FC<BazarTabProps> = ({
             <select
               value={selectedMemberId}
               onChange={(e) => setSelectedMemberId(e.target.value)}
-              aria-label="সদস্য দ্বারা ফিল্টার"
+              aria-label="Member Filter"
               className="w-full pl-9 pr-8 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white appearance-none focus:outline-none focus:border-amber-500 transition-colors cursor-pointer"
             >
-              <option value="all">সকল সদস্য (ক্রেতা)</option>
+              <option value="all">{language === 'en' ? 'All Members (Buyers)' : 'সকল সদস্য (ক্রেতা)'}</option>
               {memberOptions.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name}
@@ -707,7 +639,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              aria-label="তারিখ দ্বারা ফিল্টার"
+              aria-label="Date Filter"
               className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500 transition-colors cursor-pointer font-mono"
             />
           </div>
@@ -720,7 +652,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                 className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white text-xs border border-slate-700 transition-colors cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>রিসেট ফিল্টার</span>
+                <span>{language === 'en' ? 'Reset' : 'রিসেট ফিল্টার'}</span>
               </button>
             )}
             <div
@@ -728,7 +660,8 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                 hasActiveFilters ? '' : 'w-full text-center'
               }`}
             >
-              মোট ভাউচার: <strong className="font-bold text-amber-400 font-mono">{filteredBazars.length}</strong> টি
+              {language === 'en' ? 'Vouchers: ' : 'মোট ভাউচার: '}
+              <strong className="font-bold text-amber-400 font-mono">{filteredBazars.length}</strong> {language === 'en' ? '' : 'টি'}
             </div>
           </div>
         </div>
@@ -737,13 +670,13 @@ export const BazarTab: React.FC<BazarTabProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60">
           <div className="flex items-center gap-1.5 overflow-x-auto text-xs py-0.5">
             <span className="text-[11px] text-slate-400 font-medium mr-1 flex items-center gap-1">
-              <Tag className="w-3 h-3" /> ধরণ:
+              <Tag className="w-3 h-3" /> {language === 'en' ? 'Type:' : 'ধরণ:'}
             </span>
             {[
-              { id: 'all', label: 'সব বাজার' },
-              { id: 'regular', label: 'রেগুলার বাজার' },
-              { id: 'big', label: 'বড় বাজার' },
-              { id: 'extra', label: 'এক্সট্রা বাজার' },
+              { id: 'all', label: language === 'en' ? 'All Bazar' : 'সব বাজার' },
+              { id: 'regular', label: language === 'en' ? 'Regular' : 'রেগুলার বাজার' },
+              { id: 'big', label: language === 'en' ? 'Big Bazar' : 'বড় বাজার' },
+              { id: 'extra', label: language === 'en' ? 'Extra' : 'এক্সট্রা বাজার' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -760,7 +693,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
           </div>
 
           <div className="text-xs text-slate-300 bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-800">
-            ফিল্টারকৃত মোট খরচ:{' '}
+            {language === 'en' ? 'Filtered Total: ' : 'ফিল্টারকৃত মোট খরচ: '}
             <strong className="text-emerald-400 font-mono font-bold">{formatTaka(totalFilteredAmount)}</strong>
           </div>
         </div>
@@ -773,18 +706,20 @@ export const BazarTab: React.FC<BazarTabProps> = ({
             <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-slate-500">
               <ShoppingBag className="w-7 h-7" />
             </div>
-            <h4 className="text-sm font-bold text-slate-300">কোনো বাজার এন্ট্রি পাওয়া যায়নি</h4>
+            <h4 className="text-sm font-bold text-slate-300">
+              {language === 'en' ? 'No bazar entries found' : 'কোনো বাজার এন্ট্রি পাওয়া যায়নি'}
+            </h4>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
               {hasActiveFilters
-                ? 'আপনার দেওয়া ফিল্টারে কোনো বাজার মিলছে না। অনুগ্রহ করে ফিল্টার রিসেট করুন।'
-                : 'চলতি মাসে এখনো কোনো বাজার যুক্ত করা হয়নি। উপরে "নতুন বাজার এন্ট্রি করুন" বাটনে ক্লিক করে যুক্ত করুন।'}
+                ? (language === 'en' ? 'No records match your filters. Please reset filters.' : 'আপনার দেওয়া ফিল্টারে কোনো বাজার মিলছে না। অনুগ্রহ করে ফিল্টার রিসেট করুন।')
+                : (language === 'en' ? 'No bazar vouchers recorded yet for this cycle.' : 'চলতি মাসে এখনো কোনো বাজার যুক্ত করা হয়নি। উপরে "নতুন বাজার এন্ট্রি করুন" বাটনে ক্লিক করে যুক্ত করুন।')}
             </p>
             {hasActiveFilters && (
               <button
                 onClick={resetFilters}
                 className="text-xs text-amber-400 hover:underline cursor-pointer font-semibold"
               >
-                ফিল্টার রিসেট করুন
+                {language === 'en' ? 'Reset Filters' : 'ফিল্টার রিসেট করুন'}
               </button>
             )}
           </div>
@@ -795,13 +730,13 @@ export const BazarTab: React.FC<BazarTabProps> = ({
               <table className="w-full text-left text-xs text-slate-300">
                 <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase text-[10px] tracking-wider font-bold">
                   <tr>
-                    <th className="py-3 px-4">তারিখ</th>
-                    <th className="py-3 px-4">বিবরণ ও ফর্দ</th>
-                    <th className="py-3 px-4">ধরণ</th>
-                    <th className="py-3 px-4">ক্রেতার নাম</th>
-                    <th className="py-3 px-4 text-center">স্ট্যাটাস</th>
-                    <th className="py-3 px-4 text-right">টাকার পরিমাণ</th>
-                    <th className="py-3 px-4 text-center">অ্যাকশন</th>
+                    <th className="py-3 px-4">{language === 'en' ? 'Date' : 'তারিখ'}</th>
+                    <th className="py-3 px-4">{language === 'en' ? 'Description & Items' : 'বিবরণ ও ফর্দ'}</th>
+                    <th className="py-3 px-4">{language === 'en' ? 'Type' : 'ধরণ'}</th>
+                    <th className="py-3 px-4">{language === 'en' ? 'Buyer Name' : 'ক্রেতার নাম'}</th>
+                    <th className="py-3 px-4 text-center">{language === 'en' ? 'Status' : 'স্ট্যাটাস'}</th>
+                    <th className="py-3 px-4 text-right">{language === 'en' ? 'Amount' : 'টাকার পরিমাণ'}</th>
+                    <th className="py-3 px-4 text-center">{language === 'en' ? 'Actions' : 'অ্যাকশন'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-sans">
@@ -844,7 +779,11 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                                 : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                             }`}
                           >
-                            {b.type === 'regular' ? 'রেগুলার' : b.type === 'big' ? 'বড় বাজার' : 'এক্সট্রা'}
+                            {b.type === 'regular'
+                              ? (language === 'en' ? 'Regular' : 'রেগুলার')
+                              : b.type === 'big'
+                              ? (language === 'en' ? 'Big Bazar' : 'বড় বাজার')
+                              : (language === 'en' ? 'Extra' : 'এক্সট্রা')}
                           </span>
                         </td>
 
@@ -853,17 +792,17 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                           <div className="flex items-center gap-2">
                             <img
                               src={b.userImage || `https://api.dicebear.com/7.x/bottts/svg?seed=${b.userId}`}
-                              alt={b.userName || 'ক্রেতা'}
+                              alt={b.userName || 'Buyer'}
                               className="w-7 h-7 rounded-lg object-cover border border-slate-700"
                             />
                             <div>
-                              <span className="font-bold text-white text-xs block">{b.userName || 'অজানা'}</span>
+                              <span className="font-bold text-white text-xs block">{b.userName || 'Unknown'}</span>
                               <span className="text-[10px] text-slate-400 block capitalize">
                                 {b.userRole === 'super_admin'
-                                   ? 'সুপার এডমিন'
+                                   ? (language === 'en' ? 'Super Admin' : 'সুপার এডমিন')
                                    : b.userRole === 'admin'
-                                   ? 'ম্যানেজার'
-                                   : 'সদস্য'}
+                                   ? (language === 'en' ? 'Manager' : 'ম্যানেজার')
+                                   : (language === 'en' ? 'Member' : 'সদস্য')}
                               </span>
                             </div>
                           </div>
@@ -873,15 +812,15 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           {isApproved ? (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                              অনুমোদিত
+                              {language === 'en' ? 'Approved' : 'অনুমোদিত'}
                             </span>
                           ) : b.status === 'rejected' ? (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                              বাতিল
+                              {language === 'en' ? 'Rejected' : 'বাতিল'}
                             </span>
                           ) : (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                              পেন্ডিং
+                              {language === 'en' ? 'Pending' : 'পেন্ডিং'}
                             </span>
                           )}
                         </td>
@@ -900,10 +839,10 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                                 onClick={() => handleApproveBazar(b._id, b.description)}
                                 disabled={processingBazarId === b._id}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
-                                title="বাজার এন্ট্রি অনুমোদন করুন"
+                                title="Approve"
                               >
                                 <Check className="w-3.5 h-3.5" />
-                                <span>অনুমোদন</span>
+                                <span>{language === 'en' ? 'Approve' : 'অনুমোদন'}</span>
                               </button>
                             )}
 
@@ -913,7 +852,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                                 onClick={() => handleRejectBazar(b._id, b.description)}
                                 disabled={processingBazarId === b._id}
                                 className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 text-xs transition-colors cursor-pointer"
-                                title="বাজার এন্ট্রি বাতিল করুন"
+                                title="Reject"
                               >
                                 <X className="w-3.5 h-3.5" />
                               </button>
@@ -923,10 +862,10 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                             <button
                               onClick={() => setViewingDetailsBazar(b)}
                               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/35 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all cursor-pointer shadow-sm"
-                              title="পূর্ণাঙ্গ ফর্দ ও ক্রেতার খরচ বিবরণী দেখুন"
+                              title="Details"
                             >
                               <Eye className="w-3.5 h-3.5" />
-                              <span>বিস্তারিত দেখুন</span>
+                              <span>{language === 'en' ? 'Details' : 'বিস্তারিত দেখুন'}</span>
                             </button>
 
                             {/* Edit Button */}
@@ -934,7 +873,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                               <button
                                 onClick={() => startEdit(b)}
                                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
-                                title="বাজার এডিট বা সংশোধন করুন"
+                                title="Edit"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
@@ -945,7 +884,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                               <button
                                 onClick={() => handleDeleteBazar(b._id, b.description)}
                                 className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/35 text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
-                                title="বাজার এন্ট্রি মুছে ফেলুন"
+                                title="Delete"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -981,19 +920,23 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                                 : 'bg-emerald-500/20 text-emerald-300'
                             }`}
                           >
-                            {b.type === 'regular' ? 'রেগুলার' : b.type === 'big' ? 'বড় বাজার' : 'এক্সট্রা'}
+                            {b.type === 'regular'
+                              ? (language === 'en' ? 'Regular' : 'রেগুলার')
+                              : b.type === 'big'
+                              ? (language === 'en' ? 'Big Bazar' : 'বড় বাজার')
+                              : (language === 'en' ? 'Extra' : 'এক্সট্রা')}
                           </span>
                           {b.status === 'approved' ? (
                             <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                              অনুমোদিত
+                              {language === 'en' ? 'Approved' : 'অনুমোদিত'}
                             </span>
                           ) : b.status === 'rejected' ? (
                             <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                              বাতিল
+                              {language === 'en' ? 'Rejected' : 'বাতিল'}
                             </span>
                           ) : (
                             <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                              পেন্ডিং
+                              {language === 'en' ? 'Pending' : 'পেন্ডিং'}
                             </span>
                           )}
                         </div>
@@ -1016,7 +959,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                         </div>
                         {hasItems && (
                           <span className="text-[10px] text-amber-300/80 block font-mono">
-                            {b.items.length}টি জিনিস
+                            {b.items.length} {language === 'en' ? 'items' : 'টি জিনিস'}
                           </span>
                         )}
                       </div>
@@ -1028,7 +971,7 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                         className="flex items-center gap-1 text-[11px] font-bold bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 px-3 py-1.5 rounded-lg cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        <span>বিস্তারিত দেখুন</span>
+                        <span>{language === 'en' ? 'Details' : 'বিস্তারিত দেখুন'}</span>
                       </button>
 
                       <div className="flex items-center gap-1.5">
@@ -1091,16 +1034,18 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                   <Receipt className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-base font-bold text-white">বাজার ভাউচার ও খরচের বিস্তারিত রসিদ</h4>
+                  <h4 className="text-base font-bold text-white">
+                    {language === 'en' ? 'Bazar Voucher & Expense Receipt' : 'বাজার ভাউচার ও খরচের বিস্তারিত রসিদ'}
+                  </h4>
                   <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
                     <span>{viewingDetailsBazar.date}</span>
                     <span>•</span>
                     <span className="uppercase text-amber-300 font-bold">
                       {viewingDetailsBazar.type === 'regular'
-                        ? 'রেগুলার বাজার'
+                        ? (language === 'en' ? 'Regular Bazar' : 'রেগুলার বাজার')
                         : viewingDetailsBazar.type === 'big'
-                        ? 'বড় বাজার'
-                        : 'এক্সট্রা বাজার'}
+                        ? (language === 'en' ? 'Big Bazar' : 'বড় বাজার')
+                        : (language === 'en' ? 'Extra Bazar' : 'এক্সট্রা বাজার')}
                     </span>
                   </div>
                 </div>
@@ -1135,13 +1080,15 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                             <span className="font-bold text-white text-sm">{viewingDetailsBazar.userName}</span>
                             <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.2 rounded capitalize">
                               {viewingDetailsBazar.userRole === 'super_admin'
-                                ? 'সুপার এডমিন'
+                                ? (language === 'en' ? 'Super Admin' : 'সুপার এডমিন')
                                 : viewingDetailsBazar.userRole === 'admin'
-                                ? 'ম্যানেজার'
-                                : 'সদস্য'}
+                                ? (language === 'en' ? 'Manager' : 'ম্যানেজার')
+                                : (language === 'en' ? 'Member' : 'সদস্য')}
                             </span>
                           </div>
-                          <span className="text-[11px] text-slate-400">এই ভাউচারের ক্রেতা / পরিশোধকারী</span>
+                          <span className="text-[11px] text-slate-400">
+                            {language === 'en' ? 'Buyer / Paid By' : 'এই ভাউচারের ক্রেতা / পরিশোধকারী'}
+                          </span>
                         </div>
                       </div>
 
@@ -1149,29 +1096,27 @@ export const BazarTab: React.FC<BazarTabProps> = ({
                         href={`/dashboard/profile?userId=${viewingDetailsBazar.userId}`}
                         className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
                       >
-                        <span>প্রোফাইল</span>
+                        <span>{language === 'en' ? 'Profile' : 'প্রোফাইল'}</span>
                         <ExternalLink className="w-3 h-3" />
                       </Link>
                     </div>
 
-                    {/* Buyer's Total Bazar & Fixed Feast Breakdown */}
-                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/80 font-mono text-center">
+                    {/* Buyer's Total Bazar Breakdown */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 font-mono text-center">
                       <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
-                        <span className="text-[10px] text-slate-400 block font-sans">চলতি মাসে বাজার</span>
+                        <span className="text-[10px] text-slate-400 block font-sans">
+                          {language === 'en' ? 'Total Monthly Bazar' : 'চলতি মাসে মোট বাজার'}
+                        </span>
                         <span className="text-xs font-bold text-emerald-400">
                           {formatTaka(buyerSpending.bazarTotal)}
                         </span>
                       </div>
                       <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
-                        <span className="text-[10px] text-slate-400 block font-sans">ফিক্সড ভোজ খরচ</span>
-                        <span className="text-xs font-bold text-orange-400">
-                          {formatTaka(buyerSpending.fixedTotal)}
+                        <span className="text-[10px] text-slate-400 block font-sans">
+                          {language === 'en' ? 'Current Voucher' : 'বর্তমান ভাউচার'}
                         </span>
-                      </div>
-                      <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-800">
-                        <span className="text-[10px] text-slate-400 block font-sans">মোট মেস খরচ</span>
                         <span className="text-xs font-bold text-amber-400">
-                          {formatTaka(buyerSpending.grandTotal)}
+                          {formatTaka(viewingDetailsBazar.amount)}
                         </span>
                       </div>
                     </div>

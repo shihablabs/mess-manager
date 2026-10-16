@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from '@/components/icons';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface MemberFinancialStatementCardProps {
   memberResult: MemberBillingResult;
@@ -56,6 +57,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
   onSelectMemberId,
   className = '',
 }) => {
+  const { t, language } = useLanguage();
   const isPlus = (memberResult?.netBalance ?? 0) >= 0;
   const netBalance = memberResult?.netBalance ?? 0;
   const [showFullDetails, setShowFullDetails] = useState(false);
@@ -79,16 +81,16 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
   const getMethodBadge = (method?: string) => {
     switch (method?.toLowerCase()) {
       case 'bkash':
-        return { label: 'বিকাশ (bKash)', bg: 'bg-pink-500/15 text-pink-300 border-pink-500/30' };
+        return { label: language === 'en' ? 'bKash' : 'বিকাশ (bKash)', bg: 'bg-pink-500/15 text-pink-300 border-pink-500/30' };
       case 'nagad':
-        return { label: 'নগদ (Nagad)', bg: 'bg-orange-500/15 text-orange-300 border-orange-500/30' };
+        return { label: language === 'en' ? 'Nagad' : 'নগদ (Nagad)', bg: 'bg-orange-500/15 text-orange-300 border-orange-500/30' };
       case 'rocket':
-        return { label: 'রকেট (Rocket)', bg: 'bg-purple-500/15 text-purple-300 border-purple-500/30' };
+        return { label: language === 'en' ? 'Rocket' : 'রকেট (Rocket)', bg: 'bg-purple-500/15 text-purple-300 border-purple-500/30' };
       case 'bank':
-        return { label: 'ব্যাংক', bg: 'bg-sky-500/15 text-sky-300 border-sky-500/30' };
+        return { label: language === 'en' ? 'Bank' : 'ব্যাংক', bg: 'bg-sky-500/15 text-sky-300 border-sky-500/30' };
       case 'cash':
       default:
-        return { label: 'নগদ ক্যাশ', bg: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' };
+        return { label: language === 'en' ? 'Cash' : 'নগদ ক্যাশ', bg: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' };
     }
   };
 
@@ -96,14 +98,14 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
   const getTypeBadge = (type?: string) => {
     switch (type) {
       case 'rent':
-        return { label: 'বাসা ভাড়া', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/30' };
+        return { label: language === 'en' ? 'Room Rent' : 'বাসা ভাড়া', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/30' };
       case 'utility':
-        return { label: 'ইউটিলিটি বিল', bg: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' };
+        return { label: language === 'en' ? 'Utilities' : 'ইউটিলিটি বিল', bg: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' };
       case 'big_bazar':
-        return { label: 'বড় বাজার ফান্ড', bg: 'bg-purple-500/20 text-purple-300 border-purple-500/30' };
+        return { label: language === 'en' ? 'Big Bazar' : 'বড় বাজার ফান্ড', bg: 'bg-purple-500/20 text-purple-300 border-purple-500/30' };
       case 'general':
       default:
-        return { label: 'মেস জমা', bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' };
+        return { label: language === 'en' ? 'Mess Deposit' : 'মেস জমা', bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' };
     }
   };
 
@@ -113,23 +115,18 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
     try {
       const parts = dateStr.split('-');
       if (parts.length === 3) {
-        const monthNames = [
-          'জানু',
-          'ফেব্রু',
-          'মার্চ',
-          'এপ্রিল',
-          'মে',
-          'জুন',
-          'জুলাই',
-          'আগস্ট',
-          'সেপ্টে',
-          'অক্টো',
-          'নভে',
-          'ডিসে',
+        const monthNamesBn = [
+          'জানু', 'ফেব্রু', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
+          'জুলাই', 'আগস্ট', 'সেপ্টে', 'অক্টো', 'নভে', 'ডিসে',
+        ];
+        const monthNamesEn = [
+          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
         ];
         const m = parseInt(parts[1], 10) - 1;
         const d = parseInt(parts[2], 10);
-        return `${d} ${monthNames[m] || parts[1]}`;
+        const month = language === 'en' ? (monthNamesEn[m] || parts[1]) : (monthNamesBn[m] || parts[1]);
+        return `${d} ${month}`;
       }
       return dateStr;
     } catch {
@@ -173,7 +170,9 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
         <div className="flex items-center gap-2.5 flex-wrap">
           {showMemberPicker && allMembers.length > 0 && onSelectMemberId && (
             <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1 text-xs">
-              <span className="text-[11px] text-slate-400">সদস্য বাছাই:</span>
+              <span className="text-[11px] text-slate-400">
+                {language === 'en' ? 'Select Member:' : 'সদস্য বাছাই:'}
+              </span>
               <select
                 value={memberResult.userId}
                 onChange={(e) => onSelectMemberId(e.target.value)}
@@ -194,10 +193,10 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
             <button
               onClick={() => onOpenStatement(memberResult)}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer shadow-sm"
-              title="স্টেটমেন্ট প্রিন্ট বা PDF হিসেবে সংরক্ষণ করুন"
+              title={language === 'en' ? 'Print or save statement as PDF' : 'স্টেটমেন্ট প্রিন্ট বা PDF হিসেবে সংরক্ষণ করুন'}
             >
               <Printer className="w-4 h-4 text-indigo-400" />
-              <span>প্রিন্ট / PDF</span>
+              <span>{language === 'en' ? 'Print / PDF' : 'প্রিন্ট / PDF'}</span>
             </button>
           )}
 
@@ -205,10 +204,10 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
             <button
               onClick={onOpenDeposit}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
-              title="মেসের ফান্ডে নতুন টাকা জমা এন্ট্রি করুন"
+              title={language === 'en' ? 'Submit new deposit to mess fund' : 'মেসের ফান্ডে নতুন টাকা জমা এন্ট্রি করুন'}
             >
               <Plus className="w-4 h-4" />
-              <span>টাকা জমা দিন</span>
+              <span>{language === 'en' ? 'Deposit Money' : 'টাকা জমা দিন'}</span>
             </button>
           )}
         </div>
@@ -237,8 +236,8 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
               <div className="flex items-center gap-2">
                 <h4 className="text-sm sm:text-base font-bold text-white">
                   {isPlus
-                    ? 'চমৎকার! আপনার কোনো বকেয়া নেই'
-                    : 'চলতি মাসের ব্যক্তিগত ব্যালেন্স স্থিতি'}
+                    ? (language === 'en' ? 'Great! You have no outstanding dues' : 'চমৎকার! আপনার কোনো বকেয়া নেই')
+                    : (language === 'en' ? 'Current Month Personal Balance Status' : 'চলতি মাসের ব্যক্তিগত ব্যালেন্স স্থিতি')}
                 </h4>
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
@@ -247,13 +246,19 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
                       : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                   }`}
                 >
-                  {isPlus ? 'উদ্বৃত্ত / ফেরত পাবেন' : 'পরিশোধ বাকি'}
+                  {isPlus
+                    ? (language === 'en' ? 'Surplus / Refundable' : 'উদ্বৃত্ত / ফেরত পাবেন')
+                    : (language === 'en' ? 'Payment Due' : 'পরিশোধ বাকি')}
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
                 {isPlus
-                  ? `মেস ফান্ডে আপনার মোট ${formatTaka(netBalance)} টাকা অগ্রিম (পাওনা) জমা রয়েছে।`
-                  : `চলতি মাসে পরিশোধের জন্য নিট বাকি: ${formatTaka(Math.abs(netBalance))} — নির্ধারিত মেস অ্যাকাউন্টে জমা দিয়ে ক্লিয়ার করুন।`}
+                  ? (language === 'en'
+                      ? `You have an advance credit of ${formatTaka(netBalance)} in the mess fund.`
+                      : `মেস ফান্ডে আপনার মোট ${formatTaka(netBalance)} টাকা অগ্রিম (পাওনা) জমা রয়েছে।`)
+                  : (language === 'en'
+                      ? `Net remaining due to pay this month: ${formatTaka(Math.abs(netBalance))} — please deposit to the designated mess account.`
+                      : `চলতি মাসে পরিশোধের জন্য নিট বাকি: ${formatTaka(Math.abs(netBalance))} — নির্ধারিত মেস অ্যাকাউন্টে জমা দিয়ে ক্লিয়ার করুন।`)}
               </p>
             </div>
           </div>
@@ -265,7 +270,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer shadow-sm"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>টাকা জমা দিন</span>
+                <span>{language === 'en' ? 'Deposit Money' : 'টাকা জমা দিন'}</span>
               </button>
             )}
             <button
@@ -274,12 +279,12 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
             >
               {showFullDetails ? (
                 <>
-                  <span>সংক্ষিপ্ত করুন</span>
+                  <span>{language === 'en' ? 'Collapse' : 'সংক্ষিপ্ত করুন'}</span>
                   <ChevronUp className="w-3.5 h-3.5 text-indigo-400" />
                 </>
               ) : (
                 <>
-                  <span>বিস্তারিত হিসাব</span>
+                  <span>{language === 'en' ? 'Detailed Ledger' : 'বিস্তারিত হিসাব'}</span>
                   <ChevronDown className="w-3.5 h-3.5 text-indigo-400" />
                 </>
               )}
@@ -295,14 +300,18 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span className="flex items-center gap-1 font-medium">
               <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-              আপনার মোট জমা
+              {language === 'en' ? 'Your Total Deposits' : 'আপনার মোট জমা'}
             </span>
-            <span className="text-[10px] text-emerald-400 font-semibold">{memberDeposits.length} কিস্তি</span>
+            <span className="text-[10px] text-emerald-400 font-semibold">
+              {memberDeposits.length} {language === 'en' ? 'installments' : 'কিস্তি'}
+            </span>
           </div>
           <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
             {formatTaka(memberResult.totalCredits)}
           </div>
-          <p className="text-[10px] text-slate-400">ক্যাশ/বিকাশে মেস ফান্ডে জমা</p>
+          <p className="text-[10px] text-slate-400">
+            {language === 'en' ? 'Cash/bKash deposits in fund' : 'ক্যাশ/বিকাশে মেস ফান্ডে জমা'}
+          </p>
         </div>
 
         {/* B. Meal Cost */}
@@ -310,14 +319,18 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span className="flex items-center gap-1 font-medium">
               <Utensils className="w-3.5 h-3.5 text-indigo-400" />
-              খাবারের মিল খরচ
+              {language === 'en' ? 'Meal Consumption' : 'খাবারের মিল খরচ'}
             </span>
-            <span className="text-[10px] text-indigo-300 font-semibold font-mono">{formatMealUnits(memberResult.mealUnits)} মিল</span>
+            <span className="text-[10px] text-indigo-300 font-semibold font-mono">
+              {formatMealUnits(memberResult.mealUnits)} {language === 'en' ? 'meals' : 'মিল'}
+            </span>
           </div>
           <div className="text-xl sm:text-2xl font-black text-white font-mono">
             {formatTaka(memberResult.regularMealCost)}
           </div>
-          <p className="text-[10px] text-slate-400">{formatMealUnits(memberResult.mealUnits)} মিল × ৳{formatTaka(mealRate, { decimals: 2 })}</p>
+          <p className="text-[10px] text-slate-400">
+            {formatMealUnits(memberResult.mealUnits)} {language === 'en' ? 'meals' : 'মিল'} × ৳{formatTaka(mealRate, { decimals: 2 })}
+          </p>
         </div>
 
         {/* C. Room Rent & Utility */}
@@ -325,14 +338,18 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span className="flex items-center gap-1 font-medium">
               <Home className="w-3.5 h-3.5 text-amber-400" />
-              বাসা ভাড়া ও বিল
+              {language === 'en' ? 'Room Rent & Bills' : 'বাসা ভাড়া ও বিল'}
             </span>
-            <span className="text-[10px] text-amber-300 font-semibold">ফিক্সড</span>
+            <span className="text-[10px] text-amber-300 font-semibold">
+              {language === 'en' ? 'Fixed' : 'ফিক্সড'}
+            </span>
           </div>
           <div className="text-xl sm:text-2xl font-black text-white font-mono">
             {formatTaka(memberResult.roomRent + memberResult.utilityShare)}
           </div>
-          <p className="text-[10px] text-slate-400">ভাড়া {formatTaka(memberResult.roomRent)} + ইউটিলিটি</p>
+          <p className="text-[10px] text-slate-400">
+            {language === 'en' ? 'Rent' : 'ভাড়া'} {formatTaka(memberResult.roomRent)} + {language === 'en' ? 'Utilities' : 'ইউটিলিটি'}
+          </p>
         </div>
 
         {/* D. Net Balance */}
@@ -346,10 +363,10 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
           <div className="flex items-center justify-between text-xs font-semibold">
             <span className={`flex items-center gap-1 ${isPlus ? 'text-emerald-300' : 'text-indigo-300'}`}>
               {isPlus ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              বর্তমান স্থিতি
+              {language === 'en' ? 'Current Status' : 'বর্তমান স্থিতি'}
             </span>
             <span className={`text-[10px] font-bold ${isPlus ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {isPlus ? 'পাওনা' : 'বাকি'}
+              {isPlus ? (language === 'en' ? 'Receivable' : 'পাওনা') : (language === 'en' ? 'Due' : 'বাকি')}
             </span>
           </div>
           <div
@@ -360,7 +377,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
             {isPlus ? `+${formatTaka(netBalance)}` : `-${formatTaka(Math.abs(netBalance))}`}
           </div>
           <p className="text-[10px] text-slate-300">
-            {isPlus ? '✓ মেস থেকে পাবেন' : 'মেসে জমা দেওয়া বাকি'}
+            {isPlus ? (language === 'en' ? '✓ Refundable from mess' : '✓ মেস থেকে পাবেন') : (language === 'en' ? 'Due to deposit' : 'মেসে জমা দেওয়া বাকি')}
           </p>
         </div>
       </div>
@@ -375,13 +392,15 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
               <div className="flex items-center gap-2">
                 <Utensils className="w-4 h-4 text-amber-400" />
                 <h4 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
-                  ১. খরচের পূর্ণাঙ্গ হিসাব (Expenses Breakdown)
+                  {language === 'en' ? '1. Expenses Breakdown' : '১. খরচের পূর্ণাঙ্গ হিসাব'}
                 </h4>
               </div>
-              <span className="text-[11px] font-mono text-slate-400">টাকার অঙ্ক</span>
+              <span className="text-[11px] font-mono text-slate-400">
+                {language === 'en' ? 'Amount' : 'টাকার অঙ্ক'}
+              </span>
             </div>
 
-            {/* A. HOUSE RENT (বাসা ভাড়া - High Priority, Distinctly Separated) */}
+            {/* A. HOUSE RENT */}
             <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/30 flex items-center justify-between gap-3 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
@@ -389,12 +408,16 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-white">নির্ধারিত বাসা / রুম ভাড়া</span>
+                    <span className="text-xs font-bold text-white">
+                      {language === 'en' ? 'Assigned Room Rent' : 'নির্ধারিত বাসা / রুম ভাড়া'}
+                    </span>
                     <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      ডিফল্ট ফিক্সড
+                      {language === 'en' ? 'Fixed' : 'ডিফল্ট ফিক্সড'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400">চলতি মাসের মাসিক সিট বা রুমের নির্দিষ্ট ভাড়া</p>
+                  <p className="text-[11px] text-slate-400">
+                    {language === 'en' ? 'Monthly allocated room or seat rent' : 'চলতি মাসের মাসিক সিট বা রুমের নির্দিষ্ট ভাড়া'}
+                  </p>
                 </div>
               </div>
               <span className="text-sm font-black font-mono text-amber-300 shrink-0">
@@ -402,7 +425,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
               </span>
             </div>
 
-            {/* B. UTILITIES & STAFF (মেস ইউটিলিটি ও খালা বিল) */}
+            {/* B. UTILITIES & STAFF */}
             <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0">
@@ -410,17 +433,19 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-200">মেস ইউটিলিটি ও খালা বিল</span>
+                    <span className="text-xs font-bold text-slate-200">
+                      {language === 'en' ? 'Mess Utilities & Cook Bill' : 'মেস ইউটিলিটি ও খালা বিল'}
+                    </span>
                     {memberResult.isUtilityExempt && (
                       <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        মওকুফ (Free)
+                        {language === 'en' ? 'Exempt' : 'মওকুফ (Free)'}
                       </span>
                     )}
                   </div>
                   <p className="text-[11px] text-slate-400">
                     {memberResult.isUtilityExempt
-                      ? 'অ্যাডমিন কর্তৃক এই মাসে বিল মওকুফ করা হয়েছে'
-                      : 'বিদ্যুৎ, গ্যাস, পানি, খালা বিল ও ইন্টারনেটের সমবণ্টন'}
+                      ? (language === 'en' ? 'Bill exempted by admin for this cycle' : 'অ্যাডমিন কর্তৃক এই মাসে বিল মওকুফ করা হয়েছে')
+                      : (language === 'en' ? 'Electricity, gas, water, maid, and wifi split' : 'বিদ্যুৎ, গ্যাস, পানি, খালা বিল ও ইন্টারনেটের সমবণ্টন')}
                   </p>
                 </div>
               </div>
@@ -429,7 +454,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
               </span>
             </div>
 
-            {/* C. MEAL CONSUMPTION (খাবারের মিল খরচ) */}
+            {/* C. MEAL CONSUMPTION */}
             <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
@@ -437,13 +462,15 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-200">খাবারের মিল খরচ</span>
+                    <span className="text-xs font-bold text-slate-200">
+                      {language === 'en' ? 'Meal Consumption Cost' : 'খাবারের মিল খরচ'}
+                    </span>
                     <span className="text-[10px] text-indigo-300 font-mono font-medium">
-                      ({formatMealUnits(memberResult.mealUnits)} টি মিল)
+                      ({formatMealUnits(memberResult.mealUnits)} {language === 'en' ? 'meals' : 'টি মিল'})
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    {formatMealUnits(memberResult.mealUnits)} মিল × {formatTaka(mealRate, { decimals: 2 })} লাইভ রেট
+                    {formatMealUnits(memberResult.mealUnits)} {language === 'en' ? 'meals' : 'মিল'} × {formatTaka(mealRate, { decimals: 2 })} {language === 'en' ? 'rate' : 'লাইভ রেট'}
                   </p>
                 </div>
               </div>
@@ -452,7 +479,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
               </span>
             </div>
 
-            {/* D. FIXED EVENTS / FEAST (ফিক্সড মিল ও স্পেশাল ভোজ) */}
+            {/* D. FIXED EVENTS / FEAST */}
             {memberResult.fixedShare > 0 && (
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -460,8 +487,12 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-200">ফিক্সড মিল / বিশেষ ভোজ</span>
-                    <p className="text-[11px] text-slate-400">উপস্থিত বিশেষ ভোজ ও স্পেশাল আইটেমের অংশ</p>
+                    <span className="text-xs font-bold text-slate-200">
+                      {language === 'en' ? 'Special Feast Share' : 'ফিক্সড মিল / বিশেষ ভোজ'}
+                    </span>
+                    <p className="text-[11px] text-slate-400">
+                      {language === 'en' ? 'Share of attended special feasts' : 'উপস্থিত বিশেষ ভোজ ও স্পেশাল আইটেমের অংশ'}
+                    </p>
                   </div>
                 </div>
                 <span className="text-xs font-bold font-mono text-slate-200 shrink-0">
@@ -470,7 +501,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
               </div>
             )}
 
-            {/* E. EXTRA NON-POOL BAZAR (অতিরিক্ত বাজার শেয়ার) */}
+            {/* E. EXTRA NON-POOL BAZAR */}
             {memberResult.extraShareNonPool > 0 && (
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -478,8 +509,12 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
                     <Tag className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-200">অতিরিক্ত বাজার শেয়ার</span>
-                    <p className="text-[11px] text-slate-400">নন-মিল আইটেমের সমবণ্টন</p>
+                    <span className="text-xs font-bold text-slate-200">
+                      {language === 'en' ? 'Extra Bazar Share' : 'অতিরিক্ত বাজার শেয়ার'}
+                    </span>
+                    <p className="text-[11px] text-slate-400">
+                      {language === 'en' ? 'Equal distribution of non-meal expenses' : 'নন-মিল আইটেমের সমবণ্টন'}
+                    </p>
                   </div>
                 </div>
                 <span className="text-xs font-bold font-mono text-slate-200 shrink-0">
@@ -491,27 +526,27 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
 
           {/* Subtotal Total Dues Bar */}
           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs font-black text-amber-300">
-            <span>মোট মেস খরচ ও দাবি (Total Dues)</span>
+            <span>{language === 'en' ? 'Total Dues & Claims' : 'মোট মেস খরচ ও দাবি (Total Dues)'}</span>
             <span className="font-mono text-sm">{formatTaka(memberResult.totalDues)}</span>
           </div>
         </div>
 
-        {/* ================= RIGHT COLUMN: ITEMIZED DEPOSITS (২০০, ৩০০, ৫০০ টাকা ইত্যাদি) ================= */}
+        {/* ================= RIGHT COLUMN: ITEMIZED DEPOSITS ================= */}
         <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/40 border border-slate-800 space-y-4 flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
               <div className="flex items-center gap-2">
                 <Wallet className="w-4 h-4 text-emerald-400" />
                 <h4 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
-                  ২. জমাকৃত প্রতিটি কিস্তির হিসাব (Itemized Deposits)
+                  {language === 'en' ? '2. Itemized Deposits' : '২. জমাকৃত প্রতিটি কিস্তির হিসাব'}
                 </h4>
               </div>
               <span className="text-[11px] text-emerald-400 font-medium">
-                {memberDeposits.length}টি এন্ট্রি
+                {memberDeposits.length} {language === 'en' ? 'entries' : 'টি এন্ট্রি'}
               </span>
             </div>
 
-            {/* List of Individual Installments (200, 300, 500, etc.) */}
+            {/* List of Individual Installments */}
             {memberDeposits.length > 0 ? (
               <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                 {memberDeposits.map((dep, idx) => {
@@ -543,11 +578,11 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
                             </span>
                             {isPending ? (
                               <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                                <Clock className="w-2.5 h-2.5" /> অপেক্ষমাণ
+                                <Clock className="w-2.5 h-2.5" /> {language === 'en' ? 'Pending' : 'অপেক্ষমাণ'}
                               </span>
                             ) : (
                               <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                                <CheckCircle className="w-2.5 h-2.5" /> অনুমোদিত
+                                <CheckCircle className="w-2.5 h-2.5" /> {language === 'en' ? 'Approved' : 'অনুমোদিত'}
                               </span>
                             )}
                           </div>
@@ -563,7 +598,9 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
                         <div className="text-xs font-bold font-mono text-emerald-400">
                           +{formatTaka(dep.amount)}
                         </div>
-                        <span className="text-[9px] text-slate-500 block">জমা</span>
+                        <span className="text-[9px] text-slate-500 block">
+                          {language === 'en' ? 'Deposit' : 'জমা'}
+                        </span>
                       </div>
                     </div>
                   );
@@ -573,7 +610,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
               <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/60 text-center space-y-2">
                 <Info className="w-6 h-6 text-slate-500 mx-auto" />
                 <p className="text-xs text-slate-400">
-                  চলতি চক্রে এখনও আপনার কোনো জমার এন্ট্রি নেই।
+                  {language === 'en' ? 'No deposit entries recorded for this cycle yet.' : 'চলতি চক্রে এখনও আপনার কোনো জমার এন্ট্রি নেই।'}
                 </p>
                 {onOpenDeposit && (
                   <button
@@ -581,7 +618,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
                     className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-semibold transition-all cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    টাকা জমা এন্ট্রি করুন
+                    <span>{language === 'en' ? 'Submit Deposit' : 'টাকা জমা এন্ট্রি করুন'}</span>
                   </button>
                 )}
               </div>
@@ -592,9 +629,11 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between gap-3">
                 <div>
                   <span className="text-xs font-bold text-slate-200">
-                    নিজ পকেট থেকে মেস বাজার খরচ
+                    {language === 'en' ? 'Approved Out-of-Pocket Bazar' : 'নিজ পকেট থেকে মেস বাজার খরচ'}
                   </span>
-                  <p className="text-[11px] text-slate-400">অনুমোদিত ব্যক্তিগত অর্থায়নে বাজার</p>
+                  <p className="text-[11px] text-slate-400">
+                    {language === 'en' ? 'Approved personal spending for mess bazar' : 'অনুমোদিত ব্যক্তিগত অর্থায়নে বাজার'}
+                  </p>
                 </div>
                 <span className="text-xs font-bold font-mono text-emerald-400">
                   +{formatTaka(memberResult.approvedBazarSpentOwnMoney)}
@@ -607,9 +646,11 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between gap-3">
                 <div>
                   <span className="text-xs font-bold text-slate-200">
-                    পূর্ববর্তী চক্রের অবশিষ্ট জমা
+                    {language === 'en' ? 'Carried Forward Credit' : 'পূর্ববর্তী চক্রের অবশিষ্ট জমা'}
                   </span>
-                  <p className="text-[11px] text-slate-400">পূর্বের মাস থেকে ক্যারি-ফরোয়ার্ড</p>
+                  <p className="text-[11px] text-slate-400">
+                    {language === 'en' ? 'Carried over from previous cycle' : 'পূর্বের মাস থেকে ক্যারি-ফরোয়ার্ড'}
+                  </p>
                 </div>
                 <span className="text-xs font-bold font-mono text-emerald-400">
                   +{formatTaka(memberResult.openingCarryCredit)}
@@ -620,7 +661,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
 
           {/* Subtotal Total Credits Bar */}
           <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs font-black text-emerald-300">
-            <span>মোট পরিশোধ ও ক্রেডিট (Total Credits)</span>
+            <span>{language === 'en' ? 'Total Credits & Payments' : 'মোট পরিশোধ ও ক্রেডিট (Total Credits)'}</span>
             <span className="font-mono text-sm">{formatTaka(memberResult.totalCredits)}</span>
           </div>
         </div>

@@ -249,7 +249,6 @@ export const NewBazarModal: React.FC<NewBazarModalProps> = ({
             >
               <option value="regular">রেগুলার বাজার (ডিউটি রোস্টার চলাকালীন সরাসরি এন্ট্রি)</option>
               <option value="extra">এক্সট্রা বাজার (অতিথি/নাস্তা/মসলা - সবার জন্য উন্মুক্ত)</option>
-              <option value="fixed">ফিক্সড স্পেশাল বাজার (শুক্রবার ভোজ - সবার জন্য উন্মুক্ত)</option>
               {isManagerOrAdmin && (
                 <option value="big">বড় বাজার (১০-১৫ তারিখের মাসিক চাল/তেল - অ্যাডমিন)</option>
               )}

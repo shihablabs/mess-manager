@@ -85,7 +85,9 @@ export const KPICards: React.FC<KPICardsProps> = ({
         <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-2.5">
           <span>
             {language === 'en' ? 'Active Members: ' : 'সক্রিয় সদস্য: '}
-            <strong className="text-slate-200">{calculation.allMembersSummary.length} জন</strong>
+            <strong className="text-slate-200">
+              {calculation.allMembersSummary.length} {language === 'en' ? 'members' : 'জন'}
+            </strong>
           </span>
           <span className="text-cyan-400 font-medium">
             {language === 'en' ? 'Running Cycle' : 'চলতি চক্র'}
@@ -144,7 +146,7 @@ export const KPICards: React.FC<KPICardsProps> = ({
               onClick={() => onNavigateToTab?.('meals')}
               className="text-[10px] text-cyan-300 bg-cyan-500/15 hover:bg-cyan-500/25 px-2 py-0.5 rounded-full border border-cyan-500/30 font-semibold cursor-pointer transition-colors"
             >
-              {pendingTotal}টি রিকোয়েস্ট
+              {language === 'en' ? `${pendingTotal} Requests` : `${pendingTotal}টি রিকোয়েস্ট`}
             </span>
           )}
         </div>
