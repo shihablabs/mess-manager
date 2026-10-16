@@ -770,6 +770,67 @@ describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
     expect(result.memberResults['u2'].utilityShare).toBe(1000);
     expect(result.memberResults['u3'].utilityShare).toBe(0);
   });
+
+  it('enforces rounding rules: meal rate to 2 decimals, integer member costs, and rounding difference (Task ঘ)', () => {
+    const members = [
+      { userId: 'u1', name: 'User 1', roomRent: 3000, isActive: true },
+      { userId: 'u2', name: 'User 2', roomRent: 3000, isActive: true },
+      { userId: 'u3', name: 'User 3', roomRent: 3000, isActive: true },
+    ];
+
+    // Total bazar 1000 for 17 meal units -> raw meal rate = 1000 / 17 = 58.823529...
+    // Rounded to 2 decimals: 58.82
+    const mealRecords = [
+      { userId: 'u1', date: '2026-10-01', slotId: 'all', weight: 6, consumed: true },
+      { userId: 'u2', date: '2026-10-01', slotId: 'all', weight: 6, consumed: true },
+      { userId: 'u3', date: '2026-10-01', slotId: 'all', weight: 5, consumed: true },
+    ];
+
+    const bazarItems = [
+      { id: 'b1', userId: 'u1', amount: 1000, type: 'regular' as const, isApproved: true },
+    ];
+
+    // Utility bill 1000 for 3 members -> raw 333.333..., integer rounded 333 each
+    const utilityBills = [
+      { id: 'ub1', name: 'Water', amount: 1000 },
+    ];
+
+    const result = calculateBilling({
+      members,
+      mealRecords,
+      fixedEvents: [],
+      bazarItems,
+      deposits: [],
+      utilityBills,
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+      options: { roundToInteger: true },
+    });
+
+    // 1. Meal rate must be rounded to two decimal places
+    expect(result.mealRate).toBe(58.82);
+
+    // 2. Member individual costs must be integers
+    // u1: 6 * 58.82 = 352.92 -> Math.round is 353
+    expect(result.memberResults['u1'].regularMealCost).toBe(353);
+    // u3: 5 * 58.82 = 294.1 -> Math.round is 294
+    expect(result.memberResults['u3'].regularMealCost).toBe(294);
+
+    // Utility per person rounded to integer: 1000 / 3 = 333
+    expect(result.memberResults['u1'].utilityShare).toBe(333);
+    expect(result.memberResults['u2'].utilityShare).toBe(333);
+    expect(result.memberResults['u3'].utilityShare).toBe(333);
+
+    // calculateUtilityBillPerPerson returns integer by default
+    const utilPerPerson = calculateUtilityBillPerPerson(utilityBills[0], members);
+    expect(utilPerPerson).toBe(333);
+
+    // 3. Rounding difference must be tracked in totals
+    expect(result.totals.roundingDifference).toBeDefined();
+    expect(typeof result.totals.roundingDifference).toBe('number');
+
+    // Utility rounding difference: 333 * 3 = 999 vs 1000 bill = -1
+    expect(result.totals.utilityRoundingDifference).toBe(-1);
+  });
 });
 
 

@@ -82,6 +82,22 @@ export async function GET(request: Request) {
       calculation.totals.netBalance,
     ]);
 
+    // Rounding difference row (Item ঘ & SRS)
+    rows.push([
+      '"রাউন্ডিং পার্থক্য (Rounding Difference)"',
+      '-',
+      '-',
+      '-',
+      '-',
+      '-',
+      calculation.totals.roundingDifference,
+      '-',
+      '-',
+      '-',
+      '-',
+      calculation.totals.roundingDifference,
+    ]);
+
     // Include UTF-8 BOM so Excel opens Bengali characters correctly
     const bom = '\uFEFF';
     const csvContent = bom + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');

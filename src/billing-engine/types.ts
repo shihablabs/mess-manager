@@ -138,5 +138,6 @@ export interface BillingEngineOutput {
     totalCredits: number;
     netBalance: number;
     roundingDifference: number;
+    utilityRoundingDifference?: number;
   };
 }

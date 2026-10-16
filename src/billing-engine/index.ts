@@ -341,6 +341,8 @@ export function calculateBilling(
   }
 
   const roundingDifference = Number((sumRoundedDues - sumRawDues).toFixed(2));
+  const totalMemberUtility = allMembersSummary.reduce((s, m) => s + m.utilityShare, 0);
+  const utilityRoundingDifference = Number((totalMemberUtility - totalUtility).toFixed(2));
 
   return {
     mealPoolTotal,
@@ -359,6 +361,7 @@ export function calculateBilling(
       totalCredits: sumCredits,
       netBalance: sumCredits - sumRoundedDues,
       roundingDifference,
+      utilityRoundingDifference,
     },
   };
 }
@@ -377,7 +380,7 @@ export function calculateFixedEventPerPerson(
 
 /**
  * Calculates per person cost for a utility bill based on applicable members and exemptions (Pure Engine function)
- * Avoids ad-hoc UI or API division and arbitrary Math.round
+ * Rounded to nearest integer by default (Item ঘ & SRS)
  */
 export function calculateUtilityBillPerPerson(
   bill: {
@@ -392,6 +395,7 @@ export function calculateUtilityBillPerPerson(
     isActive?: boolean;
     isUtilityExempt?: boolean;
   }>,
+  roundToInteger = true,
 ): number {
   if (!bill.amount || bill.amount <= 0) return 0;
   const getUid = (m: any) => String(m.userId || m._id || m.id || "");
@@ -399,24 +403,23 @@ export function calculateUtilityBillPerPerson(
   const isSpecific =
     Array.isArray(bill.applicableUserIds) && bill.applicableUserIds.length > 0;
 
+  let raw = 0;
   if (isSpecific) {
     const targets = active.filter((m) =>
       bill.applicableUserIds!.includes(getUid(m)),
     );
     const nonExempt = targets.filter((m) => !m.isUtilityExempt);
     if (nonExempt.length === 0) return 0;
-    return Math.round((bill.amount / nonExempt.length) * 100) / 100;
+    raw = bill.amount / nonExempt.length;
+  } else if (bill.applicableCount && bill.applicableCount > 0) {
+    raw = bill.amount / bill.applicableCount;
+  } else {
+    const nonExempt = active.filter((m) => !m.isUtilityExempt);
+    if (nonExempt.length === 0) return 0;
+    raw = bill.amount / nonExempt.length;
   }
 
-  // Legacy fallback: when applicableUserIds is absent, use applicableCount if available
-  if (bill.applicableCount && bill.applicableCount > 0) {
-    return Math.round((bill.amount / bill.applicableCount) * 100) / 100;
-  }
-
-  // General fallback: split equally across all non-exempt active members
-  const nonExempt = active.filter((m) => !m.isUtilityExempt);
-  if (nonExempt.length === 0) return 0;
-  return Math.round((bill.amount / nonExempt.length) * 100) / 100;
+  return roundToInteger ? Math.round(raw) : Number(raw.toFixed(2));
 }
 
 /**
