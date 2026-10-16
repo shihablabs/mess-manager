@@ -13,6 +13,7 @@ export default function MealsManagementPage() {
     members,
     summaryData,
     mealRequests,
+    bazars,
     refreshData,
     openMealRequest,
     isLoading,
@@ -38,6 +39,7 @@ export default function MealsManagementPage() {
           cycle={summaryData?.cycle}
           calculation={summaryData?.calculation}
           requests={mealRequests}
+          bazars={bazars}
           onRefresh={refreshData}
           onOpenRequestModal={openMealRequest}
         />

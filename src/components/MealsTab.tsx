@@ -30,11 +30,13 @@ import {
   Edit2,
   Trash2,
   X,
+  ShoppingBag,
 } from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import { formatTaka, formatMealUnits } from '@/lib/money';
 import { toast } from 'sonner';
 import { confirmAction } from '@/lib/alerts';
+import { MemberLeaveModal } from '@/components/MemberLeaveModal';
 
 interface MealsTabProps {
   currentUser: AppUser;
@@ -42,6 +44,7 @@ interface MealsTabProps {
   cycle?: any;
   calculation?: any;
   requests: any[];
+  bazars?: any[];
   onRefresh: () => void;
   onOpenRequestModal: () => void;
 }
@@ -52,12 +55,23 @@ export const MealsTab: React.FC<MealsTabProps> = ({
   cycle,
   calculation,
   requests = [],
+  bazars = [],
   onRefresh,
   onOpenRequestModal,
 }) => {
   // Sub-tabs: register (মাসিক পূর্ণাঙ্গ মাস্টার খাতা), sheet (দৈনিক ইনপুট), logs (তারিখভিত্তিক লগ), requests (অনুরোধ)
   const [subTab, setSubTab] = useState<'register' | 'sheet' | 'logs' | 'requests'>('register');
   const [processingId, setProcessingId] = useState<string | null>(null);
+
+  // Leave Modal State
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+  const [editingLeave, setEditingLeave] = useState<any | null>(null);
+
+  // Request Hub Category & Filter States
+  const [requestCategory, setRequestCategory] = useState<'meals' | 'bazars' | 'leaves'>('meals');
+  const [requestSearch, setRequestSearch] = useState('');
+  const [requestStatusFilter, setRequestStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [requestTypeFilter, setRequestTypeFilter] = useState<'all' | 'off' | 'on'>('all');
 
   // Today string YYYY-MM-DD
   const getTodayStr = () => {
@@ -188,6 +202,20 @@ export const MealsTab: React.FC<MealsTabProps> = ({
     setSelectedDate(current.toISOString().split('T')[0]);
   };
 
+  // Helper: check if a member is on active approved leave for a specific date
+  const getMemberLeaveForDate = useCallback(
+    (userId: string, date: string) => {
+      return (requests || []).find((r) => {
+        if (r.userId !== userId) return false;
+        if (r.status !== 'approved' || r.action !== 'off') return false;
+        const sDate = r.startDate || r.date;
+        const eDate = r.endDate || sDate;
+        return date >= sDate && date <= eDate;
+      });
+    },
+    [requests]
+  );
+
   // 2. Fetch meals for selected single date (Daily input editor)
   const fetchDateMeals = useCallback(async (date: string) => {
     try {
@@ -198,9 +226,22 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       const newEntries: Record<string, { morning: number; lunch: number; night: number }> = {};
       const diningMembers = members.filter((m) => m.role !== 'super_admin');
 
-      // Initialize with 0 morning, 1 lunch, 1 night for all active members as default
+      // Initialize with default 0 morning, 1 lunch, 1 night UNLESS the member is on approved leave
       diningMembers.forEach((m) => {
-        newEntries[m.userId || m._id] = { morning: 0, lunch: 1, night: 1 };
+        const uid = m.userId || m._id;
+        const leave = (requests || []).find((r) => {
+          if (r.userId !== uid) return false;
+          if (r.status !== 'approved' || r.action !== 'off') return false;
+          const s = r.startDate || r.date;
+          const e = r.endDate || s;
+          return date >= s && date <= e;
+        });
+
+        if (leave) {
+          newEntries[uid] = { morning: 0, lunch: 0, night: 0 };
+        } else {
+          newEntries[uid] = { morning: 0, lunch: 1, night: 1 };
+        }
       });
 
       // Override if records exist in DB for this date
@@ -226,7 +267,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
     } finally {
       setIsLoadingDateMeals(false);
     }
-  }, [members, cycle?._id]);
+  }, [members, cycle?._id, requests]);
 
   useEffect(() => {
     if (members.length > 0) {
@@ -251,14 +292,19 @@ export const MealsTab: React.FC<MealsTabProps> = ({
     });
   };
 
-  // Quick actions
+  // Quick actions: auto-protect members on approved leave
   const handleSetAll = (val: number) => {
     if (!canEditMeals) return;
     const updated: Record<string, { morning: number; lunch: number; night: number }> = {};
     const diningMembers = members.filter((m) => m.role !== 'super_admin');
     diningMembers.forEach((m) => {
       const uid = m.userId || m._id;
-      updated[uid] = { morning: val, lunch: val, night: val };
+      const onLeave = getMemberLeaveForDate(uid, selectedDate);
+      if (onLeave && val > 0) {
+        updated[uid] = { morning: 0, lunch: 0, night: 0 };
+      } else {
+        updated[uid] = { morning: val, lunch: val, night: val };
+      }
     });
     setDailyEntries(updated);
   };
@@ -325,6 +371,98 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       }
     } catch (e: any) {
       toast.error(e.message || 'ত্রুটি ঘটেছে');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleReviewBazar = async (id: string, status: 'approved' | 'rejected') => {
+    try {
+      setProcessingId(id);
+      const res = await fetch('/api/bazars', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(status === 'approved' ? 'বাজার খরচ অনুমোদিত হয়েছে!' : 'বাজার খরচ বাতিল করা হয়েছে');
+        onRefresh();
+      } else {
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
+      }
+    } catch {
+      toast.error('নেটওয়ার্ক সমস্যা');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleEndLeaveToday = async (leave: any) => {
+    const isConfirmed = await confirmAction({
+      title: 'সদস্যের ছুটি আজই সমাপ্ত করবেন?',
+      text: `${leave.userName || 'সদস্য'} আগে মেসে ফিরে এসেছেন? আজ থেকে তাঁর মিল পুনরায় চালু করা হবে।`,
+      confirmText: 'হ্যাঁ, ছুটি সমাপ্ত ও মিল চালু করুন',
+      cancelText: 'বাতিল',
+      confirmColor: '#10b981',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      setProcessingId(leave._id);
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+      const res = await fetch('/api/meal-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: leave._id,
+          endDate: yesterdayStr,
+          adminNote: 'সদস্য আগে ফিরে আসায় ছুটি আজ সমাপ্ত করা হয়েছে',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('ছুটি সফলভাবে সমাপ্ত করা হয়েছে এবং আজকের পর থেকে মিল চালু করা হয়েছে!');
+        onRefresh();
+        fetchDateMeals(selectedDate);
+      } else {
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
+      }
+    } catch {
+      toast.error('নেটওয়ার্ক ত্রুটি');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDeleteLeave = async (id: string, memberName: string) => {
+    const isConfirmed = await confirmAction({
+      title: 'ছুটি বাতিল করবেন?',
+      text: `${memberName}-এর এই ছুটির রেকর্ড বাতিল করা হবে এবং মিলগুলো পুনরায় সক্রিয় করা হবে।`,
+      confirmText: 'হ্যাঁ, বাতিল করুন',
+      cancelText: 'না',
+      confirmColor: '#e11d48',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      setProcessingId(id);
+      const res = await fetch(`/api/meal-requests?id=${id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('ছুটি বাতিল ও মিল পুনরুদ্ধার সম্পন্ন হয়েছে!');
+        onRefresh();
+        fetchDateMeals(selectedDate);
+      } else {
+        toast.error(data.error || 'ব্যর্থ হয়েছে');
+      }
+    } catch {
+      toast.error('নেটওয়ার্ক ত্রুটি');
     } finally {
       setProcessingId(null);
     }
@@ -534,8 +672,54 @@ export const MealsTab: React.FC<MealsTabProps> = ({
     }
   };
 
-  const pendingRequests = requests.filter((r) => r.status === 'pending');
-  const pastRequests = requests.filter((r) => r.status !== 'pending');
+  const pendingRequests = (requests || []).filter((r) => r.status === 'pending');
+  const pastRequests = (requests || []).filter((r) => r.status !== 'pending');
+
+  const activeLeaves = useMemo(() => {
+    return (requests || []).filter((r) => r.action === 'off' && r.status === 'approved');
+  }, [requests]);
+
+  const pendingBazars = useMemo(() => {
+    return (bazars || []).filter((b: any) => b.status === 'pending');
+  }, [bazars]);
+
+  // Filtered requests for the Request Hub
+  const filteredMealRequests = useMemo(() => {
+    let list = requests || [];
+    if (requestStatusFilter !== 'all') {
+      list = list.filter((r) => r.status === requestStatusFilter);
+    }
+    if (requestTypeFilter !== 'all') {
+      list = list.filter((r) => r.action === requestTypeFilter);
+    }
+    if (requestSearch.trim()) {
+      const q = requestSearch.toLowerCase().trim();
+      list = list.filter(
+        (r) =>
+          (r.userName || '').toLowerCase().includes(q) ||
+          (r.reason || '').toLowerCase().includes(q) ||
+          (r.date || '').includes(q)
+      );
+    }
+    return list;
+  }, [requests, requestStatusFilter, requestTypeFilter, requestSearch]);
+
+  const filteredBazarRequests = useMemo(() => {
+    let list = bazars || [];
+    if (requestStatusFilter !== 'all') {
+      list = list.filter((b) => b.status === requestStatusFilter);
+    }
+    if (requestSearch.trim()) {
+      const q = requestSearch.toLowerCase().trim();
+      list = list.filter(
+        (b) =>
+          (b.description || '').toLowerCase().includes(q) ||
+          (b.userName || '').toLowerCase().includes(q) ||
+          (b.date || '').includes(q)
+      );
+    }
+    return list;
+  }, [bazars, requestStatusFilter, requestSearch]);
 
   // Daily totals for single-day stepper
   let totalMorningMeals = 0;
@@ -564,6 +748,18 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
         {currentUser.role !== 'super_admin' ? (
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            {canEditMeals && (
+              <button
+                onClick={() => {
+                  setEditingLeave(null);
+                  setIsLeaveModalOpen(true);
+                }}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-amber-300 border border-amber-500/30 text-xs font-semibold px-3.5 py-2.5 rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                <Calendar className="w-4 h-4 text-amber-400" />
+                <span>ছুটি / মিল বন্ধ শিডিউল</span>
+              </button>
+            )}
             <button
               onClick={onOpenRequestModal}
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
@@ -627,10 +823,10 @@ export const MealsTab: React.FC<MealsTabProps> = ({
           }`}
         >
           <Clock className="w-4 h-4" />
-          মিল অনুরোধ ও অনুমোদন
-          {pendingRequests.length > 0 && (
+          অনুরোধ ও অনুমোদন হাব
+          {(pendingRequests.length + pendingBazars.length) > 0 && (
             <span className="ml-1 px-1.5 py-0.2 text-[10px] bg-amber-500 text-slate-950 font-black rounded-full animate-pulse">
-              {pendingRequests.length}
+              {pendingRequests.length + pendingBazars.length}
             </span>
           )}
         </button>
@@ -1013,6 +1209,19 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   >
                     সবার মিল ০
                   </button>
+                  {canEditMeals && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingLeave(null);
+                        setIsLeaveModalOpen(true);
+                      }}
+                      className="text-xs px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>+ ছুটি দিন</span>
+                    </button>
+                  )}
                   <button
                     onClick={handleSaveMeals}
                     disabled={isSaving}
@@ -1092,11 +1301,16 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     const uId = member.userId || member._id;
                     const entry = dailyEntries[uId] || { morning: 0, lunch: 1, night: 1 };
                     const userTotal = entry.morning + (entry.lunch || 0) + entry.night;
+                    const leaveInfo = getMemberLeaveForDate(uId, selectedDate);
 
                     return (
                       <div
                         key={uId}
-                        className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800/80 hover:border-slate-700 transition-all space-y-3"
+                        className={`p-3.5 rounded-xl border transition-all space-y-3 ${
+                          leaveInfo
+                            ? 'bg-amber-950/20 border-amber-500/40 shadow-sm shadow-amber-500/5'
+                            : 'bg-slate-900/70 border-slate-800/80 hover:border-slate-700'
+                        }`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2.5 min-w-0">
@@ -1109,15 +1323,21 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                               <span className="font-semibold text-slate-200 text-xs block truncate">
                                 {member.name}
                               </span>
-                              <span className="text-[10px] text-slate-500 block truncate">
-                                {member.email || 'মেস সদস্য'}
-                              </span>
+                              {leaveInfo ? (
+                                <span className="text-[10px] text-amber-300 font-medium block truncate flex items-center gap-1">
+                                  🌴 ছুটিতে আছেন ({leaveInfo.startDate} হতে {leaveInfo.endDate})
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-500 block truncate">
+                                  {member.email || 'মেস সদস্য'}
+                                </span>
+                              )}
                             </div>
                           </div>
 
                           <div className="text-right shrink-0">
                             <span className="text-[10px] text-slate-400 block">মোট ইউনিট</span>
-                            <span className="font-mono font-bold text-indigo-300 text-xs">
+                            <span className={`font-mono font-bold text-xs ${leaveInfo && userTotal === 0 ? 'text-amber-400' : 'text-indigo-300'}`}>
                               {formatMealUnits(userTotal)}
                             </span>
                           </div>
@@ -1209,6 +1429,27 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                             </div>
                           </div>
                         </div>
+
+                        {/* Leave Helper & Early Resume Action */}
+                        {leaveInfo && (
+                          <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-amber-500/20">
+                            <span className="text-amber-400/90 text-[10px] font-medium">
+                              {userTotal === 0 ? 'অটো বন্ধ (ছুটি চলছে)' : 'মিল সক্রিয় করা হয়েছে'}
+                            </span>
+                            {canEditMeals && userTotal === 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateCount(uId, 'lunch', 1);
+                                  updateCount(uId, 'night', 1);
+                                }}
+                                className="text-[10px] text-amber-300 hover:text-amber-200 font-semibold underline cursor-pointer"
+                              >
+                                আগে ফিরেছেন? মিল ১ করুন
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1584,76 +1825,202 @@ export const MealsTab: React.FC<MealsTabProps> = ({
         </div>
       )}
 
-      {/* VIEW 4: MEAL REQUESTS & APPROVALS */}
+      {/* VIEW 4: ORGANIZED & CATEGORIZED REQUEST MANAGEMENT HUB */}
       {subTab === 'requests' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          {/* Pending Requests */}
-          <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-400" />
-                অপেক্ষমান মিল অনুরোধ ({pendingRequests.length})
-              </h4>
-              {canEditMeals && (
-                <span className="text-[11px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Shield className="w-3 h-3" /> এডমিন / ম্যানেজার সিদ্ধান্ত দিন
-                </span>
+        <div className="space-y-5 animate-in fade-in duration-200">
+          {/* Top Category Tabs: Meals, Bazars, Leaves */}
+          <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-950/80 rounded-2xl border border-slate-800">
+            <button
+              onClick={() => setRequestCategory('meals')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                requestCategory === 'meals'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <Utensils className="w-3.5 h-3.5" />
+              <span>মিলের আবেদন</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-500/30 font-mono">
+                {requests.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setRequestCategory('bazars')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                requestCategory === 'bazars'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>বাজার খরচের আবেদন</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                  pendingBazars.length > 0
+                    ? 'bg-amber-500 text-slate-950 font-bold'
+                    : 'bg-slate-900 text-slate-400'
+                }`}
+              >
+                {pendingBazars.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setRequestCategory('leaves')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                requestCategory === 'leaves'
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>মেসের ছুটি ও অনুপস্থিতি শিডিউল</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-mono">
+                {activeLeaves.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Search & Filter Toolbar */}
+          <div className="glass-panel rounded-2xl p-4 border border-slate-800 space-y-3 bg-slate-900/80">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {/* Search Box */}
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={requestSearch}
+                  onChange={(e) => setRequestSearch(e.target.value)}
+                  placeholder="সদস্যের নাম বা কারণ দিয়ে খুঁজুন..."
+                  className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+                {requestSearch && (
+                  <button
+                    onClick={() => setRequestSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-1 overflow-x-auto">
+                {(['all', 'pending', 'approved', 'rejected'] as const).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setRequestStatusFilter(st)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+                      requestStatusFilter === st
+                        ? 'bg-slate-800 text-white border border-slate-700'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {st === 'all'
+                      ? 'সব অবস্থা'
+                      : st === 'pending'
+                      ? 'অপেক্ষমান'
+                      : st === 'approved'
+                      ? 'অনুমোদিত'
+                      : 'বাতিল'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Type Filter (for meal category) */}
+              {requestCategory === 'meals' && (
+                <div className="flex items-center gap-1 justify-end">
+                  {(['all', 'off', 'on'] as const).map((tp) => (
+                    <button
+                      key={tp}
+                      onClick={() => setRequestTypeFilter(tp)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        requestTypeFilter === tp
+                          ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40'
+                          : 'text-slate-400 hover:text-slate-300'
+                      }`}
+                    >
+                      {tp === 'all' ? 'সব ধরন' : tp === 'off' ? 'মিল অফ / ছুটি' : 'মিল অন'}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
+          </div>
 
-            {pendingRequests.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-500">
-                বর্তমানে কোনো অপেক্ষমান মিল অনুরোধ নেই।
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {pendingRequests.map((req) => (
+          {/* CATEGORY 1: MEAL REQUESTS */}
+          {requestCategory === 'meals' && (
+            <div className="space-y-3">
+              {filteredMealRequests.length === 0 ? (
+                <div className="glass-panel rounded-2xl p-8 text-center text-xs text-slate-500 border border-slate-800">
+                  কোনো মিল অনুরোধ পাওয়া যায়নি
+                </div>
+              ) : (
+                filteredMealRequests.map((req) => (
                   <div
                     key={req._id}
-                    className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                    className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:border-slate-700 transition-all"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-200 text-sm">
-                          {req.userName}
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-white text-sm">
+                          {req.userName || 'সদস্য'}
                         </span>
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                             req.action === 'off'
-                              ? 'bg-rose-500/20 text-rose-300'
-                              : 'bg-emerald-500/20 text-emerald-300'
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                           }`}
                         >
-                          {req.action === 'off' ? 'মিল অফ (Off)' : 'মিল চালু (On)'}
+                          {req.action === 'off' ? 'মিল অফ (Off / ছুটি)' : 'মিল চালু (On)'}
                         </span>
                         {req.isLate && (
-                          <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded flex items-center gap-1">
+                          <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-1 font-semibold">
                             <AlertTriangle className="w-3 h-3" /> Late রিকোয়েস্ট
                           </span>
                         )}
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            req.status === 'pending'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              : req.status === 'approved'
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                          }`}
+                        >
+                          {req.status === 'pending'
+                            ? 'অপেক্ষমান'
+                            : req.status === 'approved'
+                            ? 'অনুমোদিত'
+                            : 'বাতিল'}
+                        </span>
                       </div>
                       <p className="text-xs text-slate-400">
                         {req.startDate && req.endDate && req.startDate !== req.endDate ? (
                           <span>
-                            মেয়াদ: <strong className="text-slate-300">{req.startDate}</strong> থেকে{' '}
-                            <strong className="text-slate-300">{req.endDate}</strong>
+                            মেয়াদ: <strong className="text-slate-200">{req.startDate}</strong> থেকে{' '}
+                            <strong className="text-slate-200">{req.endDate}</strong>
                           </span>
                         ) : (
                           <span>
-                            তারিখ: <strong className="text-slate-300">{req.date}</strong>
+                            তারিখ: <strong className="text-slate-200">{req.date}</strong>
                           </span>
                         )}{' '}
                         | স্লট: <strong className="text-slate-300">{req.slotName}</strong>
-                        {req.reason && <span> — &quot;{req.reason}&quot;</span>}
+                        {req.reason && (
+                          <span className="text-slate-300"> — &quot;{req.reason}&quot;</span>
+                        )}
                       </p>
                     </div>
 
-                    {canEditMeals ? (
-                      <div className="flex items-center gap-2 self-end sm:self-center">
+                    {req.status === 'pending' && canEditMeals && (
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                         <button
                           onClick={() => handleReview(req._id, 'approved')}
                           disabled={processingId === req._id}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition-all cursor-pointer"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
                         >
                           <CheckCircle className="w-3.5 h-3.5" />
                           অনুমোদন
@@ -1661,63 +2028,220 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                         <button
                           onClick={() => handleReview(req._id, 'rejected')}
                           disabled={processingId === req._id}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-500 text-white text-xs font-semibold shadow transition-all cursor-pointer"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
                         >
                           <XCircle className="w-3.5 h-3.5" />
                           বাতিল
                         </button>
                       </div>
-                    ) : (
-                      <span className="text-xs text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
-                        Admin অনুমোদনের অপেক্ষায়
-                      </span>
                     )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Past Requests History */}
-          <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-3">
-            <h4 className="text-sm font-bold text-white">অনুরোধের ইতিহাস ({pastRequests.length})</h4>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                    <th className="py-2">সদস্য</th>
-                    <th className="py-2">তারিখ</th>
-                    <th className="py-2">স্লট</th>
-                    <th className="py-2">অনুরোধ</th>
-                    <th className="py-2 text-right">অবস্থা</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {pastRequests.map((r) => (
-                    <tr key={r._id} className="text-slate-300">
-                      <td className="py-2.5">{r.userName}</td>
-                      <td className="py-2.5 font-mono">{r.date}</td>
-                      <td className="py-2.5">{r.slotName}</td>
-                      <td className="py-2.5">{r.action === 'off' ? 'অফ' : 'অন'}</td>
-                      <td className="py-2.5 text-right">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            r.status === 'approved'
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'bg-rose-500/20 text-rose-400'
-                          }`}
-                        >
-                          {r.status === 'approved' ? 'অনুমোদিত' : 'বাতিল'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                ))
+              )}
             </div>
-          </div>
+          )}
+
+          {/* CATEGORY 2: BAZAR EXPENSE REQUESTS */}
+          {requestCategory === 'bazars' && (
+            <div className="space-y-3">
+              {filteredBazarRequests.length === 0 ? (
+                <div className="glass-panel rounded-2xl p-8 text-center text-xs text-slate-500 border border-slate-800">
+                  কোনো অপেক্ষমান বা জমাকৃত বাজার খরচের আবেদন নেই
+                </div>
+              ) : (
+                filteredBazarRequests.map((b) => {
+                  const buyer = members.find((m) => (m.userId || m._id) === b.userId);
+                  const buyerName = buyer?.displayName || buyer?.name || b.userName || 'সদস্য';
+                  const isPending = b.status === 'pending';
+
+                  return (
+                    <div
+                      key={b._id}
+                      className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:border-slate-700 transition-all"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-white text-sm">{buyerName}</span>
+                          <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                            {b.date}
+                          </span>
+                          <span className="text-xs font-black text-amber-400 font-mono">
+                            {formatTaka(b.amount)}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              isPending
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                : b.status === 'approved'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                            }`}
+                          >
+                            {isPending
+                              ? 'অনুমোদনের অপেক্ষায়'
+                              : b.status === 'approved'
+                              ? 'অনুমোদিত'
+                              : 'বাতিল'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-300">
+                          {b.description || 'বাজার খরচের ভাউচার'}
+                          {b.type && (
+                            <span className="text-slate-500 ml-1.5">
+                              (
+                              {b.type === 'regular'
+                                ? 'রেগুলার'
+                                : b.type === 'big'
+                                ? 'বড় বাজার'
+                                : b.type === 'fixed'
+                                ? 'ফিক্সড ভোজ'
+                                : 'অতিরিক্ত বাজার'}
+                              )
+                            </span>
+                          )}
+                        </p>
+                      </div>
+
+                      {isPending && canEditMeals && (
+                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                          <button
+                            onClick={() => handleReviewBazar(b._id, 'approved')}
+                            disabled={processingId === b._id}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            অনুমোদন
+                          </button>
+                          <button
+                            onClick={() => handleReviewBazar(b._id, 'rejected')}
+                            disabled={processingId === b._id}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            বাতিল
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* CATEGORY 3: ACTIVE LEAVES & ABSENCE SCHEDULE */}
+          {requestCategory === 'leaves' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between pb-1">
+                <span className="text-xs text-slate-400">
+                  নির্ধারিত ছুটির দিনগুলোতে সদস্যের মিল দৈনিক ইনপুট শিটে স্বয়ংক্রিয়ভাবে ০ থাকবে
+                </span>
+                {canEditMeals && (
+                  <button
+                    onClick={() => {
+                      setEditingLeave(null);
+                      setIsLeaveModalOpen(true);
+                    }}
+                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-semibold transition-all cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    নতুন ছুটি নির্ধারণ
+                  </button>
+                )}
+              </div>
+
+              {activeLeaves.length === 0 ? (
+                <div className="glass-panel rounded-2xl p-8 text-center text-xs text-slate-500 border border-slate-800">
+                  বর্তমানে কোনো সদস্যের নির্ধারিত ছুটি সক্রিয় নেই।
+                </div>
+              ) : (
+                activeLeaves.map((leave) => {
+                  const sDate = leave.startDate || leave.date;
+                  const eDate = leave.endDate || sDate;
+                  const days =
+                    Math.round(
+                      (new Date(eDate).getTime() - new Date(sDate).getTime()) /
+                        (1000 * 60 * 60 * 24)
+                    ) + 1;
+
+                  return (
+                    <div
+                      key={leave._id}
+                      className="glass-panel p-4 rounded-2xl border border-amber-500/30 bg-amber-950/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:border-amber-500/50 transition-all"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-white text-sm">
+                            {leave.userName || 'সদস্য'}
+                          </span>
+                          <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-mono">
+                            🌴 {days} দিন ছুটি
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                            {sDate} হতে {eDate}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-300">
+                          {leave.reason ? `কারণ: "${leave.reason}"` : 'ব্যক্তিগত ছুটি'}
+                        </p>
+                      </div>
+
+                      {canEditMeals && (
+                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                          <button
+                            onClick={() => {
+                              setEditingLeave(leave);
+                              setIsLeaveModalOpen(true);
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+                            title="ছুটির তারিখ সংশোধন করুন"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            তারিখ সংশোধন
+                          </button>
+                          <button
+                            onClick={() => handleEndLeaveToday(leave)}
+                            disabled={processingId === leave._id}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer"
+                            title="সদস্য আগে ফিরে আসলে ছুটি আজই সমাপ্ত করুন"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            ছুটি সমাপ্ত ও মিল চালু
+                          </button>
+                          <button
+                            onClick={() => handleDeleteLeave(leave._id, leave.userName || 'সদস্য')}
+                            disabled={processingId === leave._id}
+                            className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all cursor-pointer"
+                            title="ছুটি সম্পূর্ণ বাতিল ও মুছুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
       )}
+
+      {/* Member Leave Modal */}
+      <MemberLeaveModal
+        isOpen={isLeaveModalOpen}
+        onClose={() => {
+          setIsLeaveModalOpen(false);
+          setEditingLeave(null);
+        }}
+        members={members}
+        existingLeave={editingLeave}
+        onSuccess={() => {
+          onRefresh();
+          fetchDateMeals(selectedDate);
+          fetchAllCycleMeals();
+        }}
+      />
     </div>
   );
 };

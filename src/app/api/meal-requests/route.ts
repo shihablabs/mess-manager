@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
-import { getDb } from '@/lib/db';
+import { getDb, idFilter } from '@/lib/db';
 import { MealRequestDoc, MealDoc } from '@/models/types';
 import { isMealRequestLate } from '@/billing-engine';
 import { recordAuditLog } from '@/lib/audit';
@@ -189,7 +189,14 @@ export async function PATCH(request: Request) {
     const store = await getStore();
     const db = await getDb();
     const body = await request.json();
-    const { id, status, adminUserId, adminNote } = body;
+    const {
+      id,
+      status,
+      adminUserId,
+      adminNote,
+      startDate: updatedStartDate,
+      endDate: updatedEndDate,
+    } = body;
 
     const reqItem: any = store.mealRequests.find((r) => r._id === id);
     if (!reqItem) {
@@ -216,13 +223,22 @@ export async function PATCH(request: Request) {
       }
     }
 
+    const oldStartDate = reqItem.startDate || reqItem.date;
+    const oldEndDate = reqItem.endDate || oldStartDate;
+    const finalStartDate = updatedStartDate || oldStartDate;
+    const finalEndDate = updatedEndDate || oldEndDate;
+    const finalStatus = status || reqItem.status;
+
     if (db) {
       await db.collection('meal_requests').updateOne(
-        { _id: id },
+        idFilter(id),
         {
           $set: {
-            status,
-            adminNote,
+            status: finalStatus,
+            startDate: finalStartDate,
+            endDate: finalEndDate,
+            date: finalStartDate,
+            adminNote: adminNote !== undefined ? adminNote : reqItem.adminNote,
             reviewedBy: caller.id,
             reviewedAt: new Date(),
             updatedAt: new Date(),
@@ -231,11 +247,9 @@ export async function PATCH(request: Request) {
       );
 
       // If approved, update meals in DB for all dates in range
-      if (status === 'approved') {
-        const fromDate = reqItem.startDate || reqItem.date;
-        const toDate = reqItem.endDate || fromDate;
-        const start = new Date(fromDate);
-        const end = new Date(toDate);
+      if (finalStatus === 'approved') {
+        const start = new Date(finalStartDate);
+        const end = new Date(finalEndDate);
         const slotsToUpdate =
           reqItem.slotId === 'both' || reqItem.slotId === 'all'
             ? ['morning', 'lunch', 'night']
@@ -269,21 +283,136 @@ export async function PATCH(request: Request) {
             );
           }
         }
+
+        // If leave was shortened early (finalEndDate < oldEndDate), restore meals for remaining days to 1
+        if (reqItem.action === 'off' && finalEndDate < oldEndDate) {
+          const nextDay = new Date(finalEndDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+          const oldEnd = new Date(oldEndDate);
+
+          for (let d = new Date(nextDay); d <= oldEnd; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            for (const sId of slotsToUpdate) {
+              await db.collection('meals').updateOne(
+                {
+                  userId: reqItem.userId,
+                  cycleId: reqItem.cycleId,
+                  date: dateStr,
+                  slotId: sId,
+                },
+                {
+                  $set: {
+                    consumed: 1,
+                    weight: 1.0,
+                    updatedAt: new Date(),
+                  },
+                },
+                { upsert: true }
+              );
+            }
+          }
+        }
       }
 
       await recordAuditLog({
         messId: reqItem.messId || (store.mess._id as string),
         cycleId: reqItem.cycleId,
         performedByUserId: caller.id,
-        action: status === 'approved' ? 'APPROVE_MEAL_REQUEST' : 'REJECT_MEAL_REQUEST',
+        action: finalStatus === 'approved' ? 'APPROVE_MEAL_REQUEST' : 'UPDATE_MEAL_REQUEST',
         targetCollection: 'meal_requests',
         targetId: String(id),
         previousValue: reqItem,
-        newValue: { status, adminNote, reviewedBy: caller.id },
+        newValue: { status: finalStatus, startDate: finalStartDate, endDate: finalEndDate, adminNote, reviewedBy: caller.id },
       });
     }
 
-    return NextResponse.json({ success: true, message: 'মিল অনুরোধ পর্যালোচনা সম্পন্ন হয়েছে' });
+    reqItem.status = finalStatus;
+    reqItem.startDate = finalStartDate;
+    reqItem.endDate = finalEndDate;
+    reqItem.date = finalStartDate;
+    if (adminNote !== undefined) reqItem.adminNote = adminNote;
+
+    return NextResponse.json({ success: true, message: 'মিল অনুরোধ পর্যালোচনা ও আপডেট সম্পন্ন হয়েছে' });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const auth = await requireRole(['admin', 'super_admin']);
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'অনুরোধ আইডি আবশ্যক' }, { status: 400 });
+    }
+
+    const store = await getStore();
+    const db = await getDb();
+
+    const reqItem: any = store.mealRequests.find((r) => String(r._id) === String(id));
+    if (!reqItem && !db) {
+      return NextResponse.json({ success: false, error: 'অনুরোধ পাওয়া যায়নি' }, { status: 404 });
+    }
+
+    const cycleClosedResponse = await assertCycleOpen(reqItem?.cycleId || '', { db });
+    if (cycleClosedResponse) return cycleClosedResponse;
+
+    if (db) {
+      await db.collection('meal_requests').deleteOne(idFilter(id));
+
+      // If it was an approved off leave request, restore meals to 1
+      if (reqItem && reqItem.action === 'off' && reqItem.status === 'approved') {
+        const fromDate = reqItem.startDate || reqItem.date;
+        const toDate = reqItem.endDate || fromDate;
+        const start = new Date(fromDate);
+        const end = new Date(toDate);
+        const slotsToUpdate =
+          reqItem.slotId === 'both' || reqItem.slotId === 'all'
+            ? ['morning', 'lunch', 'night']
+            : [reqItem.slotId];
+
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          for (const sId of slotsToUpdate) {
+            await db.collection('meals').updateOne(
+              {
+                userId: reqItem.userId,
+                cycleId: reqItem.cycleId,
+                date: dateStr,
+                slotId: sId,
+              },
+              {
+                $set: {
+                  consumed: 1,
+                  weight: 1.0,
+                  updatedAt: new Date(),
+                },
+              },
+              { upsert: true }
+            );
+          }
+        }
+      }
+
+      await recordAuditLog({
+        messId: reqItem?.messId || (store.mess._id as string),
+        cycleId: reqItem?.cycleId || '',
+        performedByUserId: caller.id,
+        action: 'DELETE_MEAL_REQUEST',
+        targetCollection: 'meal_requests',
+        targetId: String(id),
+        previousValue: reqItem,
+        newValue: null,
+      });
+    }
+
+    store.mealRequests = store.mealRequests.filter((r) => String(r._id) !== String(id));
+
+    return NextResponse.json({ success: true, message: 'অনুরোধ বাতিল ও মিল পুনরুদ্ধার সম্পন্ন হয়েছে' });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

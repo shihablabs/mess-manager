@@ -1,23 +1,24 @@
-'use client';
+/* eslint-disable react-hooks/preserve-manual-memoization */
+"use client";
 
-import React, { useState, useMemo } from 'react';
-import { BillingEngineOutput, MemberBillingResult } from '@/billing-engine/types';
-import { formatTaka } from '@/lib/money';
 import {
-  FileText,
-  Shield,
-  Info,
+  BillingEngineOutput,
+  MemberBillingResult,
+} from "@/billing-engine/types";
+import {
   Activity,
-  Search,
-  User,
   ArrowUpDown,
-  Filter,
-  CheckCircle,
-  AlertCircle,
   ExternalLink,
-} from '@/components/icons';
-import Link from 'next/link';
-import { useLanguage } from '@/context/LanguageContext';
+  FileText,
+  Info,
+  Search,
+  Shield,
+  User,
+} from "@/components/icons";
+import { useLanguage } from "@/context/LanguageContext";
+import { formatTaka } from "@/lib/money";
+import Link from "next/link";
+import React, { useMemo, useState } from "react";
 
 interface DashboardTabProps {
   calculation: BillingEngineOutput | null;
@@ -35,9 +36,13 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   members = [],
 }) => {
   const { t, language } = useLanguage();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'refund' | 'due'>('all');
-  const [sortBy, setSortBy] = useState<'name' | 'mealUnits' | 'totalDues' | 'netBalance'>('name');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "refund" | "due">(
+    "all",
+  );
+  const [sortBy, setSortBy] = useState<
+    "name" | "mealUnits" | "totalDues" | "netBalance"
+  >("name");
   const [sortAsc, setSortAsc] = useState(true);
 
   // Build member avatar map
@@ -52,34 +57,57 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
   // Filtered & sorted members summary (DataTable)
   const filteredMembers = useMemo(() => {
-    if (!calculation?.allMembersSummary) return [];
+    if (
+      !calculation?.allMembersSummary ||
+      !Array.isArray(calculation.allMembersSummary)
+    )
+      return [];
     let list = [...calculation.allMembersSummary];
 
     // Filter by search query
-    if (searchQuery.trim()) {
+    if (searchQuery && searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      list = list.filter((m) => m.name.toLowerCase().includes(query) || m.userId.includes(query));
+      list = list.filter((m) => {
+        if (!m) return false;
+        const name = String(m.name || "").toLowerCase();
+        const uid = String(m.userId || "").toLowerCase();
+        return name.includes(query) || uid.includes(query);
+      });
     }
 
     // Filter by balance status
-    if (statusFilter === 'refund') {
-      list = list.filter((m) => m.netBalance >= 0);
-    } else if (statusFilter === 'due') {
-      list = list.filter((m) => m.netBalance < 0);
+    if (statusFilter === "refund") {
+      list = list.filter((m) => (m?.netBalance ?? 0) >= 0);
+    } else if (statusFilter === "due") {
+      list = list.filter((m) => (m?.netBalance ?? 0) < 0);
     }
 
     // Sort
     list.sort((a, b) => {
       let cmp = 0;
-      if (sortBy === 'name') cmp = a.name.localeCompare(b.name, 'bn');
-      else if (sortBy === 'mealUnits') cmp = a.mealUnits - b.mealUnits;
-      else if (sortBy === 'totalDues') cmp = a.totalDues - b.totalDues;
-      else if (sortBy === 'netBalance') cmp = a.netBalance - b.netBalance;
+      if (sortBy === "name") {
+        const nameA = String(a?.name || "");
+        const nameB = String(b?.name || "");
+        cmp = nameA.localeCompare(nameB, language === "bn" ? "bn" : "en");
+      } else if (sortBy === "mealUnits") {
+        cmp = (a?.mealUnits || 0) - (b?.mealUnits || 0);
+      } else if (sortBy === "totalDues") {
+        cmp = (a?.totalDues || 0) - (b?.totalDues || 0);
+      } else if (sortBy === "netBalance") {
+        cmp = (a?.netBalance || 0) - (b?.netBalance || 0);
+      }
       return sortAsc ? cmp : -cmp;
     });
 
     return list;
-  }, [calculation?.allMembersSummary, searchQuery, statusFilter, sortBy, sortAsc]);
+  }, [
+    calculation?.allMembersSummary,
+    searchQuery,
+    statusFilter,
+    sortBy,
+    sortAsc,
+    language,
+  ]);
 
   const toggleSort = (col: typeof sortBy) => {
     if (sortBy === col) {
@@ -92,8 +120,13 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
   if (!calculation) return null;
 
-  const refundCount = calculation.allMembersSummary.filter((m) => m.netBalance >= 0).length;
-  const dueCount = calculation.allMembersSummary.filter((m) => m.netBalance < 0).length;
+  const allSummary = Array.isArray(calculation.allMembersSummary)
+    ? calculation.allMembersSummary
+    : [];
+  const refundCount = allSummary.filter(
+    (m) => (m?.netBalance ?? 0) >= 0,
+  ).length;
+  const dueCount = allSummary.filter((m) => (m?.netBalance ?? 0) < 0).length;
 
   return (
     <div className="space-y-6">
@@ -104,18 +137,20 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Activity className="w-5 h-5 text-indigo-400" />
-              {t('dashboard.balanceSheetTitle')}
+              {t("dashboard.balanceSheetTitle")}
             </h3>
             <p className="text-xs text-slate-400">
-              {t('dashboard.balanceSheetSub')}
+              {t("dashboard.balanceSheetSub")}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-400 flex items-center gap-1.5 mr-2">
-              <span>{language === 'en' ? 'Rounding Diff:' : 'রাউন্ডিং ব্যবধান:'}</span>
+              <span>
+                {language === "en" ? "Rounding Diff:" : "রাউন্ডিং ব্যবধান:"}
+              </span>
               <span className="font-mono text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
-                {calculation.totals.roundingDifference > 0 ? '+' : ''}
-                {calculation.totals.roundingDifference} {t('common.taka')}
+                {calculation.totals.roundingDifference > 0 ? "+" : ""}
+                {calculation.totals.roundingDifference} {t("common.taka")}
               </span>
             </span>
 
@@ -125,7 +160,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors cursor-pointer"
             >
               <FileText className="w-3.5 h-3.5 text-indigo-400" />
-              {language === 'en' ? 'Download CSV' : 'CSV ডাউনলোড'}
+              {language === "en" ? "Download CSV" : "CSV ডাউনলোড"}
             </a>
 
             <a
@@ -133,7 +168,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
               download
               className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors cursor-pointer"
             >
-              {language === 'en' ? 'JSON Backup' : 'JSON ব্যাকআপ'}
+              {language === "en" ? "JSON Backup" : "JSON ব্যাকআপ"}
             </a>
           </div>
         </div>
@@ -147,12 +182,16 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={language === 'en' ? 'Search by member name...' : 'সদস্যের নাম দিয়ে খুঁজুন...'}
+              placeholder={
+                language === "en"
+                  ? "Search by member name..."
+                  : "সদস্যের নাম দিয়ে খুঁজুন..."
+              }
               className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all"
             />
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery('')}
+                onClick={() => setSearchQuery("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
               >
                 ×
@@ -163,34 +202,40 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           {/* Status Filter Chips */}
           <div className="flex items-center gap-1.5 text-xs overflow-x-auto pb-1 sm:pb-0">
             <button
-              onClick={() => setStatusFilter('all')}
+              onClick={() => setStatusFilter("all")}
               className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                statusFilter === 'all'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                statusFilter === "all"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
               }`}
             >
-              {language === 'en' ? `All Members (${calculation.allMembersSummary.length})` : `সকল সদস্য (${calculation.allMembersSummary.length})`}
+              {language === "en"
+                ? `All Members (${calculation.allMembersSummary.length})`
+                : `সকল সদস্য (${calculation.allMembersSummary.length})`}
             </button>
             <button
-              onClick={() => setStatusFilter('refund')}
+              onClick={() => setStatusFilter("refund")}
               className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                statusFilter === 'refund'
-                  ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                statusFilter === "refund"
+                  ? "bg-emerald-600/30 text-emerald-300 border border-emerald-500/40"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
               }`}
             >
-              {language === 'en' ? `Receivable (${refundCount})` : `পাওনা / প্লাস (${refundCount})`}
+              {language === "en"
+                ? `Receivable (${refundCount})`
+                : `পাওনা / প্লাস (${refundCount})`}
             </button>
             <button
-              onClick={() => setStatusFilter('due')}
+              onClick={() => setStatusFilter("due")}
               className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                statusFilter === 'due'
-                  ? 'bg-rose-600/30 text-rose-300 border border-rose-500/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                statusFilter === "due"
+                  ? "bg-rose-600/30 text-rose-300 border border-rose-500/40"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
               }`}
             >
-              {language === 'en' ? `Due Remaining (${dueCount})` : `দেনা / বকেয়া (${dueCount})`}
+              {language === "en"
+                ? `Due Remaining (${dueCount})`
+                : `দেনা / বকেয়া (${dueCount})`}
             </button>
           </div>
         </div>
@@ -199,7 +244,9 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         <div className="md:hidden space-y-3 pt-2">
           {filteredMembers.length === 0 ? (
             <p className="text-xs text-slate-500 py-6 text-center">
-              {language === 'en' ? 'No members found' : 'কোনো সদস্য খুঁজে পাওয়া যায়নি'}
+              {language === "en"
+                ? "No members found"
+                : "কোনো সদস্য খুঁজে পাওয়া যায়নি"}
             </p>
           ) : (
             filteredMembers.map((mem) => {
@@ -215,8 +262,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                   key={mem.userId}
                   className={`p-4 rounded-xl border transition-all ${
                     isCurrent
-                      ? 'bg-indigo-950/25 border-indigo-500/40 shadow-sm'
-                      : 'bg-slate-900/60 border-slate-800'
+                      ? "bg-indigo-950/25 border-indigo-500/40 shadow-sm"
+                      : "bg-slate-900/60 border-slate-800"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2.5">
@@ -228,16 +275,18 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                       />
                       <div className="truncate">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-200 text-sm truncate">{mem.name}</span>
+                          <span className="font-bold text-slate-200 text-sm truncate">
+                            {mem.name}
+                          </span>
                           {isCurrent && (
                             <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.2 rounded font-semibold shrink-0">
-                              {language === 'en' ? 'You' : 'আপনি'}
+                              {language === "en" ? "You" : "আপনি"}
                             </span>
                           )}
                         </div>
                         {!mem.isActive && (
                           <span className="text-[10px] text-rose-400 block">
-                            {language === 'en' ? 'Departed' : 'মেস ছেড়েছেন'}
+                            {language === "en" ? "Departed" : "মেস ছেড়েছেন"}
                           </span>
                         )}
                       </div>
@@ -247,7 +296,9 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                       <Link
                         href={`/dashboard/profile?userId=${mem.userId}`}
                         className="p-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-colors cursor-pointer"
-                        title={language === 'en' ? 'Profile page' : 'প্রোফাইল পেজ'}
+                        title={
+                          language === "en" ? "Profile page" : "প্রোফাইল পেজ"
+                        }
                       >
                         <User className="w-4 h-4" />
                       </Link>
@@ -256,7 +307,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                         className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold px-2 py-1 rounded bg-indigo-500/10 border border-indigo-500/20 cursor-pointer"
                       >
                         <FileText className="w-3.5 h-3.5" />
-                        {language === 'en' ? 'Statement' : 'স্টেটমেন্ট'}
+                        {language === "en" ? "Statement" : "স্টেটমেন্ট"}
                       </button>
                     </div>
                   </div>
@@ -264,47 +315,57 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                   <div className="grid grid-cols-2 gap-2 text-xs border-y border-slate-800/60 py-2.5 mb-2.5">
                     <div>
                       <span className="text-slate-400 block text-[11px]">
-                        {language === 'en' ? 'Total Meals:' : 'মোট মিল:'}
+                        {language === "en" ? "Total Meals:" : "মোট মিল:"}
                       </span>
                       <span className="font-mono text-slate-200 font-bold">
-                        {mem.mealUnits} {language === 'en' ? 'units' : 'ইউনিট'}
+                        {mem.mealUnits} {language === "en" ? "units" : "ইউনিট"}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[11px]">
-                        {language === 'en' ? 'Meal Cost:' : 'মিল খরচ:'}
+                        {language === "en" ? "Meal Cost:" : "মিল খরচ:"}
                       </span>
-                      <span className="font-mono text-slate-200">{formatTaka(mem.regularMealCost)}</span>
+                      <span className="font-mono text-slate-200">
+                        {formatTaka(mem.regularMealCost)}
+                      </span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[11px]">
-                        {language === 'en' ? 'Total Dues:' : 'মোট দেনা:'}
+                        {language === "en" ? "Total Dues:" : "মোট দেনা:"}
                       </span>
-                      <span className="font-mono text-rose-300 font-semibold">{formatTaka(mem.totalDues)}</span>
+                      <span className="font-mono text-rose-300 font-semibold">
+                        {formatTaka(mem.totalDues)}
+                      </span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[11px]">
-                        {language === 'en' ? 'Total Credits:' : 'মোট জমা:'}
+                        {language === "en" ? "Total Credits:" : "মোট জমা:"}
                       </span>
-                      <span className="font-mono text-emerald-300 font-semibold">{formatTaka(mem.totalCredits)}</span>
+                      <span className="font-mono text-emerald-300 font-semibold">
+                        {formatTaka(mem.totalCredits)}
+                      </span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between text-xs pt-0.5">
                     <span className="text-slate-400 font-medium">
-                      {language === 'en' ? 'Net Balance:' : 'নিট ব্যালেন্স:'}
+                      {language === "en" ? "Net Balance:" : "নিট ব্যালেন্স:"}
                     </span>
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold font-mono ${
                         isRefund
-                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                          : "bg-rose-500/15 text-rose-400 border border-rose-500/30"
                       }`}
                     >
-                      {formatTaka(mem.netBalance, { showSign: true })}{' '}
+                      {formatTaka(mem.netBalance, { showSign: true })}{" "}
                       {isRefund
-                        ? (language === 'en' ? '(Receivable)' : '(পাওনা)')
-                        : (language === 'en' ? '(Due)' : '(বাকি)')}
+                        ? language === "en"
+                          ? "(Receivable)"
+                          : "(পাওনা)"
+                        : language === "en"
+                          ? "(Due)"
+                          : "(বাকি)"}
                     </span>
                   </div>
                 </div>
@@ -319,54 +380,76 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             <thead>
               <tr className="border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                 <th
-                  onClick={() => toggleSort('name')}
+                  onClick={() => toggleSort("name")}
                   className="pb-3 px-3 cursor-pointer hover:text-white transition-colors"
                 >
                   <div className="flex items-center gap-1">
-                    <span>{language === 'en' ? 'Member Name' : 'সদস্যের নাম ও ছবি'}</span>
+                    <span>
+                      {language === "en" ? "Member Name" : "সদস্যের নাম ও ছবি"}
+                    </span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
                 <th
-                  onClick={() => toggleSort('mealUnits')}
+                  onClick={() => toggleSort("mealUnits")}
                   className="pb-3 px-2 text-center cursor-pointer hover:text-white transition-colors"
                 >
                   <div className="flex items-center justify-center gap-1">
-                    <span>{language === 'en' ? 'Meal Units' : 'মিল ইউনিট'}</span>
+                    <span>
+                      {language === "en" ? "Meal Units" : "মিল ইউনিট"}
+                    </span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
-                <th className="pb-3 px-2 text-right">{language === 'en' ? 'Meal Cost' : 'মিল খরচ'}</th>
-                <th className="pb-3 px-2 text-right">{language === 'en' ? 'Special Feast' : 'ফিক্সড'}</th>
-                <th className="pb-3 px-2 text-right">{language === 'en' ? 'Utilities' : 'ইউটিলিটি'}</th>
-                <th className="pb-3 px-2 text-right">{language === 'en' ? 'Room Rent' : 'রুম ভাড়া'}</th>
+                <th className="pb-3 px-2 text-right">
+                  {language === "en" ? "Meal Cost" : "মিল খরচ"}
+                </th>
+                <th className="pb-3 px-2 text-right">
+                  {language === "en" ? "Special Feast" : "ফিক্সড"}
+                </th>
+                <th className="pb-3 px-2 text-right">
+                  {language === "en" ? "Utilities" : "ইউটিলিটি"}
+                </th>
+                <th className="pb-3 px-2 text-right">
+                  {language === "en" ? "Room Rent" : "রুম ভাড়া"}
+                </th>
                 <th
-                  onClick={() => toggleSort('totalDues')}
+                  onClick={() => toggleSort("totalDues")}
                   className="pb-3 px-2 text-right cursor-pointer hover:text-white transition-colors"
                 >
                   <div className="flex items-center justify-end gap-1">
-                    <span>{language === 'en' ? 'Total Dues' : 'মোট দেনা'}</span>
+                    <span>{language === "en" ? "Total Dues" : "মোট দেনা"}</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
-                <th className="pb-3 px-2 text-right">{language === 'en' ? 'Total Credits & Bazar' : 'মোট জমা ও বাজার'}</th>
+                <th className="pb-3 px-2 text-right">
+                  {language === "en"
+                    ? "Total Credits & Bazar"
+                    : "মোট জমা ও বাজার"}
+                </th>
                 <th
-                  onClick={() => toggleSort('netBalance')}
+                  onClick={() => toggleSort("netBalance")}
                   className="pb-3 px-2 text-right cursor-pointer hover:text-white transition-colors"
                 >
                   <div className="flex items-center justify-end gap-1">
-                    <span>{language === 'en' ? 'Net Balance' : 'বর্তমান ব্যালেন্স'}</span>
+                    <span>
+                      {language === "en" ? "Net Balance" : "বর্তমান ব্যালেন্স"}
+                    </span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
-                <th className="pb-3 px-2 text-center">{language === 'en' ? 'Action' : 'অ্যাকশন'}</th>
+                <th className="pb-3 px-2 text-center">
+                  {language === "en" ? "Action" : "অ্যাকশন"}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {filteredMembers.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-8 text-center text-slate-500">
-                    {language === 'en' ? 'No members found' : 'কোনো সদস্য খুঁজে পাওয়া যায়নি'}
+                    {language === "en"
+                      ? "No members found"
+                      : "কোনো সদস্য খুঁজে পাওয়া যায়নি"}
                   </td>
                 </tr>
               ) : (
@@ -382,7 +465,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                     <tr
                       key={mem.userId}
                       className={`hover:bg-slate-800/40 transition-colors ${
-                        isCurrent ? 'bg-indigo-950/20 font-medium' : ''
+                        isCurrent ? "bg-indigo-950/20 font-medium" : ""
                       }`}
                     >
                       {/* Name with Profile Picture */}
@@ -395,16 +478,18 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                           />
                           <div className="truncate max-w-[150px]">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-white truncate">{mem.name}</span>
+                              <span className="font-semibold text-white truncate">
+                                {mem.name}
+                              </span>
                               {isCurrent && (
                                 <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.2 rounded shrink-0">
-                                  {language === 'en' ? 'You' : 'আপনি'}
+                                  {language === "en" ? "You" : "আপনি"}
                                 </span>
                               )}
                             </div>
                             {!mem.isActive && (
                               <span className="text-[9px] text-rose-400 block">
-                                {language === 'en' ? 'Departed' : 'মেস ছেড়েছেন'}
+                                {language === "en" ? "Departed" : "মেস ছেড়েছেন"}
                               </span>
                             )}
                           </div>
@@ -451,8 +536,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold font-mono ${
                             isRefund
-                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                              : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                              ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                              : "bg-rose-500/15 text-rose-400 border border-rose-500/30"
                           }`}
                         >
                           {formatTaka(mem.netBalance, { showSign: true })}
@@ -465,14 +550,22 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                           <Link
                             href={`/dashboard/profile?userId=${mem.userId}`}
                             className="p-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-colors cursor-pointer"
-                            title={language === 'en' ? 'View profile & ledger' : 'পূর্ণাঙ্গ প্রোফাইল ও ইতিহাস দেখুন'}
+                            title={
+                              language === "en"
+                                ? "View profile & ledger"
+                                : "পূর্ণাঙ্গ প্রোফাইল ও ইতিহাস দেখুন"
+                            }
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
                           </Link>
                           <button
                             onClick={() => onOpenStatement(mem)}
                             className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors cursor-pointer"
-                            title={language === 'en' ? 'View statement modal' : 'স্টেটমেন্ট মডাল দেখুন'}
+                            title={
+                              language === "en"
+                                ? "View statement modal"
+                                : "স্টেটমেন্ট মডাল দেখুন"
+                            }
                           >
                             <FileText className="w-3.5 h-3.5" />
                           </button>
@@ -493,48 +586,74 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
           <h4 className="text-sm font-bold text-white flex items-center gap-2">
             <Info className="w-4 h-4 text-indigo-400" />
-            {language === 'en' ? 'Meal Rate Calculation & Pool Summary' : 'মিল রেট গণনার ভিত্তি ও পুলের সারসংক্ষেপ'}
+            {language === "en"
+              ? "Meal Rate Calculation & Pool Summary"
+              : "মিল রেট গণনার ভিত্তি ও পুলের সারসংক্ষেপ"}
           </h4>
           <div className="space-y-2.5 text-xs">
             <div className="flex justify-between py-1.5 border-b border-slate-800">
               <span className="text-slate-400">
-                {language === 'en' ? 'Approved Regular Bazar (B_regular)' : 'অনুমোদিত রেগুলার বাজার (B_regular)'}
-              </span>
-              <span className="font-mono text-slate-200">{formatTaka(calculation.totalRegularBazar)}</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-slate-800">
-              <span className="text-slate-400">
-                {language === 'en' ? 'Extra Bazar in Pool (B_extra pool)' : 'মিল পুলে এক্সট্রা বাজার (B_extra pool)'}
-              </span>
-              <span className="font-mono text-slate-200">{formatTaka(calculation.totalExtraBazarPool)}</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-slate-800">
-              <span className="text-slate-400">
-                {language === 'en' ? 'Big Bazar Cost minus Carry (S_big - L_carry)' : 'বড় বাজারের খরচ বাদ ক্যারি (S_big - L_carry)'}
+                {language === "en"
+                  ? "Approved Regular Bazar (B_regular)"
+                  : "অনুমোদিত রেগুলার বাজার (B_regular)"}
               </span>
               <span className="font-mono text-slate-200">
-                {formatTaka(calculation.totalBigBazarCost - calculation.bigBazarCarryToNextCycle)}
+                {formatTaka(calculation.totalRegularBazar)}
+              </span>
+            </div>
+            <div className="flex justify-between py-1.5 border-b border-slate-800">
+              <span className="text-slate-400">
+                {language === "en"
+                  ? "Extra Bazar in Pool (B_extra pool)"
+                  : "মিল পুলে এক্সট্রা বাজার (B_extra pool)"}
+              </span>
+              <span className="font-mono text-slate-200">
+                {formatTaka(calculation.totalExtraBazarPool)}
+              </span>
+            </div>
+            <div className="flex justify-between py-1.5 border-b border-slate-800">
+              <span className="text-slate-400">
+                {language === "en"
+                  ? "Big Bazar Cost minus Carry (S_big - L_carry)"
+                  : "বড় বাজারের খরচ বাদ ক্যারি (S_big - L_carry)"}
+              </span>
+              <span className="font-mono text-slate-200">
+                {formatTaka(
+                  calculation.totalBigBazarCost -
+                    calculation.bigBazarCarryToNextCycle,
+                )}
               </span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-slate-800 font-semibold">
               <span className="text-slate-300">
-                {language === 'en' ? 'Total Meal Pool (Meal Pool Total)' : 'মোট মিল পুল (Meal Pool Total)'}
+                {language === "en"
+                  ? "Total Meal Pool (Meal Pool Total)"
+                  : "মোট মিল পুল (Meal Pool Total)"}
               </span>
-              <span className="font-mono text-indigo-400">{formatTaka(calculation.mealPoolTotal)}</span>
+              <span className="font-mono text-indigo-400">
+                {formatTaka(calculation.mealPoolTotal)}
+              </span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-slate-800">
               <span className="text-slate-400">
-                {language === 'en' ? 'Total Active Meal Units (U_total)' : 'সক্রিয় মোট মিল ইউনিট (U_total)'}
+                {language === "en"
+                  ? "Total Active Meal Units (U_total)"
+                  : "সক্রিয় মোট মিল ইউনিট (U_total)"}
               </span>
               <span className="font-mono text-slate-200">
-                {calculation.totalMealUnits} {language === 'en' ? 'units' : 'ইউনিট'}
+                {calculation.totalMealUnits}{" "}
+                {language === "en" ? "units" : "ইউনিট"}
               </span>
             </div>
             <div className="flex justify-between py-2 bg-indigo-950/30 px-3 rounded-xl border border-indigo-500/20 font-bold">
               <span className="text-indigo-300">
-                {language === 'en' ? 'Meal Rate = Pool ÷ Total Meals' : 'মিল রেট = পুল ÷ মোট মিল'}
+                {language === "en"
+                  ? "Meal Rate = Pool ÷ Total Meals"
+                  : "মিল রেট = পুল ÷ মোট মিল"}
               </span>
-              <span className="font-mono text-indigo-300 text-sm">{formatTaka(calculation.mealRate, { decimals: 2 })}</span>
+              <span className="font-mono text-indigo-300 text-sm">
+                {formatTaka(calculation.mealRate, { decimals: 2 })}
+              </span>
             </div>
           </div>
         </div>
@@ -543,12 +662,16 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-3">
           <h4 className="text-sm font-bold text-white flex items-center gap-2">
             <Shield className="w-4 h-4 text-emerald-400" />
-            {language === 'en' ? 'Audit Trail & Activity Log' : 'অডিট ট্রেইল ও কার্যক্রম ইতিহাস (Audit Log)'}
+            {language === "en"
+              ? "Audit Trail & Activity Log"
+              : "অডিট ট্রেইল ও কার্যক্রম ইতিহাস (Audit Log)"}
           </h4>
           <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
             {auditLogs.length === 0 ? (
               <p className="text-xs text-slate-500 py-4 text-center">
-                {language === 'en' ? 'No audit log records' : 'কোনো অডিট লগ রেকর্ড নেই'}
+                {language === "en"
+                  ? "No audit log records"
+                  : "কোনো অডিট লগ রেকর্ড নেই"}
               </p>
             ) : (
               auditLogs.map((log) => (
@@ -559,12 +682,16 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                   <div>
                     <p className="font-medium text-slate-200">{log.action}</p>
                     <p className="text-[11px] text-slate-400">
-                      {language === 'en' ? 'By: ' : 'কর্তৃক: '}
-                      <span className="text-slate-300">{log.performedByUserName}</span>
+                      {language === "en" ? "By: " : "কর্তৃক: "}
+                      <span className="text-slate-300">
+                        {log.performedByUserName}
+                      </span>
                     </p>
                   </div>
                   <span className="text-[10px] text-slate-500 whitespace-nowrap">
-                    {new Date(log.createdAt).toLocaleDateString(language === 'en' ? 'en-US' : 'bn-BD')}
+                    {new Date(log.createdAt).toLocaleDateString(
+                      language === "en" ? "en-US" : "bn-BD",
+                    )}
                   </span>
                 </div>
               ))
