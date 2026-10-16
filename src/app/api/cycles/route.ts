@@ -51,9 +51,14 @@ export async function POST(request: Request) {
       const rentSettlementType = body.rentSettlementType === 'full_month' ? 'full_month' : 'pro_rata';
       const effectiveLeftDate = leftDate || new Date().toISOString().split('T')[0];
 
-      // Calculate running meal rate for 'current_rate_final'
+      // Calculate running meal rate for 'current_rate_final' (or use explicit settledMealRate if specified)
       const currentBilling = store.computeCurrentCycleBilling(cycleId);
-      const settledMealRate = settlementType === 'current_rate_final' ? currentBilling.mealRate : null;
+      const settledMealRate =
+        settlementType === 'current_rate_final'
+          ? typeof body.settledMealRate === 'number' && body.settledMealRate > 0
+            ? Number(body.settledMealRate)
+            : currentBilling.mealRate
+          : null;
 
       let stayedDays: number | undefined = undefined;
       if (cycle.startDate) {
