@@ -5,6 +5,7 @@ import { getStore } from '@/lib/store';
 import { getDb, idFilter, userKeyFilter } from '@/lib/db';
 import { DepositDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
+import { resolveRentDepositCycleEffect } from '@/billing-engine';
 
 export async function GET(request: Request) {
   try {
@@ -80,18 +81,35 @@ export async function POST(request: Request) {
       }
 
       // If this deposit was linked to house rent, revert rent status in member_cycles
-      await db.collection('member_cycles').updateMany(
-        { rentDepositId: { $in: [depositId, targetDeposit._id.toString()] } },
+      const rentEffect = resolveRentDepositCycleEffect(
         {
-          $set: {
-            rentPaid: false,
-            rentPaidAt: null,
-            rentDepositId: null,
-            rentNotes: '',
-            updatedAt: new Date(),
-          },
-        }
+          depositId: String(targetDeposit._id),
+          depositType: targetDeposit.type,
+          status: targetDeposit.status,
+          isPaid: Boolean(targetDeposit.isPaid),
+        },
+        'delete'
       );
+
+      if (rentEffect.shouldRevertPaid) {
+        await db.collection('member_cycles').updateMany(
+          {
+            $or: [
+              { rentDepositId: { $in: [depositId, targetDeposit._id.toString()] } },
+              { cycleId: targetDeposit.cycleId, ...userKeyFilter('userId', targetDeposit.userId), rentDepositId: targetDeposit._id.toString() },
+            ],
+          },
+          {
+            $set: {
+              rentPaid: false,
+              rentPaidAt: null,
+              rentDepositId: null,
+              rentNotes: '',
+              updatedAt: new Date(),
+            },
+          }
+        );
+      }
 
       // Perform deletion
       await db.collection('deposits').deleteOne(idFilter(depositId));
@@ -139,8 +157,19 @@ export async function POST(request: Request) {
         },
       });
 
-      // If this was a rent deposit, mark member's rent as paid to prevent duplicate collection
-      if (targetDeposit.type === 'rent') {
+      // If this was an approved rent deposit, mark member's rent as paid to prevent duplicate collection
+      const rentEffect = resolveRentDepositCycleEffect(
+        {
+          depositId: String(targetDeposit._id),
+          depositType: targetDeposit.type,
+          status: 'approved',
+          isPaid: true,
+          paymentMethod: targetDeposit.paymentMethod || 'cash',
+        },
+        'approve'
+      );
+
+      if (rentEffect.shouldMarkPaid) {
         await db.collection('member_cycles').updateOne(
           { cycleId: targetDeposit.cycleId, ...userKeyFilter('userId', targetDeposit.userId) },
           {
@@ -148,7 +177,7 @@ export async function POST(request: Request) {
               rentPaid: true,
               rentPaidAt: new Date(),
               rentDepositId: targetDeposit._id.toString(),
-              rentPaidMethod: targetDeposit.paymentMethod || 'cash',
+              rentPaidMethod: rentEffect.rentPaidMethod || 'cash',
               updatedAt: new Date(),
             },
           }
@@ -197,6 +226,37 @@ export async function POST(request: Request) {
           updatedAt: new Date(),
         },
       });
+
+      // If this was linked to rent, revert rent paid status in member_cycles
+      const rejectRentEffect = resolveRentDepositCycleEffect(
+        {
+          depositId: String(targetDeposit._id),
+          depositType: targetDeposit.type,
+          status: 'rejected',
+          isPaid: false,
+        },
+        'reject'
+      );
+
+      if (rejectRentEffect.shouldRevertPaid) {
+        await db.collection('member_cycles').updateMany(
+          {
+            $or: [
+              { rentDepositId: { $in: [depositId, targetDeposit._id.toString()] } },
+              { cycleId: targetDeposit.cycleId, ...userKeyFilter('userId', targetDeposit.userId), rentDepositId: targetDeposit._id.toString() },
+            ],
+          },
+          {
+            $set: {
+              rentPaid: false,
+              rentPaidAt: null,
+              rentDepositId: null,
+              rentNotes: '',
+              updatedAt: new Date(),
+            },
+          }
+        );
+      }
 
       await recordAuditLog({
         messId: targetDeposit.messId,
@@ -283,7 +343,18 @@ export async function POST(request: Request) {
     });
 
     // If manager created an approved rent deposit directly, link with member_cycles to prevent double counting
-    if (type === 'rent' && isPaid) {
+    const createRentEffect = resolveRentDepositCycleEffect(
+      {
+        depositId: newDeposit._id,
+        depositType: type,
+        status,
+        isPaid,
+        paymentMethod,
+      },
+      'create'
+    );
+
+    if (createRentEffect.shouldMarkPaid) {
       await db.collection('member_cycles').updateOne(
         { cycleId: String(cycleId), ...userKeyFilter('userId', effectiveUserId) },
         {
@@ -354,18 +425,35 @@ export async function DELETE(request: Request) {
     }
 
     // Revert rent if linked
-    await db.collection('member_cycles').updateMany(
-      { rentDepositId: { $in: [depositId, targetDeposit._id.toString()] } },
+    const deleteRentEffect = resolveRentDepositCycleEffect(
       {
-        $set: {
-          rentPaid: false,
-          rentPaidAt: null,
-          rentDepositId: null,
-          rentNotes: '',
-          updatedAt: new Date(),
-        },
-      }
+        depositId: String(targetDeposit._id),
+        depositType: targetDeposit.type,
+        status: targetDeposit.status,
+        isPaid: Boolean(targetDeposit.isPaid),
+      },
+      'delete'
     );
+
+    if (deleteRentEffect.shouldRevertPaid) {
+      await db.collection('member_cycles').updateMany(
+        {
+          $or: [
+            { rentDepositId: { $in: [depositId, targetDeposit._id.toString()] } },
+            { cycleId: targetDeposit.cycleId, ...userKeyFilter('userId', targetDeposit.userId), rentDepositId: targetDeposit._id.toString() },
+          ],
+        },
+        {
+          $set: {
+            rentPaid: false,
+            rentPaidAt: null,
+            rentDepositId: null,
+            rentNotes: '',
+            updatedAt: new Date(),
+          },
+        }
+      );
+    }
 
     await db.collection('deposits').deleteOne(idFilter(depositId));
 

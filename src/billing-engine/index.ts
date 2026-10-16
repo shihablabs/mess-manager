@@ -480,4 +480,7 @@ export type { SlotDateRange } from './slots';
 export { isMealRequestLate, getMealSlotCutoffDateTime } from './meal-cutoff';
 export type { MealSlotCutoffConfig } from './meal-cutoff';
 
+export { resolveRentDepositCycleEffect } from './rent-lifecycle';
+export type { RentDepositStateInput, RentCycleSyncResult } from './rent-lifecycle';
+
 
