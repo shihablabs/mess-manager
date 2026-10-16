@@ -78,6 +78,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       case 'schedule':
       case 'roster':
         return t('nav.schedule');
+      case 'feasts':
+      case 'feast':
+        return t('nav.feasts');
       case 'bills':
       case 'utilities':
         return t('nav.bills');

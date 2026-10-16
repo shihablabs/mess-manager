@@ -217,6 +217,11 @@ export interface FixedEventDoc {
   buyerUserId?: string; // Who purchased the feast bazar
   items?: FixedEventItem[]; // Itemized expenses
   bazarId?: string; // Linked bazar entry
+  status?: RequestStatus; // 'pending' | 'approved' | 'rejected'
+  requestedBy?: string;
+  reviewedBy?: string;
+  reviewedAt?: Date;
+  adminNote?: string;
   createdAt: Date;
   updatedAt: Date;
 }

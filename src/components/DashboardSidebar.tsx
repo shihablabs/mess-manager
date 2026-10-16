@@ -138,9 +138,25 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           },
           isQuickAction: true,
         },
+      ],
+    },
+    {
+      id: 'feasts',
+      label: language === 'en' ? 'Special Feast' : 'স্পেশাল ভোজ',
+      href: '/dashboard/feasts',
+      icon: Sparkles,
+      badge: null,
+      isActive: pathname.startsWith('/dashboard/feasts'),
+      subItems: [
         {
-          id: 'fixed_event_quick',
-          label: language === 'en' ? '🍗 Special Feast (Fixed Event)' : '🍗 বিশেষ ভোজ (Fixed Event)',
+          id: 'feasts_all',
+          label: language === 'en' ? 'Feast List & Hub' : 'ভোজ তালিকা ও আবেদন',
+          href: '/dashboard/feasts',
+          isActive: pathname === '/dashboard/feasts',
+        },
+        {
+          id: 'new_feast_quick',
+          label: language === 'en' ? '✨ Schedule / Request Feast' : '✨ বিশেষ ভোজ আয়োজন / আবেদন',
           action: () => {
             onOpenFixedEvent();
             onMobileClose();

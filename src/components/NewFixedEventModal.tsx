@@ -26,6 +26,7 @@ interface NewFixedEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  editEvent?: any | null;
 }
 
 interface ExpenseItemRow {
@@ -41,8 +42,10 @@ export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  editEvent = null,
 }) => {
   const { isBangla } = useLanguage();
+  const isManager = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
   // Basic Event details
   const [title, setTitle] = useState(
@@ -84,22 +87,52 @@ export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
     return eligibleMembers.find((m) => m.userId === buyerUserId) || null;
   }, [eligibleMembers, buyerUserId]);
 
-  // Initialize defaults on open
+  // Initialize defaults on open or populate when editing
   useEffect(() => {
     if (!isOpen) return;
+
+    if (editEvent) {
+      setTitle(editEvent.title || '');
+      setDate(editEvent.date || new Date().toISOString().split('T')[0]);
+      setMealTime(editEvent.mealTime || 'lunch');
+      setBuyerUserId(editEvent.buyerUserId || currentUser?.id || '');
+      if (Array.isArray(editEvent.items) && editEvent.items.length > 0) {
+        setItems(
+          editEvent.items.map((it: any, idx: number) => ({
+            id: `item_${idx}_${Date.now()}`,
+            name: it.name || '',
+            amount: String(it.amount || ''),
+          }))
+        );
+      } else {
+        setItems([
+          {
+            id: '1',
+            name: editEvent.title || (isBangla ? 'স্পেশাল ভোজ' : 'Special Feast'),
+            amount: String(editEvent.cost || ''),
+          },
+        ]);
+      }
+      setAttendeeIds(editEvent.attendeeUserIds || []);
+      return;
+    }
 
     if (!date) {
       setDate(new Date().toISOString().split('T')[0]);
     }
 
     // Default buyer to current logged-in user or mess manager
-    if (!buyerUserId && eligibleMembers.length > 0) {
-      const defaultBuyer =
-        eligibleMembers.find((m) => m.userId === currentUser?.id) ||
-        eligibleMembers.find((m) => m.role === 'admin') ||
-        eligibleMembers[0];
-      if (defaultBuyer) {
-        setBuyerUserId(defaultBuyer.userId);
+    if (!buyerUserId) {
+      if (!isManager && currentUser?.id) {
+        setBuyerUserId(currentUser.id);
+      } else if (eligibleMembers.length > 0) {
+        const defaultBuyer =
+          eligibleMembers.find((m) => m.userId === currentUser?.id) ||
+          eligibleMembers.find((m) => m.role === 'admin') ||
+          eligibleMembers[0];
+        if (defaultBuyer) {
+          setBuyerUserId(defaultBuyer.userId);
+        }
       }
     }
 
@@ -107,7 +140,7 @@ export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
     if (attendeeIds.length === 0 && eligibleMembers.length > 0) {
       setAttendeeIds(eligibleMembers.map((m) => m.userId));
     }
-  }, [isOpen, date, buyerUserId, eligibleMembers, attendeeIds.length, currentUser?.id]);
+  }, [isOpen, date, buyerUserId, eligibleMembers, attendeeIds.length, currentUser?.id, editEvent, isManager, isBangla]);
 
   if (!isOpen) return null;
 
@@ -192,27 +225,46 @@ export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
 
     try {
       setIsSubmitting(true);
-      const res = await fetch('/api/fixed-events', {
-        method: 'POST',
+      const isEditing = Boolean(editEvent && editEvent._id);
+      const endpoint = '/api/fixed-events';
+      const method = isEditing ? 'PATCH' : 'POST';
+
+      const payload: any = {
+        title: title.trim(),
+        date,
+        cost: totalCost,
+        mealTime,
+        buyerUserId: isManager ? (buyerUserId || currentUser?.id) : currentUser?.id,
+        items: validItems.length > 0 ? validItems : [{ name: title.trim(), amount: totalCost }],
+        attendeeUserIds: attendeeIds,
+        extraMealWeight: fixedExtraWeightDefault ?? 0.5,
+      };
+
+      if (isEditing) {
+        payload.id = editEvent._id;
+      }
+
+      const res = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          date,
-          cost: totalCost,
-          mealTime,
-          buyerUserId: buyerUserId || currentUser?.id,
-          items: validItems.length > 0 ? validItems : [{ name: title.trim(), amount: totalCost }],
-          attendeeUserIds: attendeeIds,
-          extraMealWeight: fixedExtraWeightDefault ?? 0.5,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (data.success) {
         toast.success(
-          isBangla
-            ? 'বিশেষ ভোজ সফলভাবে তৈরি হয়েছে! বাজারকারীর ক্রেডিট ও সদস্যদের দেনা যুক্ত হয়েছে।'
-            : 'Special feast scheduled successfully! Buyer credit and member shares updated.'
+          data.message ||
+            (isEditing
+              ? isBangla
+                ? 'বিশেষ ভোজ সফলভাবে আপডেট করা হয়েছে!'
+                : 'Special feast updated successfully!'
+              : isManager
+              ? isBangla
+                ? 'বিশেষ ভোজ সফলভাবে শিডিউল হয়েছে!'
+                : 'Special feast scheduled successfully!'
+              : isBangla
+              ? 'বিশেষ ভোজের আবেদন জমা হয়েছে! মেস ম্যানেজার অনুমোদন করলে তা কার্যকর হবে।'
+              : 'Special feast request submitted for approval!')
         );
         onSuccess();
         onClose();
@@ -307,28 +359,43 @@ export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
           {/* Section 2: Buyer Selection & Financial Relationship */}
           <div className="space-y-3 bg-amber-500/5 p-3.5 sm:p-4 rounded-xl border border-amber-500/20">
             <div>
-              <label className="block text-amber-300 mb-1 font-semibold flex items-center gap-1.5">
-                <ShoppingBag className="w-4 h-4 text-amber-400" />
-                {isBangla ? 'বাজারকারী / খরচ পরিশোধকারী' : 'Purchased / Paid By (Buyer)'} *
+              <label className="block text-amber-300 mb-1 font-semibold flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <ShoppingBag className="w-4 h-4 text-amber-400" />
+                  {isBangla ? 'আয়োজক ও বাজারকারী' : 'Organizer & Paid By (Buyer)'} *
+                </span>
+                {!isManager && (
+                  <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-normal">
+                    {isBangla ? 'আপনার নিজের নাম (লকড)' : 'Your Name (Locked)'}
+                  </span>
+                )}
               </label>
-              <select
-                value={buyerUserId}
-                onChange={(e) => setBuyerUserId(e.target.value)}
-                className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-white outline-none focus:border-amber-400 text-xs font-semibold"
-              >
-                {eligibleMembers.map((m) => (
-                  <option key={m.userId} value={m.userId}>
-                    {m.displayName || m.name}{' '}
-                    {m.role === 'admin'
-                      ? isBangla
-                        ? '(মেস ম্যানেজার 👑)'
-                        : '(Mess Manager 👑)'
-                      : isBangla
-                      ? '(সদস্য)'
-                      : '(Member)'}
-                  </option>
-                ))}
-              </select>
+
+              {isManager ? (
+                <select
+                  value={buyerUserId}
+                  onChange={(e) => setBuyerUserId(e.target.value)}
+                  className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-white outline-none focus:border-amber-400 text-xs font-semibold"
+                >
+                  {eligibleMembers.map((m) => (
+                    <option key={m.userId} value={m.userId}>
+                      {m.displayName || m.name}{' '}
+                      {m.role === 'admin'
+                        ? isBangla
+                          ? '(মেস ম্যানেজার 👑)'
+                          : '(Mess Manager 👑)'
+                        : isBangla
+                        ? '(সদস্য)'
+                        : '(Member)'}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white text-xs font-semibold flex items-center justify-between">
+                  <span>{currentUser?.name || 'আপনি'} (সদস্য)</span>
+                  <span className="text-[11px] text-amber-400 font-mono">আয়োজক ক্রেডিট পাবেন</span>
+                </div>
+              )}
             </div>
 
             {/* Accounting Logic Explanation Banner */}
@@ -629,7 +696,15 @@ export const NewFixedEventModal: React.FC<NewFixedEventModalProps> = ({
                 <>
                   <Sparkles className="w-4 h-4" />
                   <span>
-                    {isBangla
+                    {editEvent
+                      ? isBangla
+                        ? `ভোজ আপডেট করুন (মোট ৳${totalCost})`
+                        : `Update Feast (৳${totalCost})`
+                      : !isManager
+                      ? isBangla
+                        ? `ভোজের আবেদন পাঠান (মোট ৳${totalCost})`
+                        : `Submit Request (৳${totalCost})`
+                      : isBangla
                       ? `ভোজ নিশ্চিত করুন (মোট ৳${totalCost})`
                       : `Confirm Feast (৳${totalCost})`}
                   </span>

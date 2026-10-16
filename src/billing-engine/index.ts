@@ -78,6 +78,7 @@ export function calculateBilling(
 
   // Add extra meal weight from attended fixed events (default 0.5 unless explicitly specified)
   for (const event of fixedEvents) {
+    if (event.status && event.status !== 'approved') continue;
     const extraWeight =
       event.extraMealWeight !== undefined && event.extraMealWeight !== null
         ? event.extraMealWeight
@@ -199,6 +200,7 @@ export function calculateBilling(
   members.forEach((m) => memberFixedShareMap.set(m.userId, 0));
 
   for (const event of fixedEvents) {
+    if (event.status && event.status !== 'approved') continue;
     const attendeesCount = event.attendeeUserIds.length;
     if (attendeesCount > 0 && event.cost > 0) {
       const perAttendeeCost = event.cost / attendeesCount;

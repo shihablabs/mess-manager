@@ -239,6 +239,7 @@ export class MessStore {
         buyerUserId: e.buyerUserId,
         bazarId: e.bazarId,
         items: e.items,
+        status: e.status || 'approved',
       }));
 
     const bazarItemsInput = this.bazars

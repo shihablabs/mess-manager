@@ -43,6 +43,7 @@ export interface FixedEventInput {
   buyerUserId?: string;
   bazarId?: string;
   items?: { name: string; amount: number }[];
+  status?: string;
 }
 
 export interface BazarItemInput {
