@@ -46,4 +46,45 @@ describe('Self-Approval Prohibition (Task গ & SRS Anti-Fraud)', () => {
     const result = checkSelfApproval('member_a', 'member_b', 'slot_swap');
     expect(result.forbidden).toBe(false);
   });
+
+  describe('Investigation 3: Super Admin vs Manager vs Shared Email Roles', () => {
+    it('Super Admin (without member identity) CAN approve a manager deposit', () => {
+      // Super Admin with distinct external identity
+      const result = checkSelfApproval(
+        'manager_user_id',
+        'super_admin_user_id',
+        'deposit',
+        'manager@mess.com',
+        'superadmin@messplatform.com'
+      );
+      expect(result.forbidden).toBe(false);
+      expect(result.message).toBe('');
+    });
+
+    it('Sole Manager CANNOT approve their own deposit', () => {
+      // Same user ID trying to approve their own deposit
+      const result = checkSelfApproval(
+        'sole_manager_id',
+        'sole_manager_id',
+        'deposit',
+        'sole_manager@mess.com',
+        'sole_manager@mess.com'
+      );
+      expect(result.forbidden).toBe(true);
+      expect(result.message).toContain('নিজের জমার আবেদন নিজে অনুমোদন করা যাবে না');
+    });
+
+    it('Super Admin sharing the same email as member CANNOT self-approve even when acting as Super Admin', () => {
+      // Resident member creates entry; user switches to Super Admin profile with the same email
+      const result = checkSelfApproval(
+        'member_profile_id',
+        'super_admin_profile_id',
+        'deposit',
+        'common_email@domain.com',
+        'common_email@domain.com'
+      );
+      expect(result.forbidden).toBe(true);
+      expect(result.message).toContain('নিজের জমার আবেদন নিজে অনুমোদন করা যাবে না');
+    });
+  });
 });

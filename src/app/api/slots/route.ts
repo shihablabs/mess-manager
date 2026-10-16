@@ -277,7 +277,15 @@ export async function POST(request: Request) {
 
       if (isAccept) {
         const requesterId = reqItem.fromUserId || reqItem.userId;
-        const selfCheck = checkSelfApproval(requesterId, userId, 'slot_swap');
+        const requesterUser = store.users.find((u) => u._id === requesterId);
+        const approverEmail = (session?.user as any)?.email;
+        const selfCheck = checkSelfApproval(
+          requesterId,
+          userId,
+          'slot_swap',
+          requesterUser?.email,
+          approverEmail
+        );
         if (selfCheck.forbidden) {
           return NextResponse.json({ success: false, error: selfCheck.message }, { status: 403 });
         }

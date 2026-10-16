@@ -148,8 +148,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'জমার রেকর্ড খুঁজে পাওয়া যায়নি' }, { status: 404 });
       }
 
-      // Self-approval prohibition (SRS & Task গ)
-      const selfCheck = checkSelfApproval(targetDeposit.userId, currentUserId, 'deposit');
+      // Self-approval prohibition (SRS & Task গ & Item 3)
+      const creatorUser = store.users.find((u) => u._id === targetDeposit.userId);
+      const approverEmail = session?.user?.email;
+      const selfCheck = checkSelfApproval(
+        targetDeposit.userId,
+        currentUserId,
+        'deposit',
+        creatorUser?.email,
+        approverEmail
+      );
       if (selfCheck.forbidden) {
         return NextResponse.json({ success: false, error: selfCheck.message }, { status: 403 });
       }

@@ -12,13 +12,23 @@ export interface SelfApprovalCheckResult {
 export function checkSelfApproval(
   creatorId: string | undefined | null,
   approverId: string | undefined | null,
-  entityType: ApprovalEntityType
+  entityType: ApprovalEntityType,
+  creatorEmail?: string | null,
+  approverEmail?: string | null,
 ): SelfApprovalCheckResult {
   if (!creatorId || !approverId) {
     return { forbidden: false, message: '' };
   }
 
-  const isSelf = String(creatorId).trim() === String(approverId).trim();
+  // 1. Direct ID match: sole manager or member approving their own entry
+  const isSameUser = String(creatorId).trim() === String(approverId).trim();
+
+  // 2. Email identity match: Super Admin sharing the same email as resident member
+  const isSameEmail =
+    Boolean(creatorEmail && approverEmail) &&
+    String(creatorEmail).trim().toLowerCase() === String(approverEmail).trim().toLowerCase();
+
+  const isSelf = isSameUser || isSameEmail;
   if (!isSelf) {
     return { forbidden: false, message: '' };
   }

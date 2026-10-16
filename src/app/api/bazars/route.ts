@@ -167,7 +167,15 @@ export async function PATCH(request: Request) {
       const creatorUserId = prevItem?.userId || item?.userId;
 
       if (status === 'approved') {
-        const selfCheck = checkSelfApproval(creatorUserId, currentUserId, 'bazar');
+        const creatorUser = store.users.find((u) => u._id === creatorUserId);
+        const approverEmail = (session?.user as any)?.email;
+        const selfCheck = checkSelfApproval(
+          creatorUserId,
+          currentUserId,
+          'bazar',
+          creatorUser?.email,
+          approverEmail
+        );
         if (selfCheck.forbidden) {
           return NextResponse.json({ success: false, error: selfCheck.message }, { status: 403 });
         }

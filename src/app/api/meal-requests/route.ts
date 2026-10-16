@@ -171,7 +171,15 @@ export async function PATCH(request: Request) {
     const currentUserId = (session?.user as any)?.id || adminUserId || 'admin';
 
     if (status === 'approved') {
-      const selfCheck = checkSelfApproval(reqItem.userId, currentUserId, 'meal_request');
+      const creatorUser = store.users.find((u) => u._id === reqItem.userId);
+      const approverEmail = (session?.user as any)?.email;
+      const selfCheck = checkSelfApproval(
+        reqItem.userId,
+        currentUserId,
+        'meal_request',
+        creatorUser?.email,
+        approverEmail
+      );
       if (selfCheck.forbidden) {
         return NextResponse.json({ success: false, error: selfCheck.message }, { status: 403 });
       }
