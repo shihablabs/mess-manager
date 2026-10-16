@@ -50,7 +50,7 @@ interface MealsTabProps {
   requests: any[];
   bazars?: any[];
   onRefresh: () => void;
-  onOpenRequestModal: () => void;
+  onOpenRequestModal: (requestToEdit?: any) => void;
 }
 
 export const MealsTab: React.FC<MealsTabProps> = ({
@@ -2830,26 +2830,40 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                       </p>
                     </div>
 
-                    {req.status === 'pending' && canEditMeals && (
-                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                      {/* Member self-edit or manager edit button */}
+                      {(String(req.userId) === String(currentUser.id) || canEditMeals) && (
                         <button
-                          onClick={() => handleReview(req._id, 'approved')}
-                          disabled={processingId === req._id}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                          onClick={() => onOpenRequestModal(req)}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-750 text-xs font-semibold transition-all cursor-pointer"
+                          title={isBangla ? 'আবেদনটি সম্পাদনা বা পরিবর্তন করুন' : 'Edit this meal request'}
                         >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          {isBangla ? 'অনুমোদন' : 'Approve'}
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>{isBangla ? 'এডিট' : 'Edit'}</span>
                         </button>
-                        <button
-                          onClick={() => handleReview(req._id, 'rejected')}
-                          disabled={processingId === req._id}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          {isBangla ? 'বাতিল' : 'Reject'}
-                        </button>
-                      </div>
-                    )}
+                      )}
+
+                      {req.status === 'pending' && canEditMeals && (
+                        <>
+                          <button
+                            onClick={() => handleReview(req._id, 'approved')}
+                            disabled={processingId === req._id}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            {isBangla ? 'অনুমোদন' : 'Approve'}
+                          </button>
+                          <button
+                            onClick={() => handleReview(req._id, 'rejected')}
+                            disabled={processingId === req._id}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            {isBangla ? 'বাতিল' : 'Reject'}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))
               )}

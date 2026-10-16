@@ -14,6 +14,12 @@ body {
   overflow-x: hidden;
 }
 
+/* User instruction: Bump global text-xs font size by 2px to 14px with !important */
+.text-xs {
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+}
+
 /* GLOBAL INTERACTIVE ELEMENTS: Cursor Pointer Everywhere */
 button,
 [role="button"],

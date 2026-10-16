@@ -49,6 +49,8 @@ export async function POST(request: Request) {
     const db = await getDb();
     const body = await request.json();
     const {
+      requestId,
+      allowUpdate = false,
       userId,
       cycleId = store.cycles[0]?._id as string || 'cycle_1',
       date,
@@ -83,6 +85,152 @@ export async function POST(request: Request) {
 
     if (!fromDate) {
       return NextResponse.json({ success: false, error: 'তারিখ নির্বাচন আবশ্যক' }, { status: 400 });
+    }
+
+    // DUPLICATE CHECK: On the same date, a member should only have 1 active meal request
+    if (db) {
+      let existingReq: any = null;
+      if (requestId) {
+        existingReq = await db.collection('meal_requests').findOne(idFilter(requestId));
+      } else {
+        existingReq = await db.collection('meal_requests').findOne({
+          userId: effectiveUserId,
+          status: { $in: ['pending', 'approved'] },
+          $or: [
+            { date: { $gte: fromDate, $lte: toDate } },
+            { startDate: { $lte: toDate }, endDate: { $gte: fromDate } },
+            { date: fromDate },
+          ],
+        });
+      }
+
+      // If duplicate request exists and client is not intentionally editing it
+      if (existingReq && !requestId && !allowUpdate) {
+        const slotBangla =
+          existingReq.slotId === 'morning'
+            ? 'সকাল'
+            : existingReq.slotId === 'lunch'
+            ? 'দুপুর'
+            : existingReq.slotId === 'night'
+            ? 'রাত'
+            : 'সারাদিন / উভয়';
+        const actionBangla = existingReq.action === 'off' ? 'মিল বন্ধ (Off)' : 'মিল চালু (On)';
+
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'DUPLICATE_MEAL_REQUEST',
+            error: `এই তারিখে (${fromDate}) আপনার একটি মিল আবেদন ইতোমধ্যে বিদ্যমান রয়েছে (${slotBangla} - ${actionBangla}, অবস্থা: ${
+              existingReq.status === 'approved' ? 'অনুমোদিত' : 'অপেক্ষমাণ'
+            })। একই দিনে দুইবার আলাদা আবেদন করা যাবে না। আপনি পূর্বের আবেদনটি এডিট করে আপডেট করতে পারেন।`,
+            existingRequest: {
+              _id: existingReq._id,
+              date: existingReq.date,
+              startDate: existingReq.startDate || existingReq.date,
+              endDate: existingReq.endDate || existingReq.date,
+              slotId: existingReq.slotId,
+              action: existingReq.action,
+              reason: existingReq.reason,
+              status: existingReq.status,
+            },
+          },
+          { status: 409 }
+        );
+      }
+
+      // If updating an existing request
+      if (existingReq && (requestId || allowUpdate)) {
+        const targetId = existingReq._id;
+
+        // Read dynamic meal slots cutoff deadlines
+        const mealSlots = store.mess?.mealSlots || [
+          { id: 'morning', name: 'সকাল', weight: 0.5, cutoffTime: '22:00' },
+          { id: 'night', name: 'রাত', weight: 1.0, cutoffTime: '16:00' },
+        ];
+        let isLate = explicitIsLate || false;
+        if (!isLate) {
+          isLate = isMealRequestLate(fromDate, slotId, mealSlots, new Date());
+        }
+
+        const updateFields: any = {
+          slotId,
+          action,
+          reason,
+          date: fromDate,
+          startDate: fromDate,
+          endDate: toDate,
+          isLate,
+          updatedAt: new Date(),
+        };
+
+        if (effectiveIsAdminDirect) {
+          updateFields.status = 'approved';
+        }
+
+        await db.collection('meal_requests').updateOne(idFilter(targetId), {
+          $set: updateFields,
+        });
+
+        await recordAuditLog({
+          messId: existingReq.messId || (store.mess._id as string),
+          cycleId: existingReq.cycleId,
+          performedByUserId: caller.id,
+          action: 'UPDATE_MEAL_REQUEST',
+          targetCollection: 'meal_requests',
+          targetId: String(targetId),
+          previousValue: existingReq,
+          newValue: updateFields,
+        });
+
+        // If admin direct action, update meals immediately
+        if (effectiveIsAdminDirect || existingReq.status === 'approved') {
+          const start = new Date(fromDate);
+          const end = new Date(toDate);
+          const slotsToUpdate =
+            slotId === 'both' || slotId === 'all'
+              ? ['morning', 'lunch', 'night']
+              : [slotId];
+
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            for (const sId of slotsToUpdate) {
+              const consumed = action === 'off' ? 0 : 1;
+              await db.collection('meals').updateOne(
+                {
+                  userId: effectiveUserId,
+                  cycleId,
+                  date: dateStr,
+                  slotId: sId,
+                },
+                {
+                  $set: {
+                    consumed,
+                    weight: 1.0,
+                    updatedAt: new Date(),
+                  },
+                  $setOnInsert: {
+                    _id: `meal_${sId[0]}_${effectiveUserId}_${dateStr}`,
+                    messId: store.mess._id as string,
+                    createdAt: new Date(),
+                  },
+                },
+                { upsert: true }
+              );
+            }
+          }
+        }
+
+        return NextResponse.json({
+          success: true,
+          updated: true,
+          request: { ...existingReq, ...updateFields },
+          message: effectiveIsAdminDirect
+            ? 'মিল সফলভাবে আপডেট করা হয়েছে'
+            : isLate
+            ? 'বিলম্বিত আবেদন হিসেবে আপডেট সম্পন্ন হয়েছে (ম্যানেজারের অনুমোদনের অপেক্ষায়)'
+            : 'মিল আবেদন সফলভাবে সংশোধন / আপডেট করা হয়েছে',
+        });
+      }
     }
 
     // Read dynamic meal slots cutoff deadlines from mess configuration (SRS 4.5 & Task 8)
@@ -182,9 +330,10 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const auth = await requireRole(['admin', 'super_admin']);
+    const auth = await requireActiveMember();
     if (!auth.authorized) return auth.response;
     const caller = auth.user;
+    const isManager = caller.role === 'admin' || caller.role === 'super_admin';
 
     const store = await getStore();
     const db = await getDb();
@@ -196,11 +345,36 @@ export async function PATCH(request: Request) {
       adminNote,
       startDate: updatedStartDate,
       endDate: updatedEndDate,
+      slotId: updatedSlotId,
+      action: updatedAction,
+      reason: updatedReason,
     } = body;
 
-    const reqItem: any = store.mealRequests.find((r) => r._id === id);
+    // Role Guard: Regular members cannot approve or reject requests
+    if (!isManager && status) {
+      return NextResponse.json(
+        { success: false, error: 'সাধারণ সদস্য আবেদন অনুমোদন বা বাতিল করতে পারেন না (403 Forbidden)' },
+        { status: 403 }
+      );
+    }
+
+    let reqItem: any = store.mealRequests.find((r) => String(r._id) === String(id));
+    if (!reqItem && db) {
+      reqItem = await db.collection('meal_requests').findOne(idFilter(id));
+    }
+
     if (!reqItem) {
       return NextResponse.json({ success: false, error: 'অনুরোধ পাওয়া যায়নি' }, { status: 404 });
+    }
+
+    // Role Guard: Members can only edit their own requests
+    if (!isManager) {
+      if (String(reqItem.userId) !== String(caller.id) && String(reqItem.userId) !== String(caller.email)) {
+        return NextResponse.json(
+          { success: false, error: 'অন্য সদস্যের আবেদন পরিবর্তন করার অনুমতি নেই (403 Forbidden)' },
+          { status: 403 }
+        );
+      }
     }
 
     const cycleClosedResponse = await assertCycleOpen(reqItem.cycleId, { db });
@@ -228,6 +402,9 @@ export async function PATCH(request: Request) {
     const finalStartDate = updatedStartDate || oldStartDate;
     const finalEndDate = updatedEndDate || oldEndDate;
     const finalStatus = status || reqItem.status;
+    const finalSlotId = updatedSlotId || reqItem.slotId;
+    const finalAction = updatedAction || reqItem.action;
+    const finalReason = updatedReason !== undefined ? updatedReason : reqItem.reason;
 
     if (db) {
       await db.collection('meal_requests').updateOne(
@@ -238,9 +415,11 @@ export async function PATCH(request: Request) {
             startDate: finalStartDate,
             endDate: finalEndDate,
             date: finalStartDate,
+            slotId: finalSlotId,
+            action: finalAction,
+            reason: finalReason,
             adminNote: adminNote !== undefined ? adminNote : reqItem.adminNote,
-            reviewedBy: caller.id,
-            reviewedAt: new Date(),
+            ...(isManager && status ? { reviewedBy: caller.id, reviewedAt: new Date() } : {}),
             updatedAt: new Date(),
           },
         }
@@ -251,14 +430,14 @@ export async function PATCH(request: Request) {
         const start = new Date(finalStartDate);
         const end = new Date(finalEndDate);
         const slotsToUpdate =
-          reqItem.slotId === 'both' || reqItem.slotId === 'all'
+          finalSlotId === 'both' || finalSlotId === 'all'
             ? ['morning', 'lunch', 'night']
-            : [reqItem.slotId];
+            : [finalSlotId];
 
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
           for (const sId of slotsToUpdate) {
-            const consumed = reqItem.action === 'off' ? 0 : 1;
+            const consumed = finalAction === 'off' ? 0 : 1;
 
             await db.collection('meals').updateOne(
               {

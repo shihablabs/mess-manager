@@ -12,6 +12,7 @@ interface MealRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  initialRequest?: any | null;
 }
 
 export const MealRequestModal: React.FC<MealRequestModalProps> = ({
@@ -19,12 +20,14 @@ export const MealRequestModal: React.FC<MealRequestModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  initialRequest = null,
 }) => {
   const { language } = useLanguage();
   const isBangla = language === 'bn';
 
   const getTodayStr = () => new Date().toISOString().split('T')[0];
 
+  const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
   const [isRange, setIsRange] = useState(false);
   const [startDate, setStartDate] = useState(getTodayStr());
   const [endDate, setEndDate] = useState(getTodayStr());
@@ -32,6 +35,28 @@ export const MealRequestModal: React.FC<MealRequestModalProps> = ({
   const [action, setAction] = useState<'off' | 'on'>('off');
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  React.useEffect(() => {
+    if (initialRequest) {
+      setEditingRequestId(initialRequest._id || null);
+      const sDate = initialRequest.startDate || initialRequest.date || getTodayStr();
+      const eDate = initialRequest.endDate || sDate;
+      setStartDate(sDate);
+      setEndDate(eDate);
+      setIsRange(Boolean(initialRequest.startDate && initialRequest.endDate && initialRequest.startDate !== initialRequest.endDate));
+      setSlotId(initialRequest.slotId || 'both');
+      setAction(initialRequest.action || 'off');
+      setReason(initialRequest.reason || '');
+    } else {
+      setEditingRequestId(null);
+      setStartDate(getTodayStr());
+      setEndDate(getTodayStr());
+      setIsRange(false);
+      setSlotId('both');
+      setAction('off');
+      setReason('');
+    }
+  }, [initialRequest, isOpen]);
 
   if (!isOpen) return null;
 
@@ -116,6 +141,8 @@ export const MealRequestModal: React.FC<MealRequestModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser.id,
+          requestId: editingRequestId || undefined,
+          allowUpdate: Boolean(editingRequestId),
           date: startDate,
           startDate,
           endDate: isRange ? endDate : startDate,
@@ -126,17 +153,52 @@ export const MealRequestModal: React.FC<MealRequestModalProps> = ({
         }),
       });
       const data = await res.json();
+
+      // Handle duplicate on the same date: gracefully offer to edit existing request
+      if (res.status === 409 && data.existingRequest) {
+        const confirmEdit = await Swal.fire({
+          title: isBangla ? '⚠️ পূর্ববর্তী আবেদন পাওয়া গেছে!' : '⚠️ Existing Request Found!',
+          text: data.error || (isBangla ? 'এই তারিখে আপনার ইতোমধ্যে একটি আবেদন রয়েছে। আপনি কি এটি এডিট/আপডেট করতে চান?' : 'A request already exists for this date. Do you want to edit it instead?'),
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#4f46e5',
+          cancelButtonColor: '#334155',
+          confirmButtonText: isBangla ? 'হ্যাঁ, আবেদনটি এডিট করুন' : 'Yes, Edit Existing Request',
+          cancelButtonText: isBangla ? 'না, বাতিল' : 'Cancel',
+          background: '#0f172a',
+          color: '#f8fafc',
+        });
+
+        if (confirmEdit.isConfirmed) {
+          setEditingRequestId(data.existingRequest._id);
+          setStartDate(data.existingRequest.startDate || data.existingRequest.date);
+          setEndDate(data.existingRequest.endDate || data.existingRequest.date);
+          setSlotId(data.existingRequest.slotId || 'both');
+          setAction(data.existingRequest.action || 'off');
+          setReason(data.existingRequest.reason || '');
+          toast.info(isBangla ? 'আবেদনটি সম্পাদনা মোডে লোড করা হয়েছে।' : 'Loaded existing request in edit mode.');
+        }
+        return;
+      }
+
       if (data.success) {
         setReason('');
+        setEditingRequestId(null);
         onSuccess();
         onClose();
         Swal.fire({
-          title: isBangla ? 'অনুরোধ জমা হয়েছে!' : 'Request Submitted!',
+          title: isBangla
+            ? editingRequestId
+              ? 'আবেদন আপডেট হয়েছে!'
+              : 'অনুরোধ জমা হয়েছে!'
+            : editingRequestId
+            ? 'Request Updated!'
+            : 'Request Submitted!',
           text: isLate
             ? (isBangla
                 ? 'আপনার বিলম্বিত আবেদনটি মেস ম্যানেজারের পর্যালোচনার জন্য জমা হয়েছে।'
                 : 'Your late request has been submitted for manager review.')
-            : (data.message || (isBangla ? 'মিল পরিবর্তনের অনুরোধ সফলভাবে পাঠানো হয়েছে!' : 'Meal request submitted successfully!')),
+            : (data.message || (isBangla ? 'মিল পরিবর্তনের অনুরোধ সফলভাবে সম্পন্ন হয়েছে!' : 'Meal request saved successfully!')),
           icon: 'success',
           confirmButtonColor: '#4f46e5',
           background: '#0f172a',
@@ -159,7 +221,9 @@ export const MealRequestModal: React.FC<MealRequestModalProps> = ({
           <div className="flex items-center gap-2">
             <Utensils className="w-5 h-5 text-indigo-400" />
             <h3 className="font-bold text-white text-base">
-              {isBangla ? 'মিল চালু বা বন্ধের অনুরোধ' : 'Meal On / Off Request'}
+              {editingRequestId
+                ? (isBangla ? 'মিল আবেদন সম্পাদনা / পরিবর্তন' : 'Edit Meal Request')
+                : (isBangla ? 'মিল চালু বা বন্ধের অনুরোধ' : 'Meal On / Off Request')}
             </h3>
           </div>
           <button
@@ -171,6 +235,24 @@ export const MealRequestModal: React.FC<MealRequestModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs overflow-y-auto max-h-[80vh]">
+          {editingRequestId && (
+            <div className="p-3 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs flex items-center justify-between">
+              <div className="flex items-center gap-1.5 font-bold">
+                <RotateCw className="w-3.5 h-3.5 text-indigo-400" />
+                <span>{isBangla ? 'বিদ্যমান আবেদন পরিবর্তন/আপডেট করা হচ্ছে' : 'Updating Existing Meal Request'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingRequestId(null);
+                  setReason('');
+                }}
+                className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+              >
+                {isBangla ? 'নতুন হিসেবে শুরু' : 'Reset to New'}
+              </button>
+            </div>
+          )}
           <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 space-y-1">
             <div className="flex items-center gap-1.5 font-bold">
               <Clock className="w-4 h-4 text-amber-400" />
@@ -346,7 +428,11 @@ export const MealRequestModal: React.FC<MealRequestModalProps> = ({
                   <span>{isBangla ? 'পাঠানো হচ্ছে...' : 'Submitting...'}</span>
                 </>
               ) : (
-                <span>{isBangla ? 'অনুরোধ পাঠান' : 'Submit Request'}</span>
+                <span>
+                  {editingRequestId
+                    ? (isBangla ? 'আবেদন আপডেট করুন' : 'Update Request')
+                    : (isBangla ? 'অনুরোধ পাঠান' : 'Submit Request')}
+                </span>
               )}
             </button>
           </div>

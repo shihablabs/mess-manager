@@ -154,4 +154,7 @@ export {
   ListPlus,
   Activity,
   FileJson,
+  Flame,
+  Droplets,
+  Wifi,
 } from 'lucide-react';

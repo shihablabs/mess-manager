@@ -39,6 +39,7 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
     openFixedEvent,
     closeFixedEvent,
     isMealRequestOpen,
+    editingMealRequest,
     openMealRequest,
     closeMealRequest,
     isDepositOpen,
@@ -300,6 +301,7 @@ function DashboardLayoutShell({ children }: { children: React.ReactNode }) {
         <MealRequestModal
           currentUser={currentUser}
           isOpen={isMealRequestOpen}
+          initialRequest={editingMealRequest}
           onClose={closeMealRequest}
           onSuccess={() => {
             closeMealRequest();
