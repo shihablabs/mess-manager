@@ -12,6 +12,13 @@
 
 # testing
 /coverage
+*.test.ts
+*.test.tsx
+*.test.js
+*.test.jsx
+scripts/simulate-cycle*
+docs/SIMULATION-REPORT.md
+vitest.config.ts
 
 # next.js
 /.next/
