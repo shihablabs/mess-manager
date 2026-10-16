@@ -261,9 +261,9 @@ describe('Mid-Cycle Departure & Rebalancing Reconciliation (SRS Section 5)', () 
     expect(newMember.stayedDays).toBe(15);
     expect(newMember.proRataRatio).toBe(0.5);
 
-    // New member room rent: 3000 * 0.5 = 1500 Tk, unrecovered rent = 1500 Tk
+    // New member room rent: 3000 * 0.5 = 1500 Tk, unrecovered rent = 0 Tk (pre-join vacancy is not unrecovered rent)
     expect(newMember.roomRent).toBe(1500);
-    expect(newMember.unrecoveredRent).toBe(1500);
+    expect(newMember.unrecoveredRent).toBe(0);
 
     // Utility: 5 members * 30 + 1 * 15 = 165 days
     // New member: 6000 * (15 / 165) = 545 Tk

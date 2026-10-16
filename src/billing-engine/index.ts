@@ -326,18 +326,41 @@ export function calculateBilling(
       rawUnrecoveredRent = 0;
     } else {
       rawRent = fullRent * proRata.ratio;
-      rawUnrecoveredRent = Math.max(0, fullRent - rawRent);
+      // Item 6: unrecoveredRent is ONLY for days after departure (leftDate), NOT pre-join vacancy days
+      let unstayedDaysAfterDeparture = 0;
+      if (cycleInfo?.startDate && cycleInfo?.endDate && member.leftDate) {
+        const leftMs = new Date(member.leftDate).getTime();
+        const endMs = new Date(cycleInfo.endDate).getTime();
+        if (!isNaN(leftMs) && !isNaN(endMs) && leftMs < endMs) {
+          unstayedDaysAfterDeparture = Math.max(0, Math.round((endMs - leftMs) / (1000 * 60 * 60 * 24)));
+        }
+      } else if (member.leftDate && member.stayedDays !== undefined && proRata.totalDays > 0) {
+        unstayedDaysAfterDeparture = Math.max(0, proRata.totalDays - member.stayedDays);
+      } else if (!member.isActive && !member.joinedDate && member.stayedDays !== undefined && proRata.totalDays > 0) {
+        unstayedDaysAfterDeparture = Math.max(0, proRata.totalDays - member.stayedDays);
+      }
+
+      if (unstayedDaysAfterDeparture > 0 && proRata.totalDays > 0) {
+        rawUnrecoveredRent = fullRent * (unstayedDaysAfterDeparture / proRata.totalDays);
+      } else {
+        rawUnrecoveredRent = 0;
+      }
     }
 
+    // Item 5: openingBalance integration (positive = credit, negative = due/দেনা)
+    const openingBal = member.openingBalance || 0;
+    const openingCreditFromBal = openingBal > 0 ? openingBal : 0;
+    const openingDueFromBal = openingBal < 0 ? Math.abs(openingBal) : 0;
+
     const rawTotalDues =
-      rawRent + rawUtilShare + rawMealCost + fixedShare + extraNonPool;
+      rawRent + rawUtilShare + rawMealCost + fixedShare + extraNonPool + openingDueFromBal;
 
     const dep = memberDepositsMap.get(member.userId) || {
       general: 0,
       bigBazar: 0,
     };
     const bazarSpent = memberApprovedBazarSpendingMap.get(member.userId) || 0;
-    const openingCredit = member.openingCarryCredit || 0;
+    const openingCredit = (member.openingCarryCredit || 0) + openingCreditFromBal;
 
     const totalCredits =
       dep.general + dep.bigBazar + bazarSpent + openingCredit;
@@ -368,7 +391,8 @@ export function calculateBilling(
         finalUtilShare +
         finalMealCost +
         finalFixedShare +
-        finalExtraNonPool
+        finalExtraNonPool +
+        openingDueFromBal
       : Number(rawTotalDues.toFixed(2));
 
     const netBalance = totalCredits - computedDues;
@@ -396,6 +420,8 @@ export function calculateBilling(
       bigBazarDeposits: dep.bigBazar,
       approvedBazarSpentOwnMoney: bazarSpent,
       openingCarryCredit: openingCredit,
+      openingBalance: openingBal,
+      closingBalance: netBalance,
       totalCredits,
       netBalance,
       stayedDays: proRata.stayedDays,
@@ -412,7 +438,8 @@ export function calculateBilling(
     allMembersSummary.push(res);
   }
 
-  const roundingDifference = Number((sumRoundedDues - sumRawDues).toFixed(2));
+  // roundingDifference = (মেসের মোট খরচ) − (সদস্যদের মোট দেনার যোগফল)
+  const roundingDifference = Number((sumRawDues - sumRoundedDues).toFixed(2));
   const totalMemberUtility = allMembersSummary.reduce((s, m) => s + m.utilityShare, 0);
   const utilityRoundingDifference = Number((totalMemberUtility - totalUtility).toFixed(2));
 
