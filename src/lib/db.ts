@@ -91,11 +91,86 @@ export async function getMongoClient(): Promise<MongoClient | null> {
   }
 }
 
+const MUTATION_METHODS = new Set([
+  'insertOne',
+  'insertMany',
+  'updateOne',
+  'updateMany',
+  'replaceOne',
+  'deleteOne',
+  'deleteMany',
+  'findOneAndUpdate',
+  'findOneAndDelete',
+  'findOneAndReplace',
+  'bulkWrite',
+  'drop',
+  'rename',
+]);
+
+export function isSimulationOrTest(): boolean {
+  return process.env.SIMULATION === '1' || process.env.NODE_ENV === 'test';
+}
+
+export function isDatabaseNameSafeForTesting(dbName: string): boolean {
+  const lower = dbName.toLowerCase();
+  return lower.includes('sim') || lower.includes('test');
+}
+
+export function wrapDbWithSafetyGuard(db: Db): Db {
+  if (!isSimulationOrTest()) {
+    return db;
+  }
+
+  // Verify actual connected database name
+  const actualDbName = db.databaseName;
+  if (isDatabaseNameSafeForTesting(actualDbName)) {
+    return db;
+  }
+
+  // Not safe! Wrap collection and db write operations to throw before executing
+  const originalCollection = db.collection.bind(db);
+
+  return new Proxy(db, {
+    get(target, prop, receiver) {
+      if (prop === 'collection') {
+        return (name: string, colOptions?: any) => {
+          const col = originalCollection(name, colOptions);
+          return new Proxy(col, {
+            get(colTarget, colProp, colReceiver) {
+              if (MUTATION_METHODS.has(colProp as string)) {
+                return () => {
+                  throw new Error(
+                    `CRITICAL DATABASE SAFETY VIOLATION: Refusing write operation "${String(colProp)}" on production database "${actualDbName}" while in test/simulation mode (NODE_ENV=${process.env.NODE_ENV}, SIMULATION=${process.env.SIMULATION})!`
+                  );
+                };
+              }
+              const val = Reflect.get(colTarget, colProp, colReceiver);
+              return typeof val === 'function' ? val.bind(colTarget) : val;
+            },
+          });
+        };
+      }
+
+      if (prop === 'createCollection' || prop === 'dropCollection' || prop === 'dropDatabase') {
+        return () => {
+          throw new Error(
+            `CRITICAL DATABASE SAFETY VIOLATION: Refusing database mutation "${String(prop)}" on production database "${actualDbName}" while in test/simulation mode!`
+          );
+        };
+      }
+
+      const val = Reflect.get(target, prop, receiver);
+      return typeof val === 'function' ? val.bind(target) : val;
+    },
+  });
+}
+
 export async function getDb(dbName = process.env.MONGODB_DB_NAME || 'mess_manager'): Promise<Db | null> {
   try {
     const client = await getMongoClient();
     if (!client) return null;
-    return client.db(dbName);
+    const db = client.db(dbName);
+    return wrapDbWithSafetyGuard(db);
   } catch (err) {
     console.error('getDb error:', err);
     return null;
