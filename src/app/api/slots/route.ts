@@ -3,6 +3,7 @@ import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { SlotRequestDoc, BazarSlotDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
+import { checkSelfApproval } from '@/lib/self-approval';
 
 export async function GET(request: Request) {
   try {
@@ -275,6 +276,12 @@ export async function POST(request: Request) {
       const status = isAccept ? 'accepted' : 'rejected';
 
       if (isAccept) {
+        const requesterId = reqItem.fromUserId || reqItem.userId;
+        const selfCheck = checkSelfApproval(requesterId, userId, 'slot_swap');
+        if (selfCheck.forbidden) {
+          return NextResponse.json({ success: false, error: selfCheck.message }, { status: 403 });
+        }
+
         // Perform the swap between fromSlot and toSlot
         const slotFrom = store.bazarSlots.find(
           (s) => s.cycleId === reqItem.cycleId && s.slotIndex === reqItem.fromSlotIndex

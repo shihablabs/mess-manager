@@ -6,6 +6,7 @@ import { getDb, idFilter, userKeyFilter } from '@/lib/db';
 import { DepositDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
 import { resolveRentDepositCycleEffect } from '@/billing-engine';
+import { checkSelfApproval } from '@/lib/self-approval';
 
 export async function GET(request: Request) {
   try {
@@ -145,6 +146,12 @@ export async function POST(request: Request) {
       const targetDeposit = await db.collection('deposits').findOne(idFilter(depositId));
       if (!targetDeposit) {
         return NextResponse.json({ success: false, error: 'জমার রেকর্ড খুঁজে পাওয়া যায়নি' }, { status: 404 });
+      }
+
+      // Self-approval prohibition (SRS & Task গ)
+      const selfCheck = checkSelfApproval(targetDeposit.userId, currentUserId, 'deposit');
+      if (selfCheck.forbidden) {
+        return NextResponse.json({ success: false, error: selfCheck.message }, { status: 403 });
       }
 
       await db.collection('deposits').updateOne(idFilter(depositId), {

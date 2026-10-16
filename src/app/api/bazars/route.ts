@@ -3,6 +3,9 @@ import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { BazarDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { checkSelfApproval } from '@/lib/self-approval';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -151,6 +154,9 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { id, status, adminUserId, amount, description, type, date } = body;
 
+    const session = await getServerSession(authOptions);
+    const currentUserId = (session?.user as any)?.id || adminUserId || 'admin';
+
     const item = store.bazars.find((b) => b._id === id);
     if (!item && !db) {
       return NextResponse.json({ success: false, error: 'বাজারের এন্ট্রি পাওয়া যায়নি' }, { status: 404 });
@@ -158,6 +164,14 @@ export async function PATCH(request: Request) {
 
     if (db) {
       const prevItem = await db.collection('bazars').findOne({ _id: id as any });
+      const creatorUserId = prevItem?.userId || item?.userId;
+
+      if (status === 'approved') {
+        const selfCheck = checkSelfApproval(creatorUserId, currentUserId, 'bazar');
+        if (selfCheck.forbidden) {
+          return NextResponse.json({ success: false, error: selfCheck.message }, { status: 403 });
+        }
+      }
 
       const updateDoc: any = { updatedAt: new Date() };
       if (status) {

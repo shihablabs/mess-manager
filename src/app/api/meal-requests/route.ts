@@ -4,6 +4,9 @@ import { getDb } from '@/lib/db';
 import { MealRequestDoc, MealDoc } from '@/models/types';
 import { isMealRequestLate } from '@/billing-engine';
 import { recordAuditLog } from '@/lib/audit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { checkSelfApproval } from '@/lib/self-approval';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -162,6 +165,16 @@ export async function PATCH(request: Request) {
     const reqItem: any = store.mealRequests.find((r) => r._id === id);
     if (!reqItem) {
       return NextResponse.json({ success: false, error: 'অনুরোধ পাওয়া যায়নি' }, { status: 404 });
+    }
+
+    const session = await getServerSession(authOptions);
+    const currentUserId = (session?.user as any)?.id || adminUserId || 'admin';
+
+    if (status === 'approved') {
+      const selfCheck = checkSelfApproval(reqItem.userId, currentUserId, 'meal_request');
+      if (selfCheck.forbidden) {
+        return NextResponse.json({ success: false, error: selfCheck.message }, { status: 403 });
+      }
     }
 
     if (db) {
