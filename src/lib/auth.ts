@@ -4,6 +4,8 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { getDb } from '@/lib/db';
 import crypto from 'crypto';
 
+import { checkSuperAdminRateLimit, recordSuperAdminFailedAttempt, resetSuperAdminRateLimit } from '@/lib/rate-limit';
+
 export function verifyPassword(password: string, hash: string, salt: string) {
   const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
   return verifyHash === hash;
@@ -26,23 +28,38 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'পাসওয়ার্ড', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) return null;
+        const username = (credentials?.username || '').trim().toLowerCase();
+        if (!username || !credentials?.password) return null;
+
+        // Rate limit check: 5 failed attempts blocks for 15 minutes
+        const rateCheck = checkSuperAdminRateLimit(username);
+        if (!rateCheck.allowed) {
+          throw new Error(
+            `অতিরিক্ত ৫ বার ভুল চেষ্টার কারণে একাউন্ট ১৫ মিনিটের জন্য সাময়িকভাবে ব্লক করা হয়েছে। দয়া করে ${rateCheck.remainingMinutes} মিনিট পর আবার চেষ্টা করুন।`
+          );
+        }
+
         try {
           const db = await getDb();
           if (!db) return null;
 
           const admin = await db.collection('super_admins').findOne({
-            username: credentials.username.trim().toLowerCase(),
+            username,
           });
 
           if (!admin || !admin.passwordHash || !admin.salt) {
+            recordSuperAdminFailedAttempt(username);
             return null;
           }
 
           const isValid = verifyPassword(credentials.password, admin.passwordHash, admin.salt);
           if (!isValid) {
+            recordSuperAdminFailedAttempt(username);
             return null;
           }
+
+          // Successful login: reset rate limit attempts
+          resetSuperAdminRateLimit(username);
 
           return {
             id: admin._id.toString(),
@@ -52,7 +69,10 @@ export const authOptions: NextAuthOptions = {
             role: 'super_admin',
             status: 'active',
           } as any;
-        } catch (err) {
+        } catch (err: any) {
+          if (err.message && err.message.includes('অতিরিক্ত ৫ বার ভুল চেষ্টা')) {
+            throw err;
+          }
           console.error('Error during super admin authorization:', err);
           return null;
         }

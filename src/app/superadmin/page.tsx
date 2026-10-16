@@ -38,7 +38,11 @@ export default function SuperAdminPortalPage() {
       });
 
       if (res?.error || !res?.ok) {
-        toast.error('ভুল ইউজার আইডি বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।');
+        if (res?.error && res.error !== 'CredentialsSignin') {
+          toast.error(res.error);
+        } else {
+          toast.error('ভুল ইউজার আইডি বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।');
+        }
       } else {
         toast.success('সুপার অ্যাডমিন হিসেবে সফলভাবে প্রবেশ করেছেন!');
         router.push('/dashboard');
