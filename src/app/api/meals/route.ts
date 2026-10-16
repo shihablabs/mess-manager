@@ -4,9 +4,13 @@ import { getDb } from '@/lib/db';
 import { MealDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
 import { assertCycleOpen } from '@/lib/cycle-guard';
+import { requireActiveMember } from '@/lib/guard';
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+
     const store = await getStore();
     const { searchParams } = new URL(request.url);
     const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
@@ -29,6 +33,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const store = await getStore();
     const db = await getDb();
     const body = await request.json();
@@ -40,6 +48,18 @@ export async function POST(request: Request) {
 
     const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
     if (cycleClosedResponse) return cycleClosedResponse;
+
+    // Regular members can only write for their own userId
+    if (caller.role !== 'admin' && caller.role !== 'super_admin') {
+      for (const entry of entries) {
+        if (String(entry.userId) !== String(caller.id) && String(entry.userId) !== String(caller.email)) {
+          return NextResponse.json(
+            { success: false, error: 'সাধারণ সদস্য শুধুমাত্র নিজের মিল এন্ট্রি বা পরিবর্তন করতে পারেন (403 Forbidden)' },
+            { status: 403 }
+          );
+        }
+      }
+    }
 
     if (!date) {
       return NextResponse.json({ success: false, error: 'তারিখ আবশ্যক' }, { status: 400 });
@@ -124,7 +144,7 @@ export async function POST(request: Request) {
       await recordAuditLog({
         messId: store.mess._id as string,
         cycleId,
-        performedByUserId: 'manager',
+        performedByUserId: caller.id,
         action: 'UPDATE_MEALS',
         targetCollection: 'meals',
         targetId: date,
@@ -144,11 +164,24 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const db = await getDb();
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     const userId = searchParams.get('userId');
     const cycleId = searchParams.get('cycleId');
+
+    if (caller.role !== 'admin' && caller.role !== 'super_admin') {
+      if (userId && String(userId) !== String(caller.id) && String(userId) !== String(caller.email)) {
+        return NextResponse.json(
+          { success: false, error: 'সাধারণ সদস্য শুধুমাত্র নিজের মিল মুছতে পারেন (403 Forbidden)' },
+          { status: 403 }
+        );
+      }
+    }
 
     if (!date) {
       return NextResponse.json({ success: false, error: 'তারিখ আবশ্যক' }, { status: 400 });
@@ -156,7 +189,10 @@ export async function DELETE(request: Request) {
 
     if (db) {
       const query: any = { date };
-      if (userId) query.userId = userId;
+      const effectiveUserId = (caller.role !== 'admin' && caller.role !== 'super_admin')
+        ? caller.id
+        : userId;
+      if (effectiveUserId) query.userId = effectiveUserId;
       if (cycleId) query.cycleId = cycleId;
 
       const previousMeals = await db.collection('meals').find(query).toArray();
@@ -165,7 +201,7 @@ export async function DELETE(request: Request) {
       await recordAuditLog({
         messId: 'mess_1',
         cycleId: cycleId || undefined,
-        performedByUserId: 'manager',
+        performedByUserId: caller.id,
         action: 'DELETE_MEALS',
         targetCollection: 'meals',
         targetId: date,

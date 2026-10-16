@@ -5,8 +5,12 @@ import { UserDoc, MembershipDoc, MemberCycleDoc, UserRole } from '@/models/types
 import { ObjectId } from 'mongodb';
 import { recordAuditLog } from '@/lib/audit';
 import { assertCycleOpen } from '@/lib/cycle-guard';
+import { requireActiveMember, requireRole, assertCanManageOrSelf } from '@/lib/guard';
 
 export async function GET(request: Request) {
+  const auth = await requireActiveMember();
+  if (!auth.authorized) return auth.response;
+
   const store = await getStore();
   const { searchParams } = new URL(request.url);
   const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
@@ -62,6 +66,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const store = await getStore();
     const db = await getDb();
     const body = await request.json();
@@ -75,6 +83,37 @@ export async function POST(request: Request) {
       userId,
       cycleId = store.cycles[0]?._id as string || 'cycle_1',
     } = body;
+
+    const managerActions = [
+      'add_member',
+      'change_role',
+      'approve_member',
+      'reject_member',
+      'delete_member',
+      'update_rent',
+      'update_member',
+      'toggle_utility_exempt',
+      'confirm_settlement',
+    ];
+
+    if (managerActions.includes(action)) {
+      if (caller.role !== 'admin' && caller.role !== 'super_admin') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'এই কার্যক্রম পরিচালনার অনুমতি শুধুমাত্র মেস ম্যানেজার ও সুপার অ্যাডমিনের জন্য সংরক্ষিত।',
+            code: 'FORBIDDEN_ROLE',
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (action === 'request_settlement' || action === 'update_profile') {
+      const targetUserId = userId || caller.id;
+      const selfCheck = assertCanManageOrSelf(caller, targetUserId);
+      if (selfCheck) return selfCheck;
+    }
 
     const cycleRelatedActions = [
       'add_member',
@@ -139,7 +178,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: 'admin',
+          performedByUserId: caller.id,
           action: 'ADD_MEMBER',
           targetCollection: 'users',
           targetId: newUserId,
@@ -155,6 +194,14 @@ export async function POST(request: Request) {
     if (action === 'change_role') {
       if (!userId || !role) {
         return NextResponse.json({ success: false, error: 'ইউজার ও ভূমিকা উল্লেখ করুন' }, { status: 400 });
+      }
+
+      // SRS & Security Rule: No user can change their own role
+      if (String(userId) === String(caller.id) || String(userId) === String(caller.email)) {
+        return NextResponse.json(
+          { success: false, error: 'কেউ নিজের ভূমিকা নিজে পরিবর্তন করতে পারবে না।' },
+          { status: 403 }
+        );
       }
 
       if (role === 'super_admin') {
@@ -187,7 +234,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: 'admin',
+          performedByUserId: caller.id,
           action: 'CHANGE_ROLE',
           targetCollection: 'users',
           targetId: String(userId),
@@ -233,7 +280,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: 'admin',
+          performedByUserId: caller.id,
           action: 'APPROVE_MEMBER',
           targetCollection: 'memberships',
           targetId: String(userId),
@@ -267,7 +314,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: 'admin',
+          performedByUserId: caller.id,
           action: 'REJECT_MEMBER',
           targetCollection: 'memberships',
           targetId: uId,
@@ -296,7 +343,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: 'admin',
+          performedByUserId: caller.id,
           action: 'DELETE_MEMBER',
           targetCollection: 'users',
           targetId: uId,
@@ -340,7 +387,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: uId,
+          performedByUserId: caller.id,
           action: 'UPDATE_PROFILE',
           targetCollection: 'users',
           targetId: uId,
@@ -378,7 +425,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: 'admin',
+          performedByUserId: caller.id,
           action: 'UPDATE_MEMBER_RENT',
           targetCollection: 'member_cycles',
           targetId: `${cycleId}_${userId}`,
@@ -419,7 +466,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: 'admin',
+          performedByUserId: caller.id,
           action: 'TOGGLE_UTILITY_EXEMPT',
           targetCollection: 'member_cycles',
           targetId: `${cycleId}_${userId}`,
@@ -521,7 +568,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: 'admin',
+          performedByUserId: caller.id,
           action: 'CONFIRM_SETTLEMENT',
           targetCollection: 'member_cycles',
           targetId: `${cycleId}_${userId}`,

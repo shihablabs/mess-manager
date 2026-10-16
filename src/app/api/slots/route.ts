@@ -5,9 +5,13 @@ import { SlotRequestDoc, BazarSlotDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
 import { checkSelfApproval } from '@/lib/self-approval';
 import { assertCycleOpen } from '@/lib/cycle-guard';
+import { requireActiveMember, requireRole } from '@/lib/guard';
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+
     const store = await getStore();
     const { searchParams } = new URL(request.url);
     const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
@@ -111,6 +115,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const store = await getStore();
     const db = await getDb();
     const body = await request.json();
@@ -133,6 +141,27 @@ export async function POST(request: Request) {
       startDate,
       endDate,
     } = body;
+
+    const managerActions = [
+      'auto_generate',
+      'generate_slots',
+      'rotate_slots',
+      'admin_direct_swap',
+      'admin_update_slot',
+    ];
+
+    if (managerActions.includes(action)) {
+      if (caller.role !== 'admin' && caller.role !== 'super_admin') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'বাজার স্লট অটো-জেনারেশন বা রোটেশন শুধুমাত্র মেস ম্যানেজার ও সুপার অ্যাডমিন করতে পারেন।',
+            code: 'FORBIDDEN_ROLE',
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     let targetCycleId = body.cycleId;
     if (!targetCycleId && body.requestId) {
@@ -165,7 +194,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: userId || 'admin',
+          performedByUserId: caller.id,
           action: 'GENERATE_BAZAR_SLOTS',
           targetCollection: 'bazar_slots',
           targetId: cycleId,
@@ -221,7 +250,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: userId || 'admin',
+          performedByUserId: caller.id,
           action: 'ROTATE_BAZAR_SLOTS',
           targetCollection: 'bazar_slots',
           targetId: cycleId,
@@ -245,10 +274,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'স্লট নম্বর আবশ্যক' }, { status: 400 });
       }
 
+      const effectiveFromUserId = caller.id;
+
       const newReq: SlotRequestDoc = {
         _id: `sr_${Date.now()}`,
-        userId,
-        fromUserId: userId,
+        userId: effectiveFromUserId,
+        fromUserId: effectiveFromUserId,
         toUserId,
         cycleId,
         messId: store.mess._id as string,
@@ -265,7 +296,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: newReq.messId,
           cycleId: newReq.cycleId,
-          performedByUserId: userId || 'user',
+          performedByUserId: caller.id,
           action: 'REQUEST_SLOT_SWAP',
           targetCollection: 'slot_requests',
           targetId: String(newReq._id),
@@ -289,17 +320,26 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'অনুরোধ পাওয়া যায়নি' }, { status: 404 });
       }
 
+      if (caller.role !== 'admin' && caller.role !== 'super_admin') {
+        if (reqItem.toUserId && String(reqItem.toUserId) !== String(caller.id)) {
+          return NextResponse.json(
+            { success: false, error: 'অন্যের সোয়াপ অনুরোধে আপনার সাড়া দেওয়ার অনুমতি নেই' },
+            { status: 403 }
+          );
+        }
+      }
+
       const isAccept = decision === 'accept';
       const status = isAccept ? 'accepted' : 'rejected';
 
       if (isAccept) {
         const requesterId = reqItem.fromUserId || reqItem.userId;
         const requesterUser = store.users.find((u) => u._id === requesterId);
-        const approverUser = store.users.find((u) => u._id === userId);
-        const approverEmail = approverUser?.email;
+        const approverUser = store.users.find((u) => u._id === caller.id);
+        const approverEmail = approverUser?.email || caller.email;
         const selfCheck = checkSelfApproval(
           requesterId,
-          userId,
+          caller.id,
           'slot_swap',
           requesterUser?.email,
           approverEmail
@@ -348,7 +388,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: reqItem.messId || (store.mess._id as string),
           cycleId: reqItem.cycleId,
-          performedByUserId: userId || reqItem.toUserId || 'user',
+          performedByUserId: caller.id,
           action: isAccept ? 'ACCEPT_SLOT_SWAP' : 'REJECT_SLOT_SWAP',
           targetCollection: 'slot_requests',
           targetId: String(requestId),
@@ -398,7 +438,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: userId || 'admin',
+          performedByUserId: caller.id,
           action: 'ADMIN_DIRECT_SWAP_SLOTS',
           targetCollection: 'bazar_slots',
           targetId: `${cycleId}_${idxA}_${idxB}`,
@@ -449,7 +489,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: userId || 'admin',
+          performedByUserId: caller.id,
           action: 'ADMIN_UPDATE_SLOT',
           targetCollection: 'bazar_slots',
           targetId: `${cycleId}_${sIdx}`,

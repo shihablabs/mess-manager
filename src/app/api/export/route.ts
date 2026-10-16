@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
+import { requireRole } from '@/lib/guard';
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireRole(['admin', 'super_admin']);
+    if (!auth.authorized) return auth.response;
+
     const store = await getStore();
     const { searchParams } = new URL(request.url);
     const cycleId = searchParams.get('cycleId') || 'cycle_1';

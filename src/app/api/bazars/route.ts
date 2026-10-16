@@ -7,8 +7,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkSelfApproval } from '@/lib/self-approval';
 import { assertCycleOpen } from '@/lib/cycle-guard';
+import { requireActiveMember, requireRole } from '@/lib/guard';
 
 export async function GET(request: Request) {
+  const auth = await requireActiveMember();
+  if (!auth.authorized) return auth.response;
+
   const store = await getStore();
   const { searchParams } = new URL(request.url);
   const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
@@ -35,6 +39,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const store = await getStore();
     const db = await getDb();
     const body = await request.json();
@@ -54,13 +62,17 @@ export async function POST(request: Request) {
     const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
     if (cycleClosedResponse) return cycleClosedResponse;
 
-    const user = store.users.find((u) => u._id === userId);
-    const membership = store.memberships.find((m) => m.userId === userId);
-    const isManagerOrAdmin =
-      user?.role === 'super_admin' ||
-      user?.role === 'admin' ||
-      membership?.role === 'super_admin' ||
-      membership?.role === 'admin';
+    const isManagerOrAdmin = caller.role === 'super_admin' || caller.role === 'admin';
+
+    // Member can only submit for themselves
+    if (!isManagerOrAdmin && userId && String(userId) !== String(caller.id) && String(userId) !== String(caller.email)) {
+      return NextResponse.json(
+        { success: false, error: 'সাধারণ সদস্য শুধুমাত্র নিজের বাজারের তথ্য জমা দিতে পারেন (403 Forbidden)' },
+        { status: 403 }
+      );
+    }
+
+    const effectiveUserId = isManagerOrAdmin ? (userId || caller.id) : caller.id;
 
     const todayStr = new Date().toISOString().split('T')[0];
     const entryDate = date || todayStr;
@@ -110,7 +122,7 @@ export async function POST(request: Request) {
     // Bazar entries are always pending until manager/admin approval (SRS Rule 3)
     const newEntry: BazarDoc = {
       _id: `baz_${Date.now()}`,
-      userId,
+      userId: effectiveUserId,
       cycleId,
       messId: store.mess._id as string,
       date: entryDate,
@@ -131,7 +143,7 @@ export async function POST(request: Request) {
       await recordAuditLog({
         messId: newEntry.messId,
         cycleId: newEntry.cycleId,
-        performedByUserId: userId,
+        performedByUserId: caller.id,
         action: 'CREATE_BAZAR',
         targetCollection: 'bazars',
         targetId: String(newEntry._id),
@@ -153,13 +165,16 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const auth = await requireRole(['admin', 'super_admin']);
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const store = await getStore();
     const db = await getDb();
     const body = await request.json();
     const { id, status, adminUserId, amount, description, type, date } = body;
 
-    const session = await getServerSession(authOptions);
-    const currentUserId = (session?.user as any)?.id || adminUserId || 'admin';
+    const currentUserId = caller.id;
 
     const item = store.bazars.find((b) => b._id === id);
     if (!item && !db) {
@@ -175,7 +190,7 @@ export async function PATCH(request: Request) {
 
       if (status === 'approved') {
         const creatorUser = store.users.find((u) => u._id === creatorUserId);
-        const approverEmail = (session?.user as any)?.email;
+        const approverEmail = caller.email;
         const selfCheck = checkSelfApproval(
           creatorUserId,
           currentUserId,
@@ -191,7 +206,7 @@ export async function PATCH(request: Request) {
       const updateDoc: any = { updatedAt: new Date() };
       if (status) {
         updateDoc.status = status;
-        updateDoc.reviewedBy = adminUserId || 'admin';
+        updateDoc.reviewedBy = caller.id;
         updateDoc.reviewedAt = new Date();
       }
       if (typeof amount === 'number' && amount > 0) updateDoc.amount = Number(amount);
@@ -204,7 +219,7 @@ export async function PATCH(request: Request) {
       await recordAuditLog({
         messId: prevItem?.messId || (store.mess._id as string),
         cycleId: prevItem?.cycleId,
-        performedByUserId: adminUserId || 'admin',
+        performedByUserId: caller.id,
         action: status ? (status === 'approved' ? 'APPROVE_BAZAR' : 'REJECT_BAZAR') : 'UPDATE_BAZAR',
         targetCollection: 'bazars',
         targetId: String(id),
@@ -221,6 +236,10 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const db = await getDb();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -231,15 +250,34 @@ export async function DELETE(request: Request) {
 
     if (db) {
       const prevItem = await db.collection('bazars').findOne({ _id: id as any });
+      if (!prevItem) {
+        return NextResponse.json({ success: false, error: 'বাজারের এন্ট্রি পাওয়া যায়নি' }, { status: 404 });
+      }
+
       const cycleClosedResponse = await assertCycleOpen(prevItem?.cycleId, { db });
       if (cycleClosedResponse) return cycleClosedResponse;
+
+      if (caller.role !== 'admin' && caller.role !== 'super_admin') {
+        if (String(prevItem.userId) !== String(caller.id) && String(prevItem.userId) !== String(caller.email)) {
+          return NextResponse.json(
+            { success: false, error: 'অন্য সদস্যের বাজার ডিলিট করার অনুমতি নেই (403 Forbidden)' },
+            { status: 403 }
+          );
+        }
+        if (prevItem.status === 'approved') {
+          return NextResponse.json(
+            { success: false, error: 'অনুমোদিত বাজার শুধুমাত্র মেস ম্যানেজার বা সুপার অ্যাডমিন ডিলিট করতে পারেন' },
+            { status: 403 }
+          );
+        }
+      }
 
       await db.collection('bazars').deleteOne({ _id: id as any });
 
       await recordAuditLog({
         messId: prevItem?.messId || 'mess_1',
         cycleId: prevItem?.cycleId,
-        performedByUserId: 'admin',
+        performedByUserId: caller.id,
         action: 'DELETE_BAZAR',
         targetCollection: 'bazars',
         targetId: String(id),

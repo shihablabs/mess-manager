@@ -8,9 +8,13 @@ import { recordAuditLog } from '@/lib/audit';
 import { resolveRentDepositCycleEffect } from '@/billing-engine';
 import { checkSelfApproval } from '@/lib/self-approval';
 import { assertCycleOpen } from '@/lib/cycle-guard';
+import { requireActiveMember, requireRole } from '@/lib/guard';
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+
     const store = await getStore();
     const { searchParams } = new URL(request.url);
     const cycleId =
@@ -47,19 +51,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-      return NextResponse.json({ success: false, error: 'অননুমোদিত অ্যাক্সেস। অনুগ্রহ করে লগইন করুন।' }, { status: 401 });
-    }
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
 
     const db = await getDb();
     if (!db) {
       return NextResponse.json({ success: false, error: 'ডাটাবেজ সংযোগে সমস্যা' }, { status: 500 });
     }
 
-    const currentUserId = (session.user as any).id || session.user.email;
-    const userRole = (session.user as any).role;
-    const isSuperAdmin = userRole === 'super_admin' || (session.user as any).isSuperAdmin;
+    const currentUserId = caller.id;
+    const userRole = caller.role;
+    const isSuperAdmin = userRole === 'super_admin';
     const isManager = userRole === 'admin' || isSuperAdmin;
 
     const body = await request.json();
@@ -123,7 +126,7 @@ export async function POST(request: Request) {
         messId: targetDeposit.messId,
         cycleId: targetDeposit.cycleId,
         performedByUserId: currentUserId,
-        performedByUserName: session.user.name || undefined,
+        performedByUserName: caller.name || undefined,
         action: 'DELETE_DEPOSIT',
         targetCollection: 'deposits',
         targetId: String(targetDeposit._id),
@@ -157,7 +160,7 @@ export async function POST(request: Request) {
 
       // Self-approval prohibition (SRS & Task গ & Item 3)
       const creatorUser = await db.collection('users').findOne(idFilter(targetDeposit.userId));
-      const approverEmail = session?.user?.email;
+      const approverEmail = caller.email;
       const selfCheck = checkSelfApproval(
         targetDeposit.userId,
         currentUserId,
@@ -210,7 +213,7 @@ export async function POST(request: Request) {
         messId: targetDeposit.messId,
         cycleId: targetDeposit.cycleId,
         performedByUserId: currentUserId,
-        performedByUserName: session.user.name || undefined,
+        performedByUserName: caller.name || undefined,
         action: 'APPROVE_DEPOSIT',
         targetCollection: 'deposits',
         targetId: String(targetDeposit._id),
@@ -287,7 +290,7 @@ export async function POST(request: Request) {
         messId: targetDeposit.messId,
         cycleId: targetDeposit.cycleId,
         performedByUserId: currentUserId,
-        performedByUserName: session.user.name || undefined,
+        performedByUserName: caller.name || undefined,
         action: 'REJECT_DEPOSIT',
         targetCollection: 'deposits',
         targetId: String(targetDeposit._id),
@@ -330,6 +333,14 @@ export async function POST(request: Request) {
     const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
     if (cycleClosedResponse) return cycleClosedResponse;
 
+    // Member can only submit for themselves
+    if (!isManager && userId && String(userId) !== String(caller.id) && String(userId) !== String(caller.email)) {
+      return NextResponse.json(
+        { success: false, error: 'সাধারণ সদস্য শুধুমাত্র নিজের অ্যাকাউন্টে জমা করতে পারেন (403 Forbidden)' },
+        { status: 403 }
+      );
+    }
+
     // Target user check: managers can enter for anyone, regular members enter for themselves
     const effectiveUserId = isManager ? String(userId) : currentUserId;
 
@@ -362,7 +373,7 @@ export async function POST(request: Request) {
       messId: newDeposit.messId,
       cycleId: newDeposit.cycleId,
       performedByUserId: currentUserId,
-      performedByUserName: session.user.name || undefined,
+      performedByUserName: caller.name || undefined,
       action: 'CREATE_DEPOSIT',
       targetCollection: 'deposits',
       targetId: String(newDeposit._id),

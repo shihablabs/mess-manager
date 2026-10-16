@@ -8,8 +8,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkSelfApproval } from '@/lib/self-approval';
 import { assertCycleOpen } from '@/lib/cycle-guard';
+import { requireActiveMember, requireRole } from '@/lib/guard';
 
 export async function GET(request: Request) {
+  const auth = await requireActiveMember();
+  if (!auth.authorized) return auth.response;
+
   const store = await getStore();
   const { searchParams } = new URL(request.url);
   const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
@@ -37,6 +41,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const store = await getStore();
     const db = await getDb();
     const body = await request.json();
@@ -53,6 +61,19 @@ export async function POST(request: Request) {
       adminUserId,
       isLate: explicitIsLate,
     } = body;
+
+    const isManager = caller.role === 'admin' || caller.role === 'super_admin';
+
+    // Member can only submit for themselves
+    if (!isManager && userId && String(userId) !== String(caller.id) && String(userId) !== String(caller.email)) {
+      return NextResponse.json(
+        { success: false, error: 'সাধারণ সদস্য শুধুমাত্র নিজের মিল পরিবর্তনের আবেদন করতে পারেন (403 Forbidden)' },
+        { status: 403 }
+      );
+    }
+
+    const effectiveUserId = isManager ? (userId || caller.id) : caller.id;
+    const effectiveIsAdminDirect = isManager ? Boolean(isAdminDirect) : false;
 
     const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
     if (cycleClosedResponse) return cycleClosedResponse;
@@ -77,7 +98,7 @@ export async function POST(request: Request) {
 
     const newReq: any = {
       _id: `mr_${Date.now()}`,
-      userId,
+      userId: effectiveUserId,
       cycleId,
       messId: store.mess._id as string,
       date: fromDate,
@@ -86,7 +107,7 @@ export async function POST(request: Request) {
       slotId,
       action,
       isLate,
-      status: isAdminDirect ? 'approved' : 'pending',
+      status: effectiveIsAdminDirect ? 'approved' : 'pending',
       reason,
       createdAt: new Date(),
     };
@@ -97,8 +118,8 @@ export async function POST(request: Request) {
       await recordAuditLog({
         messId: newReq.messId,
         cycleId: newReq.cycleId,
-        performedByUserId: userId || 'user',
-        action: isAdminDirect ? 'DIRECT_UPDATE_MEAL' : 'CREATE_MEAL_REQUEST',
+        performedByUserId: caller.id,
+        action: effectiveIsAdminDirect ? 'DIRECT_UPDATE_MEAL' : 'CREATE_MEAL_REQUEST',
         targetCollection: 'meal_requests',
         targetId: String(newReq._id),
         previousValue: null,
@@ -106,7 +127,7 @@ export async function POST(request: Request) {
       });
 
       // If admin direct action, apply immediately to meals
-      if (isAdminDirect) {
+      if (effectiveIsAdminDirect) {
         const start = new Date(fromDate);
         const end = new Date(toDate);
         const slotsToUpdate =
@@ -121,7 +142,7 @@ export async function POST(request: Request) {
 
             await db.collection('meals').updateOne(
               {
-                userId,
+                userId: effectiveUserId,
                 cycleId,
                 date: dateStr,
                 slotId: sId,
@@ -161,6 +182,10 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const auth = await requireRole(['admin', 'super_admin']);
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const store = await getStore();
     const db = await getDb();
     const body = await request.json();
@@ -174,12 +199,11 @@ export async function PATCH(request: Request) {
     const cycleClosedResponse = await assertCycleOpen(reqItem.cycleId, { db });
     if (cycleClosedResponse) return cycleClosedResponse;
 
-    const session = await getServerSession(authOptions);
-    const currentUserId = (session?.user as any)?.id || adminUserId || 'admin';
+    const currentUserId = caller.id;
 
     if (status === 'approved') {
       const creatorUser = store.users.find((u) => u._id === reqItem.userId);
-      const approverEmail = (session?.user as any)?.email;
+      const approverEmail = caller.email;
       const selfCheck = checkSelfApproval(
         reqItem.userId,
         currentUserId,
@@ -199,7 +223,7 @@ export async function PATCH(request: Request) {
           $set: {
             status,
             adminNote,
-            reviewedBy: adminUserId || 'admin',
+            reviewedBy: caller.id,
             reviewedAt: new Date(),
             updatedAt: new Date(),
           },
@@ -250,12 +274,12 @@ export async function PATCH(request: Request) {
       await recordAuditLog({
         messId: reqItem.messId || (store.mess._id as string),
         cycleId: reqItem.cycleId,
-        performedByUserId: adminUserId || 'admin',
+        performedByUserId: caller.id,
         action: status === 'approved' ? 'APPROVE_MEAL_REQUEST' : 'REJECT_MEAL_REQUEST',
         targetCollection: 'meal_requests',
         targetId: String(id),
         previousValue: reqItem,
-        newValue: { status, adminNote, reviewedBy: adminUserId || 'admin' },
+        newValue: { status, adminNote, reviewedBy: caller.id },
       });
     }
 

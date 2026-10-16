@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { MealSlotDefinition } from '@/models/types';
-
 import { recordAuditLog } from '@/lib/audit';
+import { requireActiveMember, requireRole } from '@/lib/guard';
 
 export async function GET() {
   try {
+    const auth = await requireActiveMember();
+    if (!auth.authorized) return auth.response;
+
     const store = await getStore();
     return NextResponse.json({
       success: true,
@@ -21,9 +22,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireRole(['admin', 'super_admin']);
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const store = await getStore();
     const db = await getDb();
-    const session = await getServerSession(authOptions);
     const body = await request.json();
 
     const { action = 'update_meal_slots', mealSlots } = body;
@@ -82,8 +86,8 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: String(store.mess._id),
           cycleId: store.cycles[0]?._id ? String(store.cycles[0]._id) : undefined,
-          performedByUserId: (session?.user as any)?.id || 'admin',
-          performedByUserName: session?.user?.name || 'Admin',
+          performedByUserId: caller.id,
+          performedByUserName: caller.name,
           action: 'UPDATE_MEAL_SLOTS_CONFIG',
           targetCollection: 'messes',
           targetId: String(store.mess._id),

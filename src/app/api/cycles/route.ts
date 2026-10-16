@@ -4,8 +4,12 @@ import { getDb } from '@/lib/db';
 import { CycleSnapshotDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
 import { assertCycleOpen } from '@/lib/cycle-guard';
+import { requireActiveMember, requireRole } from '@/lib/guard';
 
 export async function GET(request: Request) {
+  const auth = await requireActiveMember();
+  if (!auth.authorized) return auth.response;
+
   const store = await getStore();
   const { searchParams } = new URL(request.url);
   const cycleId = searchParams.get('cycleId') || (store.cycles[0]?._id as string) || 'cycle_1';
@@ -23,6 +27,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireRole(['admin', 'super_admin']);
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const store = await getStore();
     const db = await getDb();
     const body = await request.json();
@@ -116,7 +124,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId: newCycleId,
-          performedByUserId: adminUserId || 'admin',
+          performedByUserId: caller.id,
           action: 'CREATE_CYCLE',
           targetCollection: 'cycles',
           targetId: newCycleId,
@@ -207,7 +215,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: cycle.messId || (store.mess._id as string),
           cycleId,
-          performedByUserId: adminUserId || 'admin',
+          performedByUserId: caller.id,
           action: 'SETTLE_MEMBER',
           targetCollection: 'member_cycles',
           targetId: `${cycleId}_${memberId}`,
@@ -247,7 +255,7 @@ export async function POST(request: Request) {
         cycleId,
         messId: store.mess._id as string,
         closedAt: new Date(),
-        closedBy: adminUserId || 'admin',
+        closedBy: caller.id,
         mealRate: finalBilling.mealRate,
         remainingMealRate: finalBilling.remainingMealRate,
         roundingDifference: finalBilling.totals.roundingDifference,
@@ -303,7 +311,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: store.mess._id as string,
           cycleId,
-          performedByUserId: adminUserId || 'admin',
+          performedByUserId: caller.id,
           action: 'CLOSE_CYCLE',
           targetCollection: 'cycles',
           targetId: cycleId,
@@ -334,7 +342,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: cycle?.messId || (store.mess._id as string),
           cycleId,
-          performedByUserId: adminUserId || 'admin',
+          performedByUserId: caller.id,
           action: 'REOPEN_CYCLE',
           targetCollection: 'cycles',
           targetId: cycleId,
@@ -372,7 +380,7 @@ export async function POST(request: Request) {
         await recordAuditLog({
           messId: prevCycle?.messId || (store.mess._id as string),
           cycleId,
-          performedByUserId: adminUserId || 'admin',
+          performedByUserId: caller.id,
           action: 'UPDATE_CYCLE_CONFIG',
           targetCollection: 'cycles',
           targetId: cycleId,
@@ -395,6 +403,10 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const auth = await requireRole(['admin', 'super_admin']);
+    if (!auth.authorized) return auth.response;
+    const caller = auth.user;
+
     const store = await getStore();
     const db = await getDb();
     const body = await request.json();
@@ -432,7 +444,7 @@ export async function PATCH(request: Request) {
       await recordAuditLog({
         messId: prevCycle?.messId || (store.mess._id as string),
         cycleId,
-        performedByUserId: 'admin',
+        performedByUserId: caller.id,
         action: 'UPDATE_CYCLE_CONFIG',
         targetCollection: 'cycles',
         targetId: cycleId,

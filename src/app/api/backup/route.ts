@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
+import { requireRole } from '@/lib/guard';
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireRole('super_admin');
+    if (!auth.authorized) return auth.response;
+
     const store = await getStore();
     const db = await getDb();
     const { searchParams } = new URL(request.url);
@@ -101,6 +105,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireRole('super_admin');
+    if (!auth.authorized) return auth.response;
+
     const db = await getDb();
     const store = await getStore();
     const payload = await request.json();
