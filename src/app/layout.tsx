@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 };
 
 import { AuthProvider } from '@/components/AuthProvider';
+import { LanguageProvider } from '@/context/LanguageContext';
 import { Toaster } from 'sonner';
 
 export default function RootLayout({
@@ -16,17 +17,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="bn" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
         <AuthProvider>
-          {children}
-          <Toaster
-            position="top-center"
-            richColors
-            theme="dark"
-            closeButton
-            duration={3500}
-          />
+          <LanguageProvider>
+            {children}
+            <Toaster
+              position="top-center"
+              richColors
+              theme="dark"
+              closeButton
+              duration={3500}
+            />
+          </LanguageProvider>
         </AuthProvider>
       </body>
     </html>

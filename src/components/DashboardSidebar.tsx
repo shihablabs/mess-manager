@@ -26,6 +26,7 @@ import {
 import { AppUser } from '@/lib/session';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface DashboardSidebarProps {
   currentUser: AppUser | null;
@@ -52,6 +53,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   onOpenDeposit,
 }) => {
   const pathname = usePathname();
+  const { t, language } = useLanguage();
 
   // Accordion state: only ONE menu section can be expanded at a time
   const currentSectionId = pathname?.split('/')[2] || 'dashboard';
@@ -73,7 +75,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   const menuSections = [
     {
       id: 'dashboard',
-      label: 'ড্যাশবোর্ড ওভারভিউ',
+      label: language === 'en' ? 'Dashboard Overview' : 'ড্যাশবোর্ড ওভারভিউ',
       href: '/dashboard',
       icon: LayoutDashboard,
       badge: null,
@@ -81,7 +83,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       subItems: [
         {
           id: 'overview',
-          label: 'ওভারভিউ ও লাইভ ব্যালেন্স',
+          label: language === 'en' ? 'Overview & Live Balance' : 'ওভারভিউ ও লাইভ ব্যালেন্স',
           href: '/dashboard',
           isActive: pathname === '/dashboard',
         },
@@ -89,21 +91,23 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     },
     {
       id: 'meals',
-      label: 'মিল খাতা ও ব্যবস্থাপনা',
+      label: language === 'en' ? 'Meal Register & System' : 'মিল খাতা ও ব্যবস্থাপনা',
       href: '/dashboard/meals',
       icon: Utensils,
-      badge: pendingCounts.mealRequests > 0 ? `${pendingCounts.mealRequests} নতুন` : null,
+      badge: pendingCounts.mealRequests > 0
+        ? (language === 'en' ? `${pendingCounts.mealRequests} new` : `${pendingCounts.mealRequests} নতুন`)
+        : null,
       isActive: pathname.startsWith('/dashboard/meals'),
       subItems: [
         {
           id: 'meals_table',
-          label: 'দৈনিক মিল হাজিরা খাতা',
+          label: language === 'en' ? 'Daily Meal Sheet' : 'দৈনিক মিল হাজিরা খাতা',
           href: '/dashboard/meals',
           isActive: pathname === '/dashboard/meals',
         },
         {
           id: 'meal_request_quick',
-          label: '⚡ জরুরি মিল অন/অফ আবেদন',
+          label: language === 'en' ? '⚡ Emergency Meal Request' : '⚡ জরুরি মিল অন/অফ আবেদন',
           action: () => {
             onOpenMealRequest();
             onMobileClose();
@@ -114,20 +118,20 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     },
     {
       id: 'bazar',
-      label: 'বাজার তালিকা ও খরচ',
+      label: language === 'en' ? 'Bazar List & Expenses' : 'বাজার তালিকা ও খরচ',
       href: '/dashboard/bazar',
       icon: ShoppingBag,
       isActive: pathname.startsWith('/dashboard/bazar'),
       subItems: [
         {
           id: 'bazar_list',
-          label: 'বাজার তালিকা ও ফর্দ',
+          label: language === 'en' ? 'Bazar List & Vouchers' : 'বাজার তালিকা ও ফর্দ',
           href: '/dashboard/bazar',
           isActive: pathname === '/dashboard/bazar',
         },
         {
           id: 'new_bazar_quick',
-          label: '🛒 নতুন বাজার এন্ট্রি',
+          label: language === 'en' ? '🛒 Add Bazar Voucher' : '🛒 নতুন বাজার এন্ট্রি',
           action: () => {
             onOpenNewBazar();
             onMobileClose();
@@ -136,7 +140,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         },
         {
           id: 'fixed_event_quick',
-          label: '🍗 বিশেষ ভোজ (Fixed Event)',
+          label: language === 'en' ? '🍗 Special Feast (Fixed Event)' : '🍗 বিশেষ ভোজ (Fixed Event)',
           action: () => {
             onOpenFixedEvent();
             onMobileClose();
@@ -147,7 +151,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     },
     {
       id: 'schedule',
-      label: 'ডিউটি রোস্টার',
+      label: language === 'en' ? 'Duty Roster' : 'ডিউটি রোস্টার',
       href: '/dashboard/schedule',
       icon: Calendar,
       badge: null,
@@ -155,7 +159,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       subItems: [
         {
           id: 'roster_view',
-          label: 'বাজার ডিউটি শিডিউল (৫ দিন)',
+          label: language === 'en' ? 'Bazar Duty Schedule (5-Days)' : 'বাজার ডিউটি শিডিউল (৫ দিন)',
           href: '/dashboard/schedule',
           isActive: pathname === '/dashboard/schedule',
         },
@@ -163,7 +167,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     },
     {
       id: 'bills',
-      label: 'বিল ও বড় বাজার ফান্ড',
+      label: language === 'en' ? 'Bills & Big Bazar Fund' : 'বিল ও বড় বাজার ফান্ড',
       href: '/dashboard/bills',
       icon: Lightbulb,
       badge: null,
@@ -171,13 +175,13 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       subItems: [
         {
           id: 'utilities_view',
-          label: 'ইউটিলিটি ও ফিক্সড খরচ',
+          label: language === 'en' ? 'Utilities & Fixed Bills' : 'ইউটিলিটি ও ফিক্সড খরচ',
           href: '/dashboard/bills',
           isActive: pathname === '/dashboard/bills',
         },
         {
           id: 'deposit_quick',
-          label: '💳 অগ্রিম টাকা জমা প্রদান',
+          label: language === 'en' ? '💳 Deposit Money' : '💳 অগ্রিম টাকা জমা প্রদান',
           action: () => {
             onOpenDeposit();
             onMobileClose();
@@ -191,27 +195,27 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       ? [
           {
             id: 'users',
-            label: 'ইউজার ও সদস্য ম্যানেজমেন্ট',
+            label: language === 'en' ? 'Members & Room Rent' : 'ইউজার ও সদস্য ম্যানেজমেন্ট',
             href: '/dashboard/users',
             icon: Users,
-            badge: isSuperAdmin ? 'সুপার কন্ট্রোল' : 'অ্যাডমিন',
+            badge: isSuperAdmin ? (language === 'en' ? 'Super Control' : 'সুপার কন্ট্রোল') : (language === 'en' ? 'Admin' : 'অ্যাডমিন'),
             isActive: pathname.startsWith('/dashboard/users'),
             subItems: [
               {
                 id: 'user_management_main',
-                label: 'সদস্য তালিকা ও অনুমোদন',
+                label: language === 'en' ? 'Member List & Approvals' : 'সদস্য তালিকা ও অনুমোদন',
                 href: '/dashboard/users',
                 isActive: pathname === '/dashboard/users',
               },
               {
                 id: 'user_roles',
-                label: 'মেস ম্যানেজার ও রোল বণ্টন',
+                label: language === 'en' ? 'Roles & Permissions' : 'মেস ম্যানেজার ও রোল বণ্টন',
                 href: '/dashboard/users#roles',
                 isActive: false,
               },
               {
                 id: 'user_settlement',
-                label: 'হিসাব নিষ্পত্তির আবেদন',
+                label: language === 'en' ? 'Departure Settlements' : 'হিসাব নিষ্পত্তির আবেদন',
                 href: '/dashboard/users#settlement',
                 isActive: false,
               },
@@ -223,7 +227,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       ? [
           {
             id: 'profile',
-            label: 'আমার প্রোফাইল ও হিসাব',
+            label: language === 'en' ? 'My Profile & Ledger' : 'আমার প্রোফাইল ও হিসাব',
             href: '/dashboard/profile',
             icon: User,
             badge: null,
@@ -231,7 +235,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             subItems: [
               {
                 id: 'profile_view',
-                label: 'ব্যক্তিগত ব্যালেন্স ও লেজার',
+                label: language === 'en' ? 'Personal Balance & Ledger' : 'ব্যক্তিগত ব্যালেন্স ও লেজার',
                 href: '/dashboard/profile',
                 isActive: pathname === '/dashboard/profile',
               },
@@ -241,7 +245,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       : []),
     {
       id: 'settings',
-      label: 'সেটিংস',
+      label: language === 'en' ? 'Settings' : 'সেটিংস',
       href: '/dashboard/settings',
       icon: Settings,
       badge: null,
@@ -249,7 +253,9 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       subItems: [
         {
           id: 'settings_main',
-          label: isSuperAdmin ? 'বড় বাজার ও মেস কনফিগারেশন' : 'ব্যক্তিগত পছন্দ ও সেটিংস',
+          label: isSuperAdmin
+            ? (language === 'en' ? 'Global Mess Configuration' : 'বড় বাজার ও মেস কনফিগারেশন')
+            : (language === 'en' ? 'Preferences & Settings' : 'ব্যক্তিগত পছন্দ ও সেটিংস'),
           href: '/dashboard/settings',
           isActive: pathname === '/dashboard/settings',
         },
@@ -288,7 +294,8 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 Developer Zone
               </span>
               <p className="text-[10px] text-slate-400">
-                মেস ম্যানেজার • <span className="text-slate-200 font-medium">{cycleName}</span>
+                {language === 'en' ? 'Mess Manager • ' : 'মেস ম্যানেজার • '}
+                <span className="text-slate-200 font-medium">{cycleName}</span>
               </p>
             </div>
           </Link>
@@ -315,14 +322,18 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
               <div className="flex items-center gap-1 text-[10px]">
                 {isSuperAdmin ? (
                   <span className="text-purple-400 font-bold flex items-center gap-0.5">
-                    <Crown className="w-3 h-3 text-purple-400 inline" /> সুপার অ্যাডমিন
+                    <Crown className="w-3 h-3 text-purple-400 inline" />{' '}
+                    {language === 'en' ? 'Super Admin' : 'সুপার অ্যাডমিন'}
                   </span>
                 ) : isManager ? (
                   <span className="text-amber-400 font-bold flex items-center gap-0.5">
-                    <Shield className="w-3 h-3 text-amber-400 inline" /> মেস ম্যানেজার
+                    <Shield className="w-3 h-3 text-amber-400 inline" />{' '}
+                    {language === 'en' ? 'Mess Manager' : 'মেস ম্যানেজার'}
                   </span>
                 ) : (
-                  <span className="text-slate-400">👤 মেস সদস্য</span>
+                  <span className="text-slate-400">
+                    {language === 'en' ? '👤 Resident Member' : '👤 মেস সদস্য'}
+                  </span>
                 )}
               </div>
             </div>
@@ -332,7 +343,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         {/* Navigation Sections */}
         <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 py-1">
-            প্রধান মেনু ও মডিউল
+            {language === 'en' ? 'Main Menu & Modules' : 'প্রধান মেনু ও মডিউল'}
           </div>
 
           {menuSections.map((section) => {
@@ -427,8 +438,10 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         {/* Quick Emergency Action Box: অগ্রিম টাকা জমা ও বাজার জমা পাশাপাশি */}
         <div className="shrink-0 p-3 pb-safe border-t border-slate-800/80 bg-slate-950/90 space-y-2">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1 flex items-center justify-between">
-            <span>জরুরি শর্টকাট</span>
-            <span className="text-[9px] text-slate-500 font-medium">২টি অ্যাকশন</span>
+            <span>{language === 'en' ? 'Quick Actions' : 'জরুরি শর্টকাট'}</span>
+            <span className="text-[9px] text-slate-500 font-medium">
+              {language === 'en' ? '2 actions' : '২টি অ্যাকশন'}
+            </span>
           </div>
           <div className="grid grid-cols-2 gap-2">
             {/* অগ্রিম টাকা জমা */}
@@ -439,10 +452,10 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 onMobileClose();
               }}
               className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600/20 to-teal-600/20 hover:from-emerald-600/30 hover:to-teal-600/30 border border-emerald-500/30 hover:border-emerald-500/50 text-emerald-300 hover:text-white text-[11px] font-bold transition-all shadow-sm cursor-pointer group active:scale-95"
-              title="মেসে অগ্রিম টাকা জমা প্রদান করুন"
+              title={language === 'en' ? 'Deposit money to mess account' : 'মেসে অগ্রিম টাকা জমা প্রদান করুন'}
             >
               <CreditCard className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
-              <span className="truncate">অগ্রিম টাকা জমা</span>
+              <span className="truncate">{language === 'en' ? 'Deposit Money' : 'অগ্রিম টাকা জমা'}</span>
             </button>
 
             {/* বাজার জমা */}
@@ -453,10 +466,10 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 onMobileClose();
               }}
               className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600/20 to-purple-600/20 hover:from-indigo-600/30 hover:to-purple-600/30 border border-indigo-500/30 hover:border-indigo-500/50 text-indigo-300 hover:text-white text-[11px] font-bold transition-all shadow-sm cursor-pointer group active:scale-95"
-              title="নতুন বাজার খরচ জমা দিন"
+              title={language === 'en' ? 'Submit new grocery expense voucher' : 'নতুন বাজার খরচ জমা দিন'}
             >
               <ShoppingBag className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform shrink-0" />
-              <span className="truncate">বাজার জমা</span>
+              <span className="truncate">{language === 'en' ? 'Add Bazar' : 'বাজার জমা'}</span>
             </button>
           </div>
         </div>

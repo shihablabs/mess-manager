@@ -8,6 +8,7 @@ import { Printer, X, CheckCircle, FileText, UserMinus, Clock, AlertTriangle } fr
 import { AppUser } from '@/lib/session';
 import { toast } from 'sonner';
 import { confirmAction } from '@/lib/alerts';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface StatementModalProps {
   member: MemberBillingResult | null;
@@ -28,6 +29,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
   onRefresh,
   onClose,
 }) => {
+  const { t, language } = useLanguage();
   const [formattedDate, setFormattedDate] = React.useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [settlementRequested, setSettlementRequested] = useState(false);
@@ -36,8 +38,8 @@ export const StatementModal: React.FC<StatementModalProps> = ({
   const [departureDate, setDepartureDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   React.useEffect(() => {
-    setFormattedDate(new Date().toLocaleDateString('bn-BD'));
-  }, []);
+    setFormattedDate(new Date().toLocaleDateString(language === 'en' ? 'en-US' : 'bn-BD'));
+  }, [language]);
 
   if (!member || !calculation) return null;
 
@@ -56,16 +58,16 @@ export const StatementModal: React.FC<StatementModalProps> = ({
   const getMethodName = (method?: string) => {
     switch (method?.toLowerCase()) {
       case 'bkash':
-        return 'বিকাশ';
+        return language === 'en' ? 'bKash' : 'বিকাশ';
       case 'nagad':
-        return 'নগদ';
+        return language === 'en' ? 'Nagad' : 'নগদ';
       case 'rocket':
-        return 'রকেট';
+        return language === 'en' ? 'Rocket' : 'রকেট';
       case 'bank':
-        return 'ব্যাংক';
+        return language === 'en' ? 'Bank' : 'ব্যাংক';
       case 'cash':
       default:
-        return 'ক্যাশ';
+        return language === 'en' ? 'Cash' : 'ক্যাশ';
     }
   };
 
@@ -150,7 +152,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-indigo-400" />
             <span className="text-xs font-semibold text-slate-300">
-              সদস্যের ব্যক্তিগত আর্থিক হিসাব বিবরণী
+              {language === 'en' ? 'Personal Financial Statement' : 'সদস্যের ব্যক্তিগত আর্থিক হিসাব বিবরণী'}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -159,7 +161,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              প্রিন্ট / PDF
+              {language === 'en' ? 'Print / PDF' : 'প্রিন্ট / PDF'}
             </button>
             <button
               onClick={onClose}
@@ -176,13 +178,17 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           <div className="flex justify-between items-start border-b border-slate-800 pb-4">
             <div>
               <h2 className="text-xl font-bold text-white print:text-black">Developer Zone</h2>
-              <p className="text-xs text-slate-400 print:text-gray-600">হিসাব চক্র: {cycleName}</p>
               <p className="text-xs text-slate-400 print:text-gray-600">
-                প্রস্তুতকরণের তারিখ: {formattedDate || '—'}
+                {language === 'en' ? 'Accounting Cycle: ' : 'হিসাব চক্র: '}{cycleName}
+              </p>
+              <p className="text-xs text-slate-400 print:text-gray-600">
+                {language === 'en' ? 'Generated Date: ' : 'প্রস্তুতকরণের তারিখ: '}{formattedDate || '—'}
               </p>
             </div>
             <div className="text-right">
-              <span className="text-xs text-slate-400">সদস্যের নাম:</span>
+              <span className="text-xs text-slate-400">
+                {language === 'en' ? 'Member Name:' : 'সদস্যের নাম:'}
+              </span>
               <div className="text-base font-bold text-indigo-400 print:text-black">
                 {member.name}
               </div>
@@ -193,25 +199,33 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           {/* KPI Strip for Member */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print-avoid-break">
             <div className="p-3 bg-slate-950/50 border border-slate-800/80 rounded-xl print:border-gray-300">
-              <span className="text-[11px] text-slate-400 block">মোট মিল ইউনিট</span>
+              <span className="text-[11px] text-slate-400 block">
+                {language === 'en' ? 'Total Meal Units' : 'মোট মিল ইউনিট'}
+              </span>
               <span className="text-base font-bold text-white print:text-black font-mono">
                 {formatMealUnits(member.mealUnits)}
               </span>
             </div>
             <div className="p-3 bg-slate-950/50 border border-slate-800/80 rounded-xl print:border-gray-300">
-              <span className="text-[11px] text-slate-400 block">মিল রেট</span>
+              <span className="text-[11px] text-slate-400 block">
+                {language === 'en' ? 'Meal Rate' : 'মিল রেট'}
+              </span>
               <span className="text-base font-bold text-indigo-400 print:text-black font-mono">
                 {formatTaka(calculation.mealRate)}
               </span>
             </div>
             <div className="p-3 bg-slate-950/50 border border-slate-800/80 rounded-xl print:border-gray-300">
-              <span className="text-[11px] text-slate-400 block">মোট জমা (Credit)</span>
+              <span className="text-[11px] text-slate-400 block">
+                {language === 'en' ? 'Total Credits' : 'মোট জমা (Credit)'}
+              </span>
               <span className="text-base font-bold text-emerald-400 print:text-black font-mono">
                 {formatTaka(member.totalCredits)}
               </span>
             </div>
             <div className="p-3 bg-slate-950/50 border border-slate-800/80 rounded-xl print:border-gray-300">
-              <span className="text-[11px] text-slate-400 block">মোট খরচ (Debit)</span>
+              <span className="text-[11px] text-slate-400 block">
+                {language === 'en' ? 'Total Debits' : 'মোট খরচ (Debit)'}
+              </span>
               <span className="text-base font-bold text-rose-400 print:text-black font-mono">
                 {formatTaka(member.totalDues)}
               </span>
@@ -221,18 +235,20 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           {/* Dues Breakdown */}
           <div className="space-y-3 print-avoid-break">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              দেনা ও খরচের ভাগ (Dues / Debits)
+              {language === 'en' ? 'Dues & Expenses (Debits)' : 'দেনা ও খরচের ভাগ (Dues / Debits)'}
             </h4>
             <div className="space-y-2 text-xs border border-slate-800 rounded-xl p-3 bg-slate-950/40 print:border-gray-300 print:bg-white">
               {/* Prominent Distinct House Rent */}
               <div className="flex justify-between py-1.5 border-b border-slate-800/80 print:border-gray-200 bg-amber-500/5 print:bg-gray-50 px-2 rounded">
                 <div className="flex flex-col">
                   <span className="font-bold text-amber-300 print:text-black">
-                    🏠 নির্ধারিত বাসা / রুম ভাড়া (ডিফল্ট ফিক্সড চার্জ)
+                    {language === 'en' ? '🏠 Room / House Rent (Fixed Charge)' : '🏠 নির্ধারিত বাসা / রুম ভাড়া (ডিফল্ট ফিক্সড চার্জ)'}
                   </span>
                   {member.stayedDays !== undefined && member.totalDays && member.stayedDays < member.totalDays && (
                     <span className="text-[10px] text-amber-400/80">
-                      (অবস্থান: {member.stayedDays}/{member.totalDays} দিন{member.unrecoveredRent ? ` • অনাদায়ী অংশ: ৳${member.unrecoveredRent}` : ''})
+                      {language === 'en'
+                        ? `(Stayed: ${member.stayedDays}/${member.totalDays} days${member.unrecoveredRent ? ` • Unrecovered: ৳${member.unrecoveredRent}` : ''})`
+                        : `(অবস্থান: ${member.stayedDays}/${member.totalDays} দিন${member.unrecoveredRent ? ` • অনাদায়ী অংশ: ৳${member.unrecoveredRent}` : ''})`}
                     </span>
                   )}
                 </div>
@@ -243,43 +259,47 @@ export const StatementModal: React.FC<StatementModalProps> = ({
               <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
                 <div className="flex flex-col">
                   <span>
-                    মিল বাবদ খরচ ({formatMealUnits(member.mealUnits)} × {formatTaka(member.effectiveMealRate ?? calculation.mealRate)})
+                    {language === 'en' ? 'Meal Cost' : 'মিল বাবদ খরচ'} ({formatMealUnits(member.mealUnits)} × {formatTaka(member.effectiveMealRate ?? calculation.mealRate)})
                   </span>
                   {member.effectiveMealRate !== undefined && member.effectiveMealRate !== calculation.mealRate && (
                     <span className="text-[10px] text-indigo-400">
-                      ({member.settlementType === 'current_rate_final' ? 'মাঝপথে ছাড়ায় লকড রেট' : 'সমন্বয়কৃত চূড়ান্ত রেট'})
+                      ({member.settlementType === 'current_rate_final'
+                        ? (language === 'en' ? 'Locked rate on departure' : 'মাঝপথে ছাড়ায় লকড রেট')
+                        : (language === 'en' ? 'Adjusted final rate' : 'সমন্বয়কৃত চূড়ান্ত রেট')})
                     </span>
                   )}
                 </div>
                 <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.regularMealCost)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
-                <span>ফিক্সড বাজার শেয়ার (স্পেশাল মিল)</span>
+                <span>{language === 'en' ? 'Special Feast Share' : 'ফিক্সড বাজার শেয়ার (স্পেশাল মিল)'}</span>
                 <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.fixedShare)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
                 <div className="flex flex-col">
-                  <span>ইউটিলিটি ও আনুষঙ্গিক বিলের ভাগ</span>
+                  <span>{language === 'en' ? 'Utilities & Shared Bills' : 'ইউটিলিটি ও আনুষঙ্গিক বিলের ভাগ'}</span>
                   {member.stayedDays !== undefined && member.totalDays && member.stayedDays < member.totalDays && !member.isUtilityExempt && (
                     <span className="text-[10px] text-slate-400">
-                      (দিনের অনুপাতে: {member.stayedDays}/{member.totalDays} দিন)
+                      {language === 'en' ? `(Pro-rata: ${member.stayedDays}/${member.totalDays} days)` : `(দিনের অনুপাতে: ${member.stayedDays}/${member.totalDays} দিন)`}
                     </span>
                   )}
                 </div>
                 <span className="font-mono font-bold text-slate-200 print:text-black">
-                  {member.isUtilityExempt ? 'মওকুফ (৳০)' : formatTaka(member.utilityShare)}
+                  {member.isUtilityExempt
+                    ? (language === 'en' ? 'Exempt (৳0)' : 'মওকুফ (৳০)')
+                    : formatTaka(member.utilityShare)}
                 </span>
               </div>
               {member.extraShareNonPool > 0 && (
                 <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
-                  <span>এক্সট্রা বাজার শেয়ার (নন-পুল)</span>
+                  <span>{language === 'en' ? 'Extra Bazar Share (Non-Pool)' : 'এক্সট্রা বাজার শেয়ার (নন-পুল)'}</span>
                   <span className="font-mono font-bold text-slate-200 print:text-black">
                     {formatTaka(member.extraShareNonPool)}
                   </span>
                 </div>
               )}
               <div className="flex justify-between pt-1 font-bold text-rose-400 print:text-red-700 px-2">
-                <span>মোট দেনা (Total Dues)</span>
+                <span>{language === 'en' ? 'Total Dues (Debits)' : 'মোট দেনা (Total Dues)'}</span>
                 <span className="font-mono text-sm">{formatTaka(member.totalDues)}</span>
               </div>
             </div>
@@ -288,10 +308,10 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           {/* Credits Breakdown with Itemized Installments */}
           <div className="space-y-3 print-avoid-break">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-              <span>জমা ও পরিশোধের বিবরণী (Credits & Paid Installments)</span>
+              <span>{language === 'en' ? 'Credits & Paid Installments' : 'জমা ও পরিশোধের বিবরণী (Credits & Paid Installments)'}</span>
               {memberApprovedDeposits.length > 0 && (
                 <span className="text-[10px] text-emerald-400 lowercase font-normal">
-                  ({memberApprovedDeposits.length}টি কিস্তির হিসাব)
+                  {language === 'en' ? `(${memberApprovedDeposits.length} installments)` : `(${memberApprovedDeposits.length}টি কিস্তির হিসাব)`}
                 </span>
               )}
             </h4>
@@ -300,7 +320,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
               {memberApprovedDeposits.length > 0 ? (
                 <div className="space-y-1.5 pb-2 border-b border-slate-800/80 print:border-gray-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    পরিশোধকৃত কিস্তিসমূহ:
+                    {language === 'en' ? 'Paid Installments:' : 'পরিশোধকৃত কিস্তিসমূহ:'}
                   </span>
                   {memberApprovedDeposits.map((dep, idx) => (
                     <div
@@ -328,7 +348,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                 </div>
               ) : (
                 <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200">
-                  <span>সাধারণ জমা (General Deposits)</span>
+                  <span>{language === 'en' ? 'General Deposits' : 'সাধারণ জমা (General Deposits)'}</span>
                   <span className="font-mono font-bold text-slate-200 print:text-black">
                     {formatTaka(member.generalDeposits)}
                   </span>
@@ -337,7 +357,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
 
               {member.bigBazarDeposits > 0 && (
                 <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
-                  <span>বড় বাজারের জমা (Big Bazar Contribution)</span>
+                  <span>{language === 'en' ? 'Big Bazar Contribution' : 'বড় বাজারের জমা (Big Bazar Contribution)'}</span>
                   <span className="font-mono font-bold text-slate-200 print:text-black">
                     {formatTaka(member.bigBazarDeposits)}
                   </span>
@@ -346,7 +366,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
 
               {member.approvedBazarSpentOwnMoney > 0 && (
                 <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
-                  <span>অনুমোদিত নিজস্ব বাজার খরচ (Personal Money)</span>
+                  <span>{language === 'en' ? 'Approved Personal Bazar' : 'অনুমোদিত নিজস্ব বাজার খরচ (Personal Money)'}</span>
                   <span className="font-mono font-bold text-emerald-400 print:text-green-700">
                     +{formatTaka(member.approvedBazarSpentOwnMoney)}
                   </span>
@@ -355,7 +375,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
 
               {member.openingCarryCredit > 0 && (
                 <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
-                  <span>পূর্ববর্তী মাসের অবশিষ্ট জমা (Carry-over)</span>
+                  <span>{language === 'en' ? 'Carried-over Credit' : 'পূর্ববর্তী মাসের অবশিষ্ট জমা (Carry-over)'}</span>
                   <span className="font-mono font-bold text-emerald-400 print:text-green-700">
                     +{formatTaka(member.openingCarryCredit)}
                   </span>
@@ -363,7 +383,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
               )}
 
               <div className="flex justify-between pt-1 font-bold text-emerald-400 print:text-green-700 px-2">
-                <span>মোট পাওনা / ক্রেডিট (Total Credits)</span>
+                <span>{language === 'en' ? 'Total Credits' : 'মোট পাওনা / ক্রেডিট (Total Credits)'}</span>
                 <span className="font-mono text-sm">{formatTaka(member.totalCredits)}</span>
               </div>
             </div>
@@ -379,12 +399,12 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           >
             <div>
               <div className="text-xs font-bold text-slate-300">
-                চূড়ান্ত নিট ব্যালেন্স
+                {language === 'en' ? 'Final Net Balance' : 'চূড়ান্ত নিট ব্যালেন্স'}
               </div>
               <div className="text-[11px] text-slate-400 mt-0.5">
                 {isRefund
-                  ? 'মেস থেকে সদস্য এই টাকা ফেরত পাবেন।'
-                  : 'সদস্যকে মেসের ফান্ডে এই টাকা পরিশোধ করতে হবে।'}
+                  ? (language === 'en' ? 'Member will receive a refund from the mess.' : 'মেস থেকে সদস্য এই টাকা ফেরত পাবেন।')
+                  : (language === 'en' ? 'Member must pay this remaining due to the mess.' : 'সদস্যকে মেসের ফান্ডে এই টাকা পরিশোধ করতে হবে।')}
               </div>
             </div>
             <div
@@ -401,13 +421,17 @@ export const StatementModal: React.FC<StatementModalProps> = ({
             <div className="flex items-center justify-between">
               <h5 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                 <UserMinus className="w-4 h-4 text-amber-400" />
-                মেস ছাড়ার চূড়ান্ত হিসাব নিষ্পত্তি (Settlement)
+                {language === 'en' ? 'Departure & Final Settlement' : 'মেস ছাড়ার চূড়ান্ত হিসাব নিষ্পত্তি (Settlement)'}
               </h5>
-              <span className="text-[10px] text-slate-500">স্বচ্ছ ও নিরাপদ এক্সিট প্রসেস</span>
+              <span className="text-[10px] text-slate-500">
+                {language === 'en' ? 'Safe exit process' : 'স্বচ্ছ ও নিরাপদ এক্সিট প্রসেস'}
+              </span>
             </div>
 
             <p className="text-[11px] text-slate-400">
-              সদস্য মেস ছাড়তে চাইলে এই হিসাব অনুযায়ী অবশিষ্ট টাকা লেনদেন করে হিসাব নিষ্পত্তি করা হয়।
+              {language === 'en'
+                ? 'If a member is leaving the mess during this cycle, departure settlement can be calculated and closed here.'
+                : 'সদস্য মেস ছাড়তে চাইলে এই হিসাব অনুযায়ী অবশিষ্ট টাকা লেনদেন করে হিসাব নিষ্পত্তি করা হয়।'}
             </p>
 
             {isManagerOrSuperAdmin && (
@@ -415,7 +439,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                      মেস ছাড়ার তারিখ
+                      {language === 'en' ? 'Departure Date' : 'মেস ছাড়ার তারিখ'}
                     </label>
                     <input
                       type="date"
@@ -426,7 +450,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                      হিসাব নিষ্পত্তির ধরন
+                      {language === 'en' ? 'Settlement Mode' : 'হিসাব নিষ্পত্তির ধরন'}
                     </label>
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
@@ -439,7 +463,10 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                           className="accent-emerald-500"
                         />
                         <span>
-                          <strong className="text-emerald-400">এখনকার রেটে চূড়ান্ত</strong> (ডিফল্ট)
+                          <strong className="text-emerald-400">
+                            {language === 'en' ? 'Current Rate Final' : 'এখনকার রেটে চূড়ান্ত'}
+                          </strong>{' '}
+                          ({language === 'en' ? 'default' : 'ডিফল্ট'})
                         </span>
                       </label>
                       <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
@@ -452,14 +479,16 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                           className="accent-indigo-500"
                         />
                         <span>
-                          <strong className="text-indigo-400">চক্র শেষে সমন্বয়</strong>
+                          <strong className="text-indigo-400">
+                            {language === 'en' ? 'Cycle-end Adjustment' : 'চক্র শেষে সমন্বয়'}
+                          </strong>
                         </span>
                       </label>
                     </div>
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                      রুম ভাড়ার সমন্বয়
+                      {language === 'en' ? 'Rent Adjustment' : 'রুম ভাড়ার সমন্বয়'}
                     </label>
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
@@ -472,7 +501,10 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                           className="accent-emerald-500"
                         />
                         <span>
-                          <strong className="text-emerald-400">দিনের অনুপাতে</strong> (ডিফল্ট)
+                          <strong className="text-emerald-400">
+                            {language === 'en' ? 'Pro-rata Days' : 'দিনের অনুপাতে'}
+                          </strong>{' '}
+                          ({language === 'en' ? 'default' : 'ডিফল্ট'})
                         </span>
                       </label>
                       <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
@@ -485,7 +517,9 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                           className="accent-indigo-500"
                         />
                         <span>
-                          <strong className="text-indigo-400">পুরো মাস</strong>
+                          <strong className="text-indigo-400">
+                            {language === 'en' ? 'Full Month' : 'পুরো মাস'}
+                          </strong>
                         </span>
                       </label>
                     </div>
@@ -503,9 +537,13 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                     <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-bold block">মিল রেট বৃদ্ধির সতর্কবার্তা:</span>
+                        <span className="font-bold block">
+                          {language === 'en' ? 'Meal Rate Impact Warning:' : 'মিল রেট বৃদ্ধির সতর্কবার্তা:'}
+                        </span>
                         <p>
-                          এই রেটে ছাড়লে বাকিদের মিল রেট প্রায় ৳{impact.rateIncrease.toFixed(2)} বাড়তে পারে (৳{impact.currentMealRate.toFixed(2)} → ৳{impact.projectedRemainingMealRate.toFixed(2)})।
+                          {language === 'en'
+                            ? `Exiting at current rate may increase remaining members' meal rate by approx ৳${impact.rateIncrease.toFixed(2)} (৳${impact.currentMealRate.toFixed(2)} → ৳${impact.projectedRemainingMealRate.toFixed(2)}).`
+                            : `এই রেটে ছাড়লে বাকিদের মিল রেট প্রায় ৳${impact.rateIncrease.toFixed(2)} বাড়তে পারে (৳${impact.currentMealRate.toFixed(2)} → ৳${impact.projectedRemainingMealRate.toFixed(2)})।`}
                         </p>
                       </div>
                     </div>
@@ -514,8 +552,12 @@ export const StatementModal: React.FC<StatementModalProps> = ({
 
                 <p className="text-[10px] text-slate-400 italic">
                   * {rentSettlementType === 'pro_rata'
-                      ? 'দিনের অনুপাত বেছে নিলে বাকি অংশ অনাদায়ী ভাড়া (unrecovered rent) হিসেবে মেসের রিপোর্টে সংরক্ষিত থাকবে, অন্য কোনো সদস্যের ঘাড়ে চাপানো হবে না।'
-                      : 'পুরো মাস বেছে নিলে সদস্য পূর্ণ মাসের নির্ধারিত রুম ভাড়া পরিশোধ করবেন।'}
+                      ? (language === 'en'
+                          ? 'Choosing pro-rata records remaining rent as unrecovered rent in mess reports; it is never pushed onto other members.'
+                          : 'দিনের অনুপাত বেছে নিলে বাকি অংশ অনাদায়ী ভাড়া (unrecovered rent) হিসেবে মেসের রিপোর্টে সংরক্ষিত থাকবে, অন্য কোনো সদস্যের ঘাড়ে চাপানো হবে না।')
+                      : (language === 'en'
+                          ? 'Full month charges the departing member their complete room rent for the cycle.'
+                          : 'পুরো মাস বেছে নিলে সদস্য পূর্ণ মাসের নির্ধারিত রুম ভাড়া পরিশোধ করবেন।')}
                 </p>
               </div>
             )}
@@ -529,14 +571,16 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                   className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold transition-all cursor-pointer"
                 >
                   <Clock className="w-3.5 h-3.5" />
-                  হিসাব নিষ্পত্তির আবেদন পাঠান
+                  {language === 'en' ? 'Request Departure Settlement' : 'হিসাব নিষ্পত্তির আবেদন পাঠান'}
                 </button>
               )}
 
               {settlementRequested && (
                 <span className="text-xs px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 animate-spin" />
-                  নিষ্পত্তির আবেদন প্রেরিত (অ্যাডমিন অনুমোদনের অপেক্ষায়)
+                  {language === 'en'
+                    ? 'Settlement requested (pending admin approval)'
+                    : 'নিষ্পত্তির আবেদন প্রেরিত (অ্যাডমিন অনুমোদনের অপেক্ষায়)'}
                 </span>
               )}
 
@@ -548,7 +592,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                   className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-lg shadow-rose-600/20 transition-all cursor-pointer ml-auto"
                 >
                   <CheckCircle className="w-3.5 h-3.5" />
-                  হিসাব চূড়ান্ত নিষ্পত্তি অনুমোদন করুন
+                  {language === 'en' ? 'Approve Final Settlement' : 'হিসাব চূড়ান্ত নিষ্পত্তি অনুমোদন করুন'}
                 </button>
               )}
             </div>

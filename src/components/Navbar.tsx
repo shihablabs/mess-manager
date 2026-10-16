@@ -6,6 +6,8 @@ import { Shield, RefreshCw, Building2, LogOut, Crown, LayoutDashboard, BookOpen 
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useLanguage } from '@/context/LanguageContext';
+import { LanguageToggle } from '@/components/LanguageToggle';
 
 interface NavbarProps {
   currentUser?: AppUser;
@@ -24,11 +26,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { data: session, status } = useSession();
   const pathname = usePathname();
+  const { t, language } = useLanguage();
   const isDashboard = pathname?.startsWith('/dashboard');
 
   const displayUser: AppUser = currentUser || {
     id: (session?.user as any)?.id || 'user',
-    name: session?.user?.name || 'ব্যবহারকারী',
+    name: session?.user?.name || (language === 'en' ? 'User' : 'ব্যবহারকারী'),
     email: session?.user?.email || '',
     role: (session?.user as any)?.role || 'member',
     image: session?.user?.image || 'https://api.dicebear.com/7.x/bottts/svg?seed=user',
@@ -48,7 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="font-bold text-base sm:text-lg text-white tracking-wide">Developer Zone</span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">
-                হিসাব চক্র: <span className="text-slate-200">{cycleName}</span>
+                {language === 'en' ? 'Accounting Cycle:' : 'হিসাব চক্র:'} <span className="text-slate-200">{cycleName}</span>
               </p>
             </div>
           </Link>
@@ -56,6 +59,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Center / Right Navigation Links */}
         <div className="flex items-center gap-1.5 sm:gap-3">
+          {/* Language Toggle */}
+          <LanguageToggle />
+
           {/* Navigation Links */}
           <nav className="flex items-center gap-1 mr-1 sm:mr-2">
             <Link
@@ -67,7 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline sm:inline">ফিচারসমূহ</span>
+              <span className="hidden xs:inline sm:inline">{language === 'en' ? 'Features' : 'ফিচারসমূহ'}</span>
             </Link>
 
             {/* Only show Dashboard button if user is authenticated */}
@@ -81,7 +87,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <LayoutDashboard className="w-3.5 h-3.5" />
-                <span>ড্যাশবোর্ড</span>
+                <span>{language === 'en' ? 'Dashboard' : 'ড্যাশবোর্ড'}</span>
               </Link>
             )}
           </nav>
@@ -91,7 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onRefresh}
               disabled={isLoading}
-              title="পুনরায় লোড করুন"
+              title={language === 'en' ? 'Refresh' : 'পুনরায় লোড করুন'}
               className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors cursor-pointer"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-indigo-400' : ''}`} />
@@ -130,18 +136,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
                 <div className="text-[10px] font-medium">
                   {displayUser.role === 'super_admin' ? (
-                    <span className="text-purple-400">👑 সুপার অ্যাডমিন</span>
+                    <span className="text-purple-400">👑 {language === 'en' ? 'Super Admin' : 'সুপার অ্যাডমিন'}</span>
                   ) : displayUser.role === 'admin' ? (
-                    <span className="text-amber-400">🛡️ মেস ম্যানেজার</span>
+                    <span className="text-amber-400">🛡️ {language === 'en' ? 'Mess Manager' : 'মেস ম্যানেজার'}</span>
                   ) : (
-                    <span className="text-slate-400">👤 সদস্য</span>
+                    <span className="text-slate-400">👤 {language === 'en' ? 'Member' : 'সদস্য'}</span>
                   )}
                 </div>
               </div>
 
               <button
                 onClick={() => signOut({ callbackUrl: '/' })}
-                title="লগআউট"
+                title={language === 'en' ? 'Logout' : 'লগআউট'}
                 className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
@@ -151,7 +157,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => signIn('google')}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white text-slate-900 hover:bg-slate-100 transition-all shadow-sm cursor-pointer"
-              title="সদস্য গুগল লগইন"
+              title={language === 'en' ? 'Google Login for Members' : 'সদস্য গুগল লগইন'}
             >
               <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
                 <path
@@ -171,7 +177,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span>সদস্য লগইন</span>
+              <span>{language === 'en' ? 'Member Login' : 'সদস্য লগইন'}</span>
             </button>
           )}
         </div>

@@ -24,6 +24,8 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 
 import { usePathname } from 'next/navigation';
+import { useLanguage } from '@/context/LanguageContext';
+import { LanguageToggle } from '@/components/LanguageToggle';
 
 interface DashboardHeaderProps {
   currentUser: AppUser | null;
@@ -42,19 +44,6 @@ interface DashboardHeaderProps {
   onOpenDeposit: () => void;
 }
 
-const TAB_TITLES: Record<string, string> = {
-  dashboard: 'ড্যাশবোর্ড ও লাইভ ব্যালেন্স',
-  meals: 'দৈনিক মিল খাতা ও হাজিরা',
-  bazar: 'বাজার খরচ ও ভাউচার',
-  schedule: 'বাজার ডিউটি রোস্টার',
-  roster: 'বাজার ডিউটি রোস্টার',
-  bills: 'ইউটিলিটি বিল ও বড় বাজার',
-  utilities: 'ইউটিলিটি বিল ও বড় বাজার',
-  users: 'ইউজার ও সদস্য ম্যানেজমেন্ট',
-  members: 'ইউজার ও সদস্য ম্যানেজমেন্ট',
-  profile: 'সদস্য প্রোফাইল ও ব্যক্তিগত হিসাব খাতা',
-};
-
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   currentUser,
   activeTab,
@@ -72,10 +61,37 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onOpenDeposit,
 }) => {
   const pathname = usePathname();
+  const { t, language } = useLanguage();
   const currentPathSegment = pathname?.split('/')[2] || 'dashboard';
   const effectiveTab = activeTab || currentPathSegment;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const getTabTitle = (tab: string) => {
+    switch (tab) {
+      case 'dashboard':
+        return t('nav.overview');
+      case 'meals':
+        return t('nav.meals');
+      case 'bazar':
+        return t('nav.bazar');
+      case 'schedule':
+      case 'roster':
+        return t('nav.schedule');
+      case 'bills':
+      case 'utilities':
+        return t('nav.bills');
+      case 'users':
+      case 'members':
+        return t('nav.members');
+      case 'profile':
+        return t('nav.profile');
+      case 'settings':
+        return t('nav.settings');
+      default:
+        return t('nav.dashboard');
+    }
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -98,19 +114,21 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         <button
           onClick={onToggleMobileMenu}
           className="md:hidden p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-900 border border-slate-800 transition-colors cursor-pointer"
-          aria-label="মেনু খুলুন"
+          aria-label="Toggle menu"
         >
           <Menu className="w-5 h-5" />
         </button>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-400 hidden sm:inline">মেস ড্যাশবোর্ড /</span>
+          <span className="text-xs font-semibold text-slate-400 hidden sm:inline">
+            {language === 'en' ? 'Mess Dashboard /' : 'মেস ড্যাশবোর্ড /'}
+          </span>
           <h1 className="text-sm sm:text-base font-bold text-white tracking-wide truncate max-w-[140px] xs:max-w-xs sm:max-w-none">
-            {TAB_TITLES[effectiveTab] || 'ড্যাশবোর্ড'}
+            {getTabTitle(effectiveTab)}
           </h1>
           {isCycleClosed && (
             <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold">
-              চক্র বন্ধ
+              {language === 'en' ? 'Cycle Closed' : 'চক্র বন্ধ'}
             </span>
           )}
         </div>
@@ -123,11 +141,11 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               value={currentCycleId || ''}
               onChange={(e) => onSelectCycle && onSelectCycle(e.target.value)}
               className="bg-transparent text-slate-200 font-semibold outline-none cursor-pointer text-xs"
-              title="পূর্ববর্তী বা বর্তমান মাসের হিসাব চক্র বাছাই করুন"
+              title={language === 'en' ? 'Select accounting cycle' : 'হিসাব চক্র বাছাই করুন'}
             >
               {cycles.map((c) => (
                 <option key={c._id} value={c._id} className="bg-slate-900 text-slate-200">
-                  {c.name} {c.status === 'open' ? '🟢 (চলমান)' : '🔒 (আর্কাইভ)'}
+                  {c.name} {c.status === 'open' ? (language === 'en' ? '🟢 (Active)' : '🟢 (চলমান)') : (language === 'en' ? '🔒 (Archived)' : '🔒 (আর্কাইভ)')}
                 </option>
               ))}
             </select>
@@ -135,14 +153,17 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         )}
       </div>
 
-      {/* Right: Refresh action & Profile Dropdown Menu */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      {/* Right: Language Toggle, Refresh action & Profile Dropdown Menu */}
+      <div className="flex items-center gap-2 sm:gap-2.5">
+        {/* Language Switcher Toggle */}
+        <LanguageToggle />
+
         {/* Refresh Button */}
         {onRefresh && (
           <button
             onClick={onRefresh}
             disabled={isLoading}
-            title="তথ্য রিফ্রেশ করুন"
+            title={language === 'en' ? 'Refresh data' : 'তথ্য রিফ্রেশ করুন'}
             className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent hover:border-slate-800 transition-all cursor-pointer"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-indigo-400' : ''}`} />
@@ -152,11 +173,11 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         {/* Quick Emergency Meal Request Button */}
         <button
           onClick={onOpenMealRequest}
-          title="দ্রুত মিল অন/অফ আবেদন"
+          title={language === 'en' ? 'Quick Meal Request' : 'দ্রুত মিল অন/অফ আবেদন'}
           className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition-all cursor-pointer"
         >
           <Zap className="w-3.5 h-3.5 text-indigo-400" />
-          <span>মিল আবেদন</span>
+          <span>{t('nav.entryMeal')}</span>
         </button>
 
         {/* Profile Dropdown Menu */}
@@ -187,11 +208,11 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 </div>
                 <div className="text-[10px] font-semibold">
                   {isSuperAdmin ? (
-                    <span className="text-purple-400">👑 সুপার অ্যাডমিন</span>
+                    <span className="text-purple-400">👑 {language === 'en' ? 'Super Admin' : 'সুপার অ্যাডমিন'}</span>
                   ) : isManager ? (
-                    <span className="text-amber-400">🛡️ মেস ম্যানেজার</span>
+                    <span className="text-amber-400">🛡️ {language === 'en' ? 'Mess Manager' : 'মেস ম্যানেজার'}</span>
                   ) : (
-                    <span className="text-emerald-400">👤 সদস্য</span>
+                    <span className="text-emerald-400">👤 {language === 'en' ? 'Member' : 'সদস্য'}</span>
                   )}
                 </div>
               </div>
@@ -220,17 +241,17 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                       {isSuperAdmin ? (
                         <span className="text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                           <Crown className="w-3 h-3 text-purple-400" />
-                          সুপার অ্যাডমিন (System Controller)
+                          {language === 'en' ? 'Super Admin (System Controller)' : 'সুপার অ্যাডমিন (System Controller)'}
                         </span>
                       ) : isManager ? (
                         <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                           <Shield className="w-3 h-3 text-amber-400" />
-                          মেস ম্যানেজার
+                          {language === 'en' ? 'Mess Manager' : 'মেস ম্যানেজার'}
                         </span>
                       ) : (
                         <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                           <User className="w-3 h-3 text-emerald-400" />
-                          সক্রিয় মেস সদস্য
+                          {language === 'en' ? 'Active Member' : 'সক্রিয় মেস সদস্য'}
                         </span>
                       )}
                     </div>
@@ -247,10 +268,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     >
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-indigo-400" />
-                        <span>আমার প্রোফাইল ও বিস্তারিত হিসাব</span>
+                        <span>{language === 'en' ? 'My Profile & Detailed Ledger' : 'আমার প্রোফাইল ও বিস্তারিত হিসাব'}</span>
                       </div>
                       <span className="text-[10px] bg-indigo-500/25 px-2 py-0.5 rounded text-indigo-200">
-                        পেজ
+                        {language === 'en' ? 'Page' : 'পেজ'}
                       </span>
                     </Link>
 
@@ -263,10 +284,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     >
                       <div className="flex items-center gap-2">
                         <FileText className="w-3.5 h-3.5 text-slate-400" />
-                        <span>কুইক স্টেটমেন্ট পপআপ</span>
+                        <span>{t('nav.myStatement')}</span>
                       </div>
                       <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">
-                        মডাল
+                        {language === 'en' ? 'Modal' : 'মডাল'}
                       </span>
                     </button>
                   </div>
@@ -279,10 +300,10 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     >
                       <div className="flex items-center gap-2">
                         <Shield className="w-4 h-4 text-purple-400" />
-                        <span>সুপার অ্যাডমিন কন্ট্রোল প্যানেল</span>
+                        <span>{t('nav.superAdminPortal')}</span>
                       </div>
                       <span className="text-[10px] bg-purple-500/25 px-2 py-0.5 rounded text-purple-200">
-                        কন্ট্রোল
+                        {language === 'en' ? 'Panel' : 'কন্ট্রোল'}
                       </span>
                     </Link>
                   </div>
@@ -291,7 +312,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 {/* Emergency Actions Menu */}
                 <div className="p-1 space-y-0.5 border-b border-slate-800/80 pb-2 mb-2">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 block mb-1">
-                    ⚡ জরুরি অ্যাকশনসমূহ
+                    ⚡ {language === 'en' ? 'Quick Actions' : 'জরুরি অ্যাকশনসমূহ'}
                   </span>
 
                   <button
@@ -302,7 +323,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
                   >
                     <Utensils className="w-3.5 h-3.5 text-amber-400" />
-                    <span>জরুরি মিল অন/অফ আবেদন</span>
+                    <span>{t('nav.entryMeal')}</span>
                   </button>
 
                   <button
@@ -313,7 +334,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
                   >
                     <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>বাজার ভাউচার এন্ট্রি করুন</span>
+                    <span>{t('nav.entryBazar')}</span>
                   </button>
 
                   <button
@@ -324,7 +345,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
                   >
                     <Wallet className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>টাকা জমা এন্ট্রি দিন</span>
+                    <span>{t('nav.entryDeposit')}</span>
                   </button>
                 </div>
 
@@ -336,7 +357,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors"
                   >
                     <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-                    <span>হিসাব সহায়িকা ও সাধারণ নিয়ম</span>
+                    <span>{t('nav.userGuide')}</span>
                   </Link>
                 </div>
 
@@ -347,7 +368,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5 text-rose-400" />
-                    <span>লগআউট করুন</span>
+                    <span>{t('nav.logout')}</span>
                   </button>
                 </div>
               </div>
