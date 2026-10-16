@@ -42,6 +42,10 @@ export async function POST(request: Request) {
         const name = String(slot.name || '').trim();
         const weight = Number(slot.weight) > 0 ? Number(slot.weight) : 1.0;
         const cutoffTime = String(slot.cutoffTime || (id === 'morning' ? '22:00' : '16:00')).trim();
+        const cutoffDayOffset =
+          slot.cutoffDayOffset !== undefined && slot.cutoffDayOffset !== null
+            ? Number(slot.cutoffDayOffset)
+            : (id === 'morning' ? -1 : 0);
 
         if (!name) {
           throw new Error('প্রত্যেকটি স্লটের নাম পূরণ করা আবশ্যক');
@@ -52,6 +56,7 @@ export async function POST(request: Request) {
           name,
           weight,
           cutoffTime,
+          cutoffDayOffset,
         };
       });
 

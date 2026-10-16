@@ -28,6 +28,7 @@ export interface MealSlotDefinition {
   name: string; // e.g. 'সকাল', 'রাত'
   weight: number; // e.g. 0.5, 1.0
   cutoffTime?: string; // e.g. "22:00" for night before, "16:00" for dinner
+  cutoffDayOffset?: number; // e.g. -1 for previous day (night before), 0 for same day
 }
 
 export interface MessDoc {

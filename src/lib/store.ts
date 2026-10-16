@@ -27,8 +27,8 @@ export class MessStore {
     code: 'DEV-ZONE-01',
     currencySymbol: '৳',
     mealSlots: [
-      { id: 'morning', name: 'সকাল', weight: 0.5, cutoffTime: '22:00' },
-      { id: 'night', name: 'রাত', weight: 1.0, cutoffTime: '16:00' },
+      { id: 'morning', name: 'সকাল', weight: 0.5, cutoffTime: '22:00', cutoffDayOffset: -1 },
+      { id: 'night', name: 'রাত', weight: 1.0, cutoffTime: '16:00', cutoffDayOffset: 0 },
     ],
     fixedDayDefault: 'friday',
     fixedMealTimeDefault: 'lunch',

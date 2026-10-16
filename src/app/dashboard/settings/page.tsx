@@ -42,8 +42,8 @@ function SettingsContent() {
 
   // Meal Slots settings state (Task 9)
   const defaultSlots = [
-    { id: 'morning', name: 'সকাল', weight: 0.5, cutoffTime: '22:00' },
-    { id: 'night', name: 'রাত', weight: 1.0, cutoffTime: '16:00' },
+    { id: 'morning', name: 'সকাল', weight: 0.5, cutoffTime: '22:00', cutoffDayOffset: -1 },
+    { id: 'night', name: 'রাত', weight: 1.0, cutoffTime: '16:00', cutoffDayOffset: 0 },
   ];
   const [mealSlots, setMealSlots] = useState<any[]>(() => {
     return summaryData?.mess?.mealSlots?.length ? summaryData.mess.mealSlots : defaultSlots;
@@ -80,7 +80,7 @@ function SettingsContent() {
     const nextId = `slot_${mealSlots.length + 1}`;
     setMealSlots((prev) => [
       ...prev,
-      { id: nextId, name: 'নতুন মিল', weight: 1.0, cutoffTime: '12:00' },
+      { id: nextId, name: 'নতুন মিল', weight: 1.0, cutoffTime: '12:00', cutoffDayOffset: 0 },
     ]);
   };
 
@@ -318,10 +318,11 @@ function SettingsContent() {
         {/* Meal Slots Table / Card Grid */}
         <div className="space-y-3">
           <div className="hidden md:grid grid-cols-12 gap-3 px-3 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-950/60 rounded-xl border border-slate-800">
-            <div className="col-span-3">স্লট আইডি / কোড</div>
+            <div className="col-span-2">স্লট কোড</div>
             <div className="col-span-3">স্লটের নাম</div>
-            <div className="col-span-2">মিল ওজন (Weight)</div>
-            <div className="col-span-3">বন্ধের সময় (Cutoff)</div>
+            <div className="col-span-2">মিল ওজন</div>
+            <div className="col-span-2">ডেডলাইনের দিন</div>
+            <div className="col-span-2">বন্ধের সময়</div>
             <div className="col-span-1 text-center">একশন</div>
           </div>
 
@@ -330,14 +331,14 @@ function SettingsContent() {
               key={slot.id || index}
               className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col md:grid md:grid-cols-12 gap-3 items-center"
             >
-              <div className="w-full md:col-span-3 flex items-center justify-between md:justify-start gap-2">
+              <div className="w-full md:col-span-2 flex items-center justify-between md:justify-start gap-2">
                 <span className="text-[11px] text-slate-400 md:hidden">আইডি:</span>
                 <input
                   type="text"
                   disabled={!isManagerOrAdmin || slot.id === 'morning' || slot.id === 'night'}
                   value={slot.id}
                   onChange={(e) => handleSlotChange(index, 'id', e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 font-mono w-full md:w-32 disabled:opacity-75 focus:outline-none focus:border-indigo-500"
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-300 font-mono w-full disabled:opacity-75 focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
@@ -363,21 +364,32 @@ function SettingsContent() {
                   disabled={!isManagerOrAdmin}
                   value={slot.weight}
                   onChange={(e) => handleSlotChange(index, 'weight', parseFloat(e.target.value) || 0)}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-amber-300 font-mono font-bold w-full md:w-24 focus:outline-none focus:border-indigo-500"
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-amber-300 font-mono font-bold w-full focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
-              <div className="w-full md:col-span-3 flex items-center justify-between md:justify-start gap-2">
+              <div className="w-full md:col-span-2 flex items-center justify-between md:justify-start gap-2">
+                <span className="text-[11px] text-slate-400 md:hidden">দিন:</span>
+                <select
+                  disabled={!isManagerOrAdmin}
+                  value={slot.cutoffDayOffset !== undefined ? String(slot.cutoffDayOffset) : (slot.id === 'morning' ? '-1' : '0')}
+                  onChange={(e) => handleSlotChange(index, 'cutoffDayOffset', parseInt(e.target.value, 10))}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-indigo-300 font-medium w-full focus:outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="-1">আগের দিন</option>
+                  <option value="0">মিলের দিন</option>
+                </select>
+              </div>
+
+              <div className="w-full md:col-span-2 flex items-center justify-between md:justify-start gap-2">
                 <span className="text-[11px] text-slate-400 md:hidden">বন্ধের সময়:</span>
-                <div className="relative w-full">
-                  <input
-                    type="time"
-                    disabled={!isManagerOrAdmin}
-                    value={slot.cutoffTime || '16:00'}
-                    onChange={(e) => handleSlotChange(index, 'cutoffTime', e.target.value)}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-emerald-300 font-mono font-bold w-full focus:outline-none focus:border-indigo-500 cursor-pointer"
-                  />
-                </div>
+                <input
+                  type="time"
+                  disabled={!isManagerOrAdmin}
+                  value={slot.cutoffTime || '16:00'}
+                  onChange={(e) => handleSlotChange(index, 'cutoffTime', e.target.value)}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-emerald-300 font-mono font-bold w-full focus:outline-none focus:border-indigo-500 cursor-pointer"
+                />
               </div>
 
               <div className="w-full md:col-span-1 flex justify-end md:justify-center">
