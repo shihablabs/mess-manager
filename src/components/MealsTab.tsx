@@ -32,6 +32,8 @@ import {
   X,
   ShoppingBag,
   Info,
+  Eye,
+  RotateCcw,
 } from '@/components/icons';
 import { AppUser } from '@/lib/session';
 import { formatTaka, formatMealUnits } from '@/lib/money';
@@ -100,10 +102,31 @@ export const MealsTab: React.FC<MealsTabProps> = ({
   const [registerSortKey, setRegisterSortKey] = useState<'totalUnits' | 'name' | 'morningTotal' | 'lunchTotal' | 'nightTotal' | 'estimatedCost'>('totalUnits');
   const [registerSortAsc, setRegisterSortAsc] = useState(false);
 
-  // DataTable filter states for Daily Logs
+  // Filter states for Daily Date-wise Logs
   const [logSearchQuery, setLogSearchQuery] = useState('');
   const [logDateFilter, setLogDateFilter] = useState('');
   const [logUserFilter, setLogUserFilter] = useState('');
+  const [logSortOrder, setLogSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [logAttendanceFilter, setLogAttendanceFilter] = useState<'eaters' | 'all' | 'off'>('eaters');
+
+  // Detailed Modal popup state for individual day meal breakdown
+  const [viewingDetailItem, setViewingDetailItem] = useState<{
+    date: string;
+    formattedDate: string;
+    dayName: string;
+    dayNumber: number;
+    userId: string;
+    name: string;
+    email?: string;
+    image: string;
+    morning: number;
+    lunch: number;
+    night: number;
+    total: number;
+    mealStatusText: string;
+    mealStatusType: 'full' | 'partial' | 'off';
+    estimatedCost: number;
+  } | null>(null);
 
   const canEditMeals = currentUser.role === 'admin' || currentUser.role === 'super_admin';
   const liveMealRate = calculation?.mealRate || 0;
@@ -591,8 +614,8 @@ export const MealsTab: React.FC<MealsTabProps> = ({
   const totalMonthNight = memberMonthlyStats.reduce((sum, m) => sum + m.nightTotal, 0);
   const totalEstimatedFoodCost = Math.round(totalMonthUnits * liveMealRate);
 
-  // 4. Date-wise Matrix for Daily Logs DataTable
-  const dateWiseMealLogs = useMemo(() => {
+  // 4. Date-wise Grouped Structure for Day-by-Day Logs (Month Day 1 -> 30)
+  const dateWiseGroupedLogs = useMemo(() => {
     const diningMembersMap = new Map<string, any>();
     members.forEach((m) => diningMembersMap.set(m.userId || m._id, m));
 
@@ -608,64 +631,197 @@ export const MealsTab: React.FC<MealsTabProps> = ({
       else if (rec.slotId === 'night') matrix[rec.date][rec.userId].night = count;
     }
 
-    const rows: any[] = [];
+    const groups: {
+      date: string;
+      dayNumber: number;
+      dayName: string;
+      formattedDate: string;
+      totalDayUnits: number;
+      eaterCount: number;
+      totalMorning: number;
+      totalLunch: number;
+      totalNight: number;
+      members: {
+        userId: string;
+        name: string;
+        email?: string;
+        image: string;
+        morning: number;
+        lunch: number;
+        night: number;
+        total: number;
+        mealStatusText: string;
+        mealStatusType: 'full' | 'partial' | 'off';
+        estimatedCost: number;
+      }[];
+    }[] = [];
+
     Object.entries(matrix).forEach(([date, userObj]) => {
+      const d = new Date(date + 'T12:00:00');
+      const dayNumber = isNaN(d.getTime()) ? 1 : d.getDate();
+      const dayName = isBangla
+        ? ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'][d.getDay()] || ''
+        : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()] || '';
+      const monthNames = isBangla
+        ? ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর']
+        : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthName = monthNames[d.getMonth()] || '';
+      const formattedDate = `${String(dayNumber).padStart(2, '0')} ${monthName} ${d.getFullYear()}`;
+
+      let totalDayUnits = 0;
+      let totalMorning = 0;
+      let totalLunch = 0;
+      let totalNight = 0;
+      let eaterCount = 0;
+
+      const memberList: any[] = [];
+
       Object.entries(userObj).forEach(([userId, counts]) => {
         const mem = diningMembersMap.get(userId);
         if (!mem || mem.role === 'super_admin') return;
+
         const total = counts.morning + counts.lunch + counts.night;
-        rows.push({
-          date,
+        totalDayUnits += total;
+        totalMorning += counts.morning;
+        totalLunch += counts.lunch;
+        totalNight += counts.night;
+        if (total > 0) eaterCount++;
+
+        let mealStatusText = '';
+        let mealStatusType: 'full' | 'partial' | 'off' = 'off';
+
+        if (counts.morning > 0 && counts.lunch > 0 && counts.night > 0) {
+          mealStatusText = isBangla ? '৩ বেলা ফুল মিল' : 'Full Day (3 meals)';
+          mealStatusType = 'full';
+        } else if (
+          (counts.morning > 0 && counts.lunch > 0) ||
+          (counts.lunch > 0 && counts.night > 0) ||
+          (counts.morning > 0 && counts.night > 0)
+        ) {
+          mealStatusText = isBangla ? '২ বেলা মিল' : '2 Meals';
+          mealStatusType = 'partial';
+        } else if (total > 0) {
+          mealStatusText = isBangla ? '১ বেলা মিল' : '1 Meal';
+          mealStatusType = 'partial';
+        } else {
+          mealStatusText = isBangla ? 'মিল অফ (০)' : 'Meal Off (0)';
+          mealStatusType = 'off';
+        }
+
+        memberList.push({
           userId,
-          name: mem.name,
+          name: mem.displayName || mem.name,
           email: mem.email,
           image: mem.image || `https://api.dicebear.com/7.x/bottts/svg?seed=${userId}`,
           morning: counts.morning,
           lunch: counts.lunch,
           night: counts.night,
           total,
+          mealStatusText,
+          mealStatusType,
+          estimatedCost: Math.round(total * liveMealRate),
         });
+      });
+
+      // Sort member list: eaters first (highest to lowest meal units), then alphabetically
+      memberList.sort((a, b) => {
+        if (b.total !== a.total) return b.total - a.total;
+        return a.name.localeCompare(b.name);
+      });
+
+      groups.push({
+        date,
+        dayNumber,
+        dayName,
+        formattedDate,
+        totalDayUnits,
+        eaterCount,
+        totalMorning,
+        totalLunch,
+        totalNight,
+        members: memberList,
       });
     });
 
-    // Sort newest date first
-    rows.sort((a, b) => b.date.localeCompare(a.date));
-    return rows;
-  }, [allCycleMeals, members]);
+    // Default sorting: Day 1 -> Day 30 (Chronological ascending, as requested: "1 tarikh theke 2 - 3 then barte barte 30")
+    groups.sort((a, b) => a.date.localeCompare(b.date));
 
-  // Filtered Daily Logs
-  const filteredDailyLogs = useMemo(() => {
-    let list = [...dateWiseMealLogs];
+    return groups;
+  }, [allCycleMeals, members, isBangla, liveMealRate]);
 
+  // Filtered Daily Grouped Logs
+  const filteredDailyGroups = useMemo(() => {
+    let list = [...dateWiseGroupedLogs];
+
+    // Specific Date Filter
     if (logDateFilter) {
-      list = list.filter((r) => r.date === logDateFilter);
+      list = list.filter((g) => g.date === logDateFilter);
     }
 
-    if (logUserFilter) {
-      list = list.filter((r) => r.userId === logUserFilter);
+    // Sort Order (asc = Day 1 -> 30, desc = Day 30 -> 1)
+    if (logSortOrder === 'desc') {
+      list = [...list].sort((a, b) => b.date.localeCompare(a.date));
+    } else {
+      list = [...list].sort((a, b) => a.date.localeCompare(b.date));
     }
 
-    if (logSearchQuery.trim()) {
-      const q = logSearchQuery.toLowerCase().trim();
-      list = list.filter(
-        (r) =>
-          r.name.toLowerCase().includes(q) ||
-          r.date.includes(q) ||
-          String(r.total).includes(q)
-      );
+    const processed = list.map((group) => {
+      let filteredMembers = [...group.members];
+
+      // Attendance filter: eaters vs all vs off
+      if (logAttendanceFilter === 'eaters') {
+        filteredMembers = filteredMembers.filter((m) => m.total > 0);
+      } else if (logAttendanceFilter === 'off') {
+        filteredMembers = filteredMembers.filter((m) => m.total === 0);
+      }
+
+      // Member filter
+      if (logUserFilter) {
+        filteredMembers = filteredMembers.filter((m) => m.userId === logUserFilter);
+      }
+
+      // Search query
+      if (logSearchQuery.trim()) {
+        const q = logSearchQuery.toLowerCase().trim();
+        filteredMembers = filteredMembers.filter(
+          (m) =>
+            m.name.toLowerCase().includes(q) ||
+            group.date.includes(q) ||
+            group.formattedDate.toLowerCase().includes(q) ||
+            String(m.total).includes(q)
+        );
+      }
+
+      return {
+        ...group,
+        displayMembers: filteredMembers,
+      };
+    });
+
+    // If search query or member filter is active, only show dates that have matching members
+    if (logUserFilter || logSearchQuery.trim()) {
+      return processed.filter((g) => g.displayMembers.length > 0);
     }
 
-    return list;
-  }, [dateWiseMealLogs, logDateFilter, logUserFilter, logSearchQuery]);
+    return processed;
+  }, [
+    dateWiseGroupedLogs,
+    logDateFilter,
+    logSortOrder,
+    logAttendanceFilter,
+    logUserFilter,
+    logSearchQuery,
+  ]);
 
-  // Available unique dates for filter dropdown
+  // Available unique dates for filter dropdown (sorted matching logSortOrder)
   const uniqueDates = useMemo(() => {
     const set = new Set<string>();
     allCycleMeals.forEach((m) => {
       if (m.date) set.add(m.date);
     });
-    return Array.from(set).sort().reverse();
-  }, [allCycleMeals]);
+    const arr = Array.from(set).sort();
+    return logSortOrder === 'desc' ? arr.reverse() : arr;
+  }, [allCycleMeals, logSortOrder]);
 
   // CSV Export for Monthly Master Register
   const handleExportCSV = () => {
@@ -1569,36 +1725,126 @@ export const MealsTab: React.FC<MealsTabProps> = ({
         </div>
       )}
 
-      {/* VIEW 3: DATE-WISE DETAILED MEAL LOGS (DATATABLE) */}
+      {/* VIEW 3: DATE-WISE GROUPED MEAL LOGS (MONTH DAY 1 -> 30) */}
       {subTab === 'logs' && (
         <div className="space-y-5 animate-in fade-in duration-200">
+          {/* Main Container Card */}
           <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-slate-800 space-y-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            {/* Header & Overall Summary */}
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-3 border-b border-slate-800/80">
               <div>
-                <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-indigo-400" />
+                <h4 className="text-base font-black text-white flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-indigo-400" />
                   <span>
                     {isBangla
-                      ? `তারিখভিত্তিক বিস্তারিত মিল লগ (${filteredDailyLogs.length} রেকর্ড)`
-                      : `Date-wise Detailed Meal Logs (${filteredDailyLogs.length} Records)`}
+                      ? `তারিখভিত্তিক পূর্ণাঙ্গ মিল লগ (${filteredDailyGroups.length} দিন)`
+                      : `Date-wise Meal Logs (${filteredDailyGroups.length} Days)`}
                   </span>
                 </h4>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-400 mt-0.5">
                   {isBangla
-                    ? 'প্রতিদিনের সকাল ও রাতের মিলের বিস্তারিত উপস্থিতি ইতিহাস'
-                    : 'Daily breakfast, lunch, and dinner attendance records across dates'}
+                    ? 'প্রতিদিনের সদস্যভিত্তিক সকাল, দুপুর ও রাতের মিল গ্রহণের তালিকা ও বিস্তারিত হিসাব'
+                    : 'Daily member breakfast, lunch, and dinner attendance records organized by date'}
                 </p>
               </div>
 
-              {/* Filters */}
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                {/* Date Dropdown Filter */}
+              {/* Quick Summary Badges */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 font-semibold flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>
+                    {isBangla ? 'সক্রিয় দিন:' : 'Active Days:'}{' '}
+                    <strong className="text-white font-mono">{filteredDailyGroups.length}</strong>{' '}
+                    {isBangla ? 'দিন' : 'days'}
+                  </span>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-bold font-mono flex items-center gap-1.5">
+                  <Utensils className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>
+                    {isBangla ? 'সর্বমোট মিল:' : 'Total Meals:'}{' '}
+                    {formatMealUnits(
+                      filteredDailyGroups.reduce((sum, g) => sum + g.totalDayUnits, 0)
+                    )}{' '}
+                    {isBangla ? 'ইউনিট' : 'units'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Powerful Filter & Sort Toolbar */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 bg-slate-950/70 rounded-xl border border-slate-850">
+              {/* Left Controls: Sort Order & Attendance Filter */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Chronological Sort Toggle (Day 1 -> 30 default) */}
+                <button
+                  type="button"
+                  onClick={() => setLogSortOrder(logSortOrder === 'asc' ? 'desc' : 'asc')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                  title={
+                    isBangla
+                      ? 'তারিখের ক্রমানুসার পরিবর্তন করুন'
+                      : 'Toggle chronological sort order'
+                  }
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>
+                    {logSortOrder === 'asc'
+                      ? isBangla
+                        ? 'তারিখ: ১ হতে ৩০ (১ম দিন আগে)'
+                        : 'Date: 1 to 30 (Day 1 First)'
+                      : isBangla
+                      ? 'তারিখ: ৩০ হতে ১ (সর্বশেষ আগে)'
+                      : 'Date: 30 to 1 (Newest First)'}
+                  </span>
+                </button>
+
+                {/* Attendance Segmented Filter */}
+                <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setLogAttendanceFilter('eaters')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      logAttendanceFilter === 'eaters'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {isBangla ? 'খাবার গ্রহণকারী' : 'Eaters Only'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogAttendanceFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      logAttendanceFilter === 'all'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {isBangla ? 'সকল সদস্য' : 'All Members'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogAttendanceFilter('off')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      logAttendanceFilter === 'off'
+                        ? 'bg-rose-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {isBangla ? 'মিল বন্ধ / ০' : 'Meal Off'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Controls: Date Dropdown, Member Dropdown & Search */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Date Dropdown */}
                 <select
                   value={logDateFilter}
                   onChange={(e) => setLogDateFilter(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 outline-none cursor-pointer"
+                  className="bg-slate-900 border border-slate-750 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 outline-none cursor-pointer focus:border-indigo-500"
                 >
-                  <option value="">{isBangla ? 'সকল তারিখ' : 'All Dates'}</option>
+                  <option value="">{isBangla ? 'সকল তারিখ (পুরো মাস)' : 'All Dates (Full Month)'}</option>
                   {uniqueDates.map((d) => (
                     <option key={d} value={d}>
                       {d}
@@ -1606,36 +1852,36 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   ))}
                 </select>
 
-                {/* Member Dropdown Filter */}
+                {/* Member Dropdown */}
                 <select
                   value={logUserFilter}
                   onChange={(e) => setLogUserFilter(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 outline-none cursor-pointer"
+                  className="bg-slate-900 border border-slate-750 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 outline-none cursor-pointer focus:border-indigo-500"
                 >
                   <option value="">{isBangla ? 'সকল সদস্য' : 'All Members'}</option>
                   {members
                     .filter((m) => m.role !== 'super_admin')
                     .map((m) => (
                       <option key={m.userId || m._id} value={m.userId || m._id}>
-                        {m.name}
+                        {m.displayName || m.name}
                       </option>
                     ))}
                 </select>
 
                 {/* Search query */}
-                <div className="relative">
+                <div className="relative flex-1 sm:flex-none">
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={logSearchQuery}
                     onChange={(e) => setLogSearchQuery(e.target.value)}
-                    placeholder={isBangla ? 'খুঁজুন...' : 'Search logs...'}
-                    className="bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 outline-none w-36 sm:w-44 focus:border-indigo-500"
+                    placeholder={isBangla ? 'নাম বা তারিখ দিয়ে খুঁজুন...' : 'Search name or date...'}
+                    className="bg-slate-900 border border-slate-750 rounded-xl pl-8 pr-6 py-1.5 text-xs text-slate-200 outline-none w-full sm:w-44 focus:border-indigo-500"
                   />
                   {logSearchQuery && (
                     <button
                       onClick={() => setLogSearchQuery('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer"
                     >
                       ×
                     </button>
@@ -1644,113 +1890,473 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               </div>
             </div>
 
-            {/* Logs Table */}
-            <div className="overflow-x-auto rounded-xl border border-slate-800">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-900/80 border-b border-slate-800 text-slate-400 font-bold">
-                    <th className="py-2.5 px-3">{isBangla ? 'তারিখ' : 'Date'}</th>
-                    <th className="py-2.5 px-3">{isBangla ? 'সদস্যের নাম' : 'Member Name'}</th>
-                    <th className="py-2.5 px-3 text-center">{isBangla ? 'সকালের মিল' : 'Breakfast'}</th>
-                    <th className="py-2.5 px-3 text-center">{isBangla ? 'দুপুরের মিল' : 'Lunch'}</th>
-                    <th className="py-2.5 px-3 text-center">{isBangla ? 'রাতের মিল' : 'Dinner'}</th>
-                    <th className="py-2.5 px-3 text-center">{isBangla ? 'মোট মিল ইউনিট' : 'Total Units'}</th>
-                    <th className="py-2.5 px-3 text-center">{isBangla ? 'স্ট্যাটাস' : 'Status'}</th>
-                    {canEditMeals && (
-                      <th className="py-2.5 px-3 text-center">{isBangla ? 'অ্যাকশন' : 'Action'}</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
-                  {filteredDailyLogs.length === 0 ? (
-                    <tr>
-                      <td colSpan={canEditMeals ? 8 : 7} className="py-8 text-center text-slate-500">
-                        {isBangla ? 'কোনো মিল লগ পাওয়া যায়নি' : 'No meal logs found'}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredDailyLogs.map((row, idx) => (
-                      <tr key={`${row.date}_${row.userId}_${idx}`} className="hover:bg-slate-900/50">
-                        <td className="py-2.5 px-3 font-mono font-semibold text-slate-300">
-                          {row.date}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-2">
-                            <img
-                              src={row.image}
-                              alt={row.name}
-                              className="w-6 h-6 rounded-lg object-cover border border-slate-700"
-                            />
-                            <span className="font-medium text-slate-200">{row.name}</span>
+            {/* Date-by-Date Grouped Cards List */}
+            {filteredDailyGroups.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-500 bg-slate-950/40 rounded-2xl border border-dashed border-slate-800 space-y-3">
+                <Utensils className="w-8 h-8 text-slate-600 mx-auto" />
+                <p className="font-semibold text-slate-400">
+                  {isBangla ? 'কোনো মিল লগ পাওয়া যায়নি' : 'No meal logs matched your filter'}
+                </p>
+                {(logDateFilter || logUserFilter || logSearchQuery) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogDateFilter('');
+                      setLogUserFilter('');
+                      setLogSearchQuery('');
+                      setLogAttendanceFilter('eaters');
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold cursor-pointer"
+                  >
+                    {isBangla ? 'ফিল্টার রিসেট করুন' : 'Reset Filters'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {filteredDailyGroups.map((group) => (
+                  <div
+                    key={group.date}
+                    className="glass-panel rounded-2xl border border-slate-800/90 bg-slate-900/60 p-4 sm:p-5 space-y-4 hover:border-slate-750 transition-all shadow-md"
+                  >
+                    {/* Date Card Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                      <div className="flex items-center gap-3">
+                        {/* Day Number Pill */}
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-600/15 border border-indigo-500/30 flex flex-col items-center justify-center text-indigo-400 shrink-0 shadow-lg shadow-indigo-600/10">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">
+                            {isBangla ? 'দিন' : 'Day'}
+                          </span>
+                          <span className="font-black text-lg font-mono leading-none text-white">
+                            {group.dayNumber}
+                          </span>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-black text-white text-base sm:text-lg">
+                              {group.formattedDate}
+                            </h3>
+                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-medium">
+                              {group.dayName}
+                            </span>
                           </div>
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-mono text-slate-300">
-                          {row.morning}
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-mono text-slate-300">
-                          {row.lunch}
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-mono text-slate-300">
-                          {row.night}
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-400">
-                          {formatMealUnits(row.total)}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              row.total > 0
-                                ? 'bg-emerald-500/15 text-emerald-400'
-                                : 'bg-rose-500/15 text-rose-400'
+                          <p className="text-xs text-slate-400 mt-0.5 font-mono">
+                            {group.date}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Day Stats Badges */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold font-mono flex items-center gap-1.5 shadow-sm">
+                          <Utensils className="w-3.5 h-3.5" />
+                          <span>
+                            {isBangla ? 'মোট মিল:' : 'Total:'}{' '}
+                            {formatMealUnits(group.totalDayUnits)} {isBangla ? 'টি' : 'units'}
+                          </span>
+                        </div>
+                        <div className="px-3 py-1.5 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-bold flex items-center gap-1.5">
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>
+                            {group.eaterCount} {isBangla ? 'জন খেয়েছেন' : 'Ate Today'}
+                          </span>
+                        </div>
+                        <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-400 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 font-mono">
+                          <span title={isBangla ? 'সকালের মোট' : 'Morning total'}>
+                            🌅 {formatMealUnits(group.totalMorning)}
+                          </span>
+                          <span>•</span>
+                          <span title={isBangla ? 'দুপুরের মোট' : 'Lunch total'}>
+                            ☀️ {formatMealUnits(group.totalLunch)}
+                          </span>
+                          <span>•</span>
+                          <span title={isBangla ? 'রাতের মোট' : 'Dinner total'}>
+                            🌙 {formatMealUnits(group.totalNight)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Members Grid for this Date */}
+                    {group.displayMembers.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-slate-500 bg-slate-950/40 rounded-xl border border-dashed border-slate-800">
+                        {logAttendanceFilter === 'eaters'
+                          ? isBangla
+                            ? 'এই দিনে কোনো সদস্যের খাবার চালু ছিল না'
+                            : 'No members ate on this date'
+                          : isBangla
+                          ? 'এই দিনে কোনো রেকর্ড মেলেনি'
+                          : 'No records matched for this date'}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                        {group.displayMembers.map((m) => (
+                          <div
+                            key={m.userId}
+                            className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
+                              m.total > 0
+                                ? 'bg-slate-900/90 border-slate-800 hover:border-slate-700 shadow-sm'
+                                : 'bg-slate-950/50 border-slate-850 opacity-75'
                             }`}
                           >
-                            {row.total > 0
-                              ? (isBangla ? 'খাবার চালু' : 'Active')
-                              : (isBangla ? 'মিল অফ' : 'Meal Off')}
-                          </span>
-                        </td>
-                        {canEditMeals && (
-                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-1.5">
+                            {/* Member Card Header */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <img
+                                  src={m.image}
+                                  alt={m.name}
+                                  className="w-9 h-9 rounded-xl object-cover border border-slate-700 shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <p className="font-bold text-white text-xs truncate flex items-center gap-1.5">
+                                    <span>{m.name}</span>
+                                    {currentUser &&
+                                      (currentUser.id === m.userId ||
+                                        (currentUser as any).userId === m.userId) && (
+                                        <span className="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.2 rounded font-semibold shrink-0">
+                                          {isBangla ? 'আপনি' : 'You'}
+                                        </span>
+                                      )}
+                                  </p>
+                                  <span
+                                    className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5 ${
+                                      m.total > 0
+                                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                        : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                                    }`}
+                                  >
+                                    {m.mealStatusText}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Total Units Big Pill */}
+                              <div className="text-right shrink-0">
+                                <span className="font-mono font-black text-sm text-emerald-400 block">
+                                  {formatMealUnits(m.total)} {isBangla ? 'মিল' : 'meals'}
+                                </span>
+                                <span className="text-[10px] text-slate-400 block font-mono">
+                                  ≈ {formatTaka(m.estimatedCost)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Visual Meal Slot Chips (Morning, Lunch, Dinner) */}
+                            <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                              {/* Morning */}
+                              <div
+                                className={`py-1 px-1.5 rounded-lg border font-medium ${
+                                  m.morning > 0
+                                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 font-bold'
+                                    : 'bg-slate-950 border-slate-800/80 text-slate-600'
+                                }`}
+                              >
+                                <span className="block text-[9px] text-slate-400">
+                                  {isBangla ? 'সকাল' : 'Breakfast'}
+                                </span>
+                                <span className="font-mono">{m.morning > 0 ? m.morning : '০'}</span>
+                              </div>
+
+                              {/* Lunch */}
+                              <div
+                                className={`py-1 px-1.5 rounded-lg border font-medium ${
+                                  m.lunch > 0
+                                    ? 'bg-orange-500/10 border-orange-500/30 text-orange-300 font-bold'
+                                    : 'bg-slate-950 border-slate-800/80 text-slate-600'
+                                }`}
+                              >
+                                <span className="block text-[9px] text-slate-400">
+                                  {isBangla ? 'দুপুর' : 'Lunch'}
+                                </span>
+                                <span className="font-mono">{m.lunch > 0 ? m.lunch : '০'}</span>
+                              </div>
+
+                              {/* Dinner */}
+                              <div
+                                className={`py-1 px-1.5 rounded-lg border font-medium ${
+                                  m.night > 0
+                                    ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300 font-bold'
+                                    : 'bg-slate-950 border-slate-800/80 text-slate-600'
+                                }`}
+                              >
+                                <span className="block text-[9px] text-slate-400">
+                                  {isBangla ? 'রাত' : 'Dinner'}
+                                </span>
+                                <span className="font-mono">{m.night > 0 ? m.night : '০'}</span>
+                              </div>
+                            </div>
+
+                            {/* Action Buttons: View Details & Edit (Delete Commented Out per User Instruction) */}
+                            <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-800/60">
                               <button
+                                type="button"
                                 onClick={() =>
-                                  setEditingLogItem({
-                                    date: row.date,
-                                    userId: row.userId,
-                                    name: row.name,
-                                    morning: row.morning,
-                                    lunch: row.lunch,
-                                    night: row.night,
+                                  setViewingDetailItem({
+                                    date: group.date,
+                                    formattedDate: group.formattedDate,
+                                    dayName: group.dayName,
+                                    dayNumber: group.dayNumber,
+                                    userId: m.userId,
+                                    name: m.name,
+                                    email: m.email,
+                                    image: m.image,
+                                    morning: m.morning,
+                                    lunch: m.lunch,
+                                    night: m.night,
+                                    total: m.total,
+                                    mealStatusText: m.mealStatusText,
+                                    mealStatusType: m.mealStatusType,
+                                    estimatedCost: m.estimatedCost,
                                   })
                                 }
-                                className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 transition-colors cursor-pointer"
-                                title={isBangla ? 'মিল সংশোধন বা এডিট করুন' : 'Edit meal record'}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-all cursor-pointer"
+                                title={isBangla ? 'মিল বিস্তারিত দেখুন' : 'View meal details'}
                               >
-                                <Edit2 className="w-3.5 h-3.5" />
+                                <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                                <span>{isBangla ? 'বিস্তারিত' : 'View Details'}</span>
                               </button>
-                              <button
-                                onClick={() => handleDeleteMealLog(row.date, row.userId, row.name)}
-                                className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 transition-colors cursor-pointer"
-                                title={isBangla ? 'মিল ০ বা ডিলিট করুন' : 'Reset meal to 0'}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+
+                              {canEditMeals && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditingLogItem({
+                                      date: group.date,
+                                      userId: m.userId,
+                                      name: m.name,
+                                      morning: m.morning,
+                                      lunch: m.lunch,
+                                      night: m.night,
+                                    })
+                                  }
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 text-xs font-bold transition-all cursor-pointer"
+                                  title={isBangla ? 'মিল সংখ্যা সংশোধন করুন' : 'Edit meal count'}
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                  <span>{isBangla ? 'সংশোধন' : 'Edit'}</span>
+                                </button>
+                              )}
+
+                              {/*
+                                [USER INSTRUCTION]: "delete er proyojon nai ayta comment kore rakho karon delete korle problem hobe edit kore 0 kore dewa jabe so delete er proyojon nai"
+                                Delete button intentionally commented out to prevent accidental deletion of meal log history:
+                                <button
+                                  onClick={() => handleDeleteMealLog(group.date, m.userId, m.name)}
+                                  className="p-1.5 rounded-lg bg-rose-600/20 text-rose-300 border border-rose-500/30 cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              */}
                             </div>
-                          </td>
-                        )}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* POPUP 1: VIEW DETAILS MODAL FOR INDIVIDUAL MEMBER DAY BREAKDOWN */}
+      {viewingDetailItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl animate-in zoom-in-95">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <img
+                  src={viewingDetailItem.image}
+                  alt={viewingDetailItem.name}
+                  className="w-11 h-11 rounded-2xl object-cover border-2 border-indigo-500/40 shadow-md shadow-indigo-500/10"
+                />
+                <div>
+                  <h4 className="font-bold text-white text-sm sm:text-base flex items-center gap-1.5">
+                    <span>{viewingDetailItem.name}</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    📅 {viewingDetailItem.formattedDate} ({viewingDetailItem.dayName}) •{' '}
+                    {isBangla ? `দিন ${viewingDetailItem.dayNumber}` : `Day ${viewingDetailItem.dayNumber}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingDetailItem(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 3 Meal Slots Detailed Cards */}
+            <div className="space-y-2.5">
+              {/* Morning Slot */}
+              <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300">
+                    <Sun className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-amber-200 block">
+                      {isBangla ? 'সকালের মিল (Breakfast)' : 'Morning / Breakfast'}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {isBangla ? 'সাধারণ ওয়েট: ০.৫ ইউনিট' : 'Standard Weight: 0.5 units'}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span
+                    className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full ${
+                      viewingDetailItem.morning > 0
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        : 'bg-slate-900 text-slate-500 border border-slate-800'
+                    }`}
+                  >
+                    {viewingDetailItem.morning > 0
+                      ? `${viewingDetailItem.morning} ${isBangla ? 'ইউনিট (খাওয়া হয়েছে)' : 'Units (Taken)'}`
+                      : isBangla
+                      ? '০ (খায়নি / বন্ধ)'
+                      : '0 (Not Taken)'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Lunch Slot */}
+              <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-300">
+                    <Utensils className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-orange-200 block">
+                      {isBangla ? 'দুপুরের মিল (Lunch)' : 'Midday / Lunch'}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {isBangla ? 'সাধারণ ওয়েট: ১.০ ইউনিট' : 'Standard Weight: 1.0 unit'}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span
+                    className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full ${
+                      viewingDetailItem.lunch > 0
+                        ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                        : 'bg-slate-900 text-slate-500 border border-slate-800'
+                    }`}
+                  >
+                    {viewingDetailItem.lunch > 0
+                      ? `${viewingDetailItem.lunch} ${isBangla ? 'ইউনিট (খাওয়া হয়েছে)' : 'Units (Taken)'}`
+                      : isBangla
+                      ? '০ (খায়নি / বন্ধ)'
+                      : '0 (Not Taken)'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Night Slot */}
+              <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-300">
+                    <Moon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-indigo-200 block">
+                      {isBangla ? 'রাতের মিল (Dinner)' : 'Night / Dinner'}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {isBangla ? 'সাধারণ ওয়েট: ১.০ ইউনিট' : 'Standard Weight: 1.0 unit'}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span
+                    className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full ${
+                      viewingDetailItem.night > 0
+                        ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
+                        : 'bg-slate-900 text-slate-500 border border-slate-800'
+                    }`}
+                  >
+                    {viewingDetailItem.night > 0
+                      ? `${viewingDetailItem.night} ${isBangla ? 'ইউনিট (খাওয়া হয়েছে)' : 'Units (Taken)'}`
+                      : isBangla
+                      ? '০ (খায়নি / বন্ধ)'
+                      : '0 (Not Taken)'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary Box with Calculation */}
+            <div className="p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-500/30 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300">
+                  {isBangla ? 'এই দিনের মোট মিল:' : 'Day Total Units:'}
+                </span>
+                <span className="font-mono font-bold text-indigo-200">
+                  {formatMealUnits(viewingDetailItem.total)} {isBangla ? 'ইউনিট' : 'Units'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300">
+                  {isBangla ? 'লাইভ মিল রেট:' : 'Live Meal Rate:'}
+                </span>
+                <span className="font-mono text-slate-300">
+                  {formatTaka(liveMealRate)} / {isBangla ? 'মিল' : 'meal'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs pt-1.5 border-t border-indigo-500/20 font-bold">
+                <span className="text-emerald-300">
+                  {isBangla ? 'আনুমানিক খাবার খরচ:' : 'Estimated Cost:'}
+                </span>
+                <span className="font-mono text-sm text-emerald-400">
+                  {formatTaka(viewingDetailItem.estimatedCost)}
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setViewingDetailItem(null)}
+                className="px-4 py-2 rounded-xl text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-750 transition-colors cursor-pointer"
+              >
+                {isBangla ? 'বন্ধ করুন' : 'Close'}
+              </button>
+              {canEditMeals && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const itemToEdit = {
+                      date: viewingDetailItem.date,
+                      userId: viewingDetailItem.userId,
+                      name: viewingDetailItem.name,
+                      morning: viewingDetailItem.morning,
+                      lunch: viewingDetailItem.lunch,
+                      night: viewingDetailItem.night,
+                    };
+                    setViewingDetailItem(null);
+                    setEditingLogItem(itemToEdit);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>{isBangla ? 'মিল সংশোধন করুন' : 'Edit Meal Count'}</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Quick Edit Modal for Past Meal Corrections */}
+      {/* POPUP 2: QUICK EDIT MODAL FOR PAST MEAL CORRECTIONS (WITH ZERO-OUT BUTTON) */}
       {editingLogItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
@@ -1758,13 +2364,16 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                   <Utensils className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white">{isBangla ? 'মিল সংশোধন' : 'Edit Meal Record'}</h4>
+                  <h4 className="text-sm font-bold text-white">
+                    {isBangla ? 'মিল সংশোধন' : 'Edit Meal Record'}
+                  </h4>
                   <p className="text-[11px] text-slate-400 font-mono">
                     {editingLogItem.date} • {editingLogItem.name}
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setEditingLogItem(null)}
                 className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
               >
@@ -1776,11 +2385,16 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               {/* Morning Meal Input */}
               <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-semibold text-amber-300 block">{isBangla ? 'সকালের মিল' : 'Breakfast'}</span>
-                  <span className="text-[10px] text-slate-500 block">{isBangla ? 'সকালের খাবার' : 'Morning Slot'}</span>
+                  <span className="text-xs font-semibold text-amber-300 block">
+                    {isBangla ? 'সকালের মিল' : 'Breakfast'}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">
+                    {isBangla ? 'সকালের খাবার' : 'Morning Slot'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={() =>
                       setEditingLogItem({
                         ...editingLogItem,
@@ -1805,6 +2419,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     className="w-14 text-center bg-slate-900 border border-slate-750 rounded-lg py-1 text-xs text-white font-mono font-bold"
                   />
                   <button
+                    type="button"
                     onClick={() =>
                       setEditingLogItem({
                         ...editingLogItem,
@@ -1821,11 +2436,16 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               {/* Lunch Meal Input */}
               <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-semibold text-orange-300 block">{isBangla ? 'দুপুরের মিল' : 'Lunch'}</span>
-                  <span className="text-[10px] text-slate-500 block">{isBangla ? 'দুপুরের খাবার' : 'Midday Slot'}</span>
+                  <span className="text-xs font-semibold text-orange-300 block">
+                    {isBangla ? 'দুপুরের মিল' : 'Lunch'}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">
+                    {isBangla ? 'দুপুরের খাবার' : 'Midday Slot'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={() =>
                       setEditingLogItem({
                         ...editingLogItem,
@@ -1850,6 +2470,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     className="w-14 text-center bg-slate-900 border border-slate-750 rounded-lg py-1 text-xs text-white font-mono font-bold"
                   />
                   <button
+                    type="button"
                     onClick={() =>
                       setEditingLogItem({
                         ...editingLogItem,
@@ -1866,11 +2487,16 @@ export const MealsTab: React.FC<MealsTabProps> = ({
               {/* Night Meal Input */}
               <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-semibold text-indigo-300 block">{isBangla ? 'রাতের মিল' : 'Dinner'}</span>
-                  <span className="text-[10px] text-slate-500 block">{isBangla ? 'রাতের খাবার' : 'Night Slot'}</span>
+                  <span className="text-xs font-semibold text-indigo-300 block">
+                    {isBangla ? 'রাতের মিল' : 'Dinner'}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">
+                    {isBangla ? 'রাতের খাবার' : 'Night Slot'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={() =>
                       setEditingLogItem({
                         ...editingLogItem,
@@ -1895,6 +2521,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({
                     className="w-14 text-center bg-slate-900 border border-slate-750 rounded-lg py-1 text-xs text-white font-mono font-bold"
                   />
                   <button
+                    type="button"
                     onClick={() =>
                       setEditingLogItem({
                         ...editingLogItem,
@@ -1910,36 +2537,65 @@ export const MealsTab: React.FC<MealsTabProps> = ({
 
               {/* Real-time Units Calculation Preview */}
               <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/30 flex items-center justify-between">
-                <span className="text-xs text-indigo-300">{isBangla ? 'হিসাবকৃত মোট মিল ইউনিট:' : 'Calculated Total Units:'}</span>
+                <span className="text-xs text-indigo-300">
+                  {isBangla ? 'হিসাবকৃত মোট মিল ইউনিট:' : 'Calculated Total Units:'}
+                </span>
                 <span className="font-mono font-bold text-sm text-indigo-200">
-                  {formatMealUnits(editingLogItem.morning + (editingLogItem.lunch || 0) + editingLogItem.night)} {isBangla ? 'ইউনিট' : 'Units'}
+                  {formatMealUnits(
+                    editingLogItem.morning + (editingLogItem.lunch || 0) + editingLogItem.night
+                  )}{' '}
+                  {isBangla ? 'ইউনিট' : 'Units'}
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            {/* Bottom Modal Actions (With Quick Zero-Out Button) */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800">
               <button
                 type="button"
-                onClick={() => setEditingLogItem(null)}
-                className="px-3 py-1.5 rounded-xl text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                onClick={() =>
+                  setEditingLogItem({
+                    ...editingLogItem,
+                    morning: 0,
+                    lunch: 0,
+                    night: 0,
+                  })
+                }
+                className="px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                title={isBangla ? 'এই দিনের সকল মিল ০ করুন' : 'Reset all meals to 0 for this day'}
               >
-                {isBangla ? 'বাতিল' : 'Cancel'}
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>{isBangla ? 'সব মিল ০ করুন' : 'Set All to 0'}</span>
               </button>
-              <button
-                type="button"
-                onClick={handleSaveLogEdit}
-                disabled={isSavingLogEdit}
-                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                {isSavingLogEdit ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Save className="w-3.5 h-3.5" />
-                )}
-                {isSavingLogEdit
-                  ? (isBangla ? 'সংরক্ষণ হচ্ছে...' : 'Saving...')
-                  : (isBangla ? 'সংরক্ষণ করুন' : 'Save Changes')}
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingLogItem(null)}
+                  className="px-3 py-1.5 rounded-xl text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  {isBangla ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveLogEdit}
+                  disabled={isSavingLogEdit}
+                  className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingLogEdit ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  {isSavingLogEdit
+                    ? isBangla
+                      ? 'সংরক্ষণ হচ্ছে...'
+                      : 'Saving...'
+                    : isBangla
+                    ? 'সংরক্ষণ করুন'
+                    : 'Save Changes'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
