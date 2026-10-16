@@ -728,16 +728,16 @@ export const MembersTab: React.FC<MembersTabProps> = ({
         <div className="glass-panel rounded-2xl p-5 border border-rose-500/30 bg-rose-950/20 space-y-4">
           <div className="flex items-center gap-2 text-rose-300 font-bold text-sm">
             <AlertTriangle className="w-4 h-4 text-rose-400" />
-            মাসিক চক্র বন্ধ ও হিসাবের স্ন্যাপশট তৈরি (SRS ৪.৯ ও ৭.৬)
+            মাসিক চক্র বন্ধ ও হিসাবের চূড়ান্ত স্ন্যাপশট তৈরি
           </div>
           <p className="text-xs text-slate-300">
-            চক্র বন্ধ করলে সমস্ত ডেটা অপরিবর্তনীয় (Immutable) হয়ে যাবে এবং প্রতিটি সদস্যের চূড়ান্ত
+            চক্র বন্ধ করলে সমস্ত ডেটা অপরিবর্তনীয় হয়ে যাবে এবং প্রতিটি সদস্যের চূড়ান্ত
             ব্যালেন্স ও মেসের সারসংক্ষেপ স্ন্যাপশটে সংরক্ষিত হবে।
           </p>
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <label className="block text-xs text-slate-400 mb-1">
-                পরের চক্রে অবশিষ্ট মালের মূল্য ক্যারি (L_carry)
+                পরের চক্রে অবশিষ্ট মালের মূল্য ক্যারি (টাকা)
               </label>
               <input
                 type="number"

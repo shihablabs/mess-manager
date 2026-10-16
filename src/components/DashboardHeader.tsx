@@ -336,7 +336,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors"
                   >
                     <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-                    <span>হিসাবের নিয়ম ও ফর্মুলা গাইড</span>
+                    <span>হিসাব সহায়িকা ও সাধারণ নিয়ম</span>
                   </Link>
                 </div>
 

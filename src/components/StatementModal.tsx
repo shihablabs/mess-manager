@@ -379,7 +379,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           >
             <div>
               <div className="text-xs font-bold text-slate-300">
-                চূড়ান্ত ব্যালেন্স = মোট পাওনা বাদ মোট দেনা
+                চূড়ান্ত নিট ব্যালেন্স
               </div>
               <div className="text-[11px] text-slate-400 mt-0.5">
                 {isRefund

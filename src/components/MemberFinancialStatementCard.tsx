@@ -551,7 +551,8 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
         </div>
       </div>
 
-      {/* 4. RECONCILIATION SUMMARY BAR (মোট জমা - মোট খরচ = অবশিষ্ট ব্যালেন্স) */}
+      {/* [UX CLEANUP]: ব্যবহারকারীকে অনাবশ্যক সূত্র দেখানো বাদ দেওয়া হয়েছে — কার্ডের উপরে ইতিমধ্যে 'বর্তমান অবস্থা ও নিট ব্যালেন্স' স্পষ্টভাবে প্রদর্শিত হচ্ছে */}
+      {/* 
       <div
         className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-10 ${
           isPlus
@@ -597,6 +598,7 @@ export const MemberFinancialStatementCard: React.FC<MemberFinancialStatementCard
           </span>
         </div>
       </div>
+      */}
     </div>
   );
 };

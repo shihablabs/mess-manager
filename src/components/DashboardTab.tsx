@@ -105,7 +105,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
               মেসের সদস্যদের ব্যালেন্স শিট (লাইভ হিসাব)
             </h3>
             <p className="text-xs text-slate-400">
-              SRS সূত্র ৫.১–৫.৫ অনুযায়ী স্বয়ংক্রিয় গণনা — অনুমোদিত সব মিল, বাজার ও জমার সর্বশেষ ফল
+              অনুমোদিত সব মিল, বাজার ও জমার সর্বশেষ সমন্বিত ফলাফল
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
