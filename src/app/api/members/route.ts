@@ -4,6 +4,7 @@ import { getDb, isMongoConfigured, idFilter, safeObjectId } from '@/lib/db';
 import { UserDoc, MembershipDoc, MemberCycleDoc, UserRole } from '@/models/types';
 import { ObjectId } from 'mongodb';
 import { recordAuditLog } from '@/lib/audit';
+import { assertCycleOpen } from '@/lib/cycle-guard';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -74,6 +75,21 @@ export async function POST(request: Request) {
       userId,
       cycleId = store.cycles[0]?._id as string || 'cycle_1',
     } = body;
+
+    const cycleRelatedActions = [
+      'add_member',
+      'approve_member',
+      'update_rent',
+      'update_member',
+      'toggle_utility_exempt',
+      'request_settlement',
+      'confirm_settlement',
+    ];
+
+    if (cycleRelatedActions.includes(action)) {
+      const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
+      if (cycleClosedResponse) return cycleClosedResponse;
+    }
 
     // Add new member manually
     if (action === 'add_member') {

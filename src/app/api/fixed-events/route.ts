@@ -3,6 +3,7 @@ import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { FixedEventDoc } from '@/models/types';
 import { calculateFixedEventPerPerson } from '@/billing-engine';
+import { assertCycleOpen } from '@/lib/cycle-guard';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -43,6 +44,9 @@ export async function POST(request: Request) {
       extraMealWeight,
       cycleId = store.cycles[0]?._id as string || 'cycle_1',
     } = body;
+
+    const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
+    if (cycleClosedResponse) return cycleClosedResponse;
 
     if (!title || !cost || cost <= 0) {
       return NextResponse.json({ success: false, error: 'শিরোনাম ও খরচের পরিমাণ আবশ্যক' }, { status: 400 });

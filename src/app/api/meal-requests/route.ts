@@ -7,6 +7,7 @@ import { recordAuditLog } from '@/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkSelfApproval } from '@/lib/self-approval';
+import { assertCycleOpen } from '@/lib/cycle-guard';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -52,6 +53,9 @@ export async function POST(request: Request) {
       adminUserId,
       isLate: explicitIsLate,
     } = body;
+
+    const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
+    if (cycleClosedResponse) return cycleClosedResponse;
 
     const fromDate = startDate || date;
     const toDate = endDate || fromDate;
@@ -166,6 +170,9 @@ export async function PATCH(request: Request) {
     if (!reqItem) {
       return NextResponse.json({ success: false, error: 'অনুরোধ পাওয়া যায়নি' }, { status: 404 });
     }
+
+    const cycleClosedResponse = await assertCycleOpen(reqItem.cycleId, { db });
+    if (cycleClosedResponse) return cycleClosedResponse;
 
     const session = await getServerSession(authOptions);
     const currentUserId = (session?.user as any)?.id || adminUserId || 'admin';

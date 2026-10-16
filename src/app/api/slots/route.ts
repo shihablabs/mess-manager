@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db';
 import { SlotRequestDoc, BazarSlotDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
 import { checkSelfApproval } from '@/lib/self-approval';
+import { assertCycleOpen } from '@/lib/cycle-guard';
 
 export async function GET(request: Request) {
   try {
@@ -132,6 +133,22 @@ export async function POST(request: Request) {
       startDate,
       endDate,
     } = body;
+
+    let targetCycleId = body.cycleId;
+    if (!targetCycleId && body.requestId) {
+      const r = store.slotRequests.find((x) => x._id === body.requestId);
+      if (r) targetCycleId = r.cycleId;
+    }
+    if (!targetCycleId && body.slotId) {
+      const s = store.bazarSlots.find((x) => x._id === body.slotId);
+      if (s) targetCycleId = s.cycleId;
+    }
+    if (!targetCycleId) {
+      targetCycleId = cycleId;
+    }
+
+    const cycleClosedResponse = await assertCycleOpen(targetCycleId, { db });
+    if (cycleClosedResponse) return cycleClosedResponse;
 
     // 1. Auto generate slots: total cycle days ÷ buyer count (remainder to first slots)
     if (action === 'auto_generate' || action === 'generate_slots') {

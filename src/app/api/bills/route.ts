@@ -3,6 +3,7 @@ import { getStore } from '@/lib/store';
 import { getDb, idFilter } from '@/lib/db';
 import { BillDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
+import { assertCycleOpen } from '@/lib/cycle-guard';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -27,6 +28,9 @@ export async function POST(request: Request) {
       applicableCount,
       applicableUserIds,
     } = body;
+
+    const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
+    if (cycleClosedResponse) return cycleClosedResponse;
 
     if (!type || !amount || amount <= 0) {
       return NextResponse.json({ success: false, error: 'বিলের নাম ও টাকার পরিমাণ আবশ্যক' }, { status: 400 });
@@ -111,6 +115,9 @@ export async function DELETE(request: Request) {
     const db = await getDb();
     if (db) {
       const previousBill = await db.collection('bills').findOne(idFilter(id));
+      const cycleClosedResponse = await assertCycleOpen(previousBill?.cycleId, { db });
+      if (cycleClosedResponse) return cycleClosedResponse;
+
       await db.collection('bills').deleteOne(idFilter(id));
 
       await recordAuditLog({

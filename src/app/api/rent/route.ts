@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { getDb, idFilter, userKeyFilter, safeObjectId } from '@/lib/db';
 import { getStore } from '@/lib/store';
 import { recordAuditLog } from '@/lib/audit';
+import { assertCycleOpen } from '@/lib/cycle-guard';
 
 export async function GET(request: Request) {
   try {
@@ -127,6 +128,9 @@ export async function POST(request: Request) {
     if (!userId || !cycleId) {
       return NextResponse.json({ success: false, error: 'ইউজার ও সাইকেল আইডি আবশ্যক' }, { status: 400 });
     }
+
+    const cycleClosedResponse = await assertCycleOpen(cycleId);
+    if (cycleClosedResponse) return cycleClosedResponse;
 
     const db = await getDb();
     if (!db) {

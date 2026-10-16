@@ -7,6 +7,7 @@ import { DepositDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
 import { resolveRentDepositCycleEffect } from '@/billing-engine';
 import { checkSelfApproval } from '@/lib/self-approval';
+import { assertCycleOpen } from '@/lib/cycle-guard';
 
 export async function GET(request: Request) {
   try {
@@ -75,6 +76,9 @@ export async function POST(request: Request) {
       if (!targetDeposit) {
         return NextResponse.json({ success: false, error: 'জমার রেকর্ড পাওয়া যায়নি' }, { status: 404 });
       }
+
+      const cycleClosedResponse = await assertCycleOpen(targetDeposit.cycleId, { db });
+      if (cycleClosedResponse) return cycleClosedResponse;
 
       // Authorization: Only managers or super admins can delete, or creator if pending
       if (!isManager && targetDeposit.userId !== currentUserId) {
@@ -147,6 +151,9 @@ export async function POST(request: Request) {
       if (!targetDeposit) {
         return NextResponse.json({ success: false, error: 'জমার রেকর্ড খুঁজে পাওয়া যায়নি' }, { status: 404 });
       }
+
+      const cycleClosedResponse = await assertCycleOpen(targetDeposit.cycleId, { db });
+      if (cycleClosedResponse) return cycleClosedResponse;
 
       // Self-approval prohibition (SRS & Task গ & Item 3)
       const creatorUser = await db.collection('users').findOne(idFilter(targetDeposit.userId));
@@ -232,6 +239,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'জমার রেকর্ড খুঁজে পাওয়া যায়নি' }, { status: 404 });
       }
 
+      const cycleClosedResponse = await assertCycleOpen(targetDeposit.cycleId, { db });
+      if (cycleClosedResponse) return cycleClosedResponse;
+
       await db.collection('deposits').updateOne(idFilter(depositId), {
         $set: {
           isPaid: false,
@@ -316,6 +326,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
+    if (cycleClosedResponse) return cycleClosedResponse;
 
     // Target user check: managers can enter for anyone, regular members enter for themselves
     const effectiveUserId = isManager ? String(userId) : currentUserId;

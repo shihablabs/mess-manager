@@ -6,6 +6,7 @@ import { recordAuditLog } from '@/lib/audit';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { checkSelfApproval } from '@/lib/self-approval';
+import { assertCycleOpen } from '@/lib/cycle-guard';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -49,6 +50,9 @@ export async function POST(request: Request) {
       customMemberIds,
       paidFromBigBazarFund = false,
     } = body;
+
+    const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
+    if (cycleClosedResponse) return cycleClosedResponse;
 
     const user = store.users.find((u) => u._id === userId);
     const membership = store.memberships.find((m) => m.userId === userId);
@@ -164,6 +168,9 @@ export async function PATCH(request: Request) {
 
     if (db) {
       const prevItem = await db.collection('bazars').findOne({ _id: id as any });
+      const targetCycleId = prevItem?.cycleId || item?.cycleId;
+      const cycleClosedResponse = await assertCycleOpen(targetCycleId, { db });
+      if (cycleClosedResponse) return cycleClosedResponse;
       const creatorUserId = prevItem?.userId || item?.userId;
 
       if (status === 'approved') {
@@ -224,6 +231,9 @@ export async function DELETE(request: Request) {
 
     if (db) {
       const prevItem = await db.collection('bazars').findOne({ _id: id as any });
+      const cycleClosedResponse = await assertCycleOpen(prevItem?.cycleId, { db });
+      if (cycleClosedResponse) return cycleClosedResponse;
+
       await db.collection('bazars').deleteOne({ _id: id as any });
 
       await recordAuditLog({

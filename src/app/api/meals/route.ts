@@ -3,6 +3,7 @@ import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { MealDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
+import { assertCycleOpen } from '@/lib/cycle-guard';
 
 export async function GET(request: Request) {
   try {
@@ -36,6 +37,9 @@ export async function POST(request: Request) {
       date,
       entries = [], // array of { userId: string, morning: number, night: number }
     } = body;
+
+    const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
+    if (cycleClosedResponse) return cycleClosedResponse;
 
     if (!date) {
       return NextResponse.json({ success: false, error: 'তারিখ আবশ্যক' }, { status: 400 });

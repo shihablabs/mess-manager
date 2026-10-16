@@ -3,6 +3,7 @@ import { getStore } from '@/lib/store';
 import { getDb } from '@/lib/db';
 import { CycleSnapshotDoc } from '@/models/types';
 import { recordAuditLog } from '@/lib/audit';
+import { assertCycleOpen } from '@/lib/cycle-guard';
 
 export async function GET(request: Request) {
   const store = await getStore();
@@ -37,6 +38,11 @@ export async function POST(request: Request) {
     const cycle = store.cycles.find((c) => c._id === cycleId);
     if (!cycle) {
       return NextResponse.json({ success: false, error: 'চক্র পাওয়া যায়নি' }, { status: 404 });
+    }
+
+    if (action !== 'reopen_cycle' && action !== 'close_cycle') {
+      const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
+      if (cycleClosedResponse) return cycleClosedResponse;
     }
 
     // 1. Settle individual member leaving mid-cycle
@@ -288,6 +294,9 @@ export async function PATCH(request: Request) {
     if (!cycle) {
       return NextResponse.json({ success: false, error: 'চক্র পাওয়া যায়নি' }, { status: 404 });
     }
+
+    const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
+    if (cycleClosedResponse) return cycleClosedResponse;
 
     if (typeof isBigBazarEnabled === 'boolean') {
       cycle.isBigBazarEnabled = isBigBazarEnabled;

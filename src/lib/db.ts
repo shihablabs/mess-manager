@@ -91,7 +91,7 @@ export async function getMongoClient(): Promise<MongoClient | null> {
   }
 }
 
-export async function getDb(dbName = 'mess_manager'): Promise<Db | null> {
+export async function getDb(dbName = process.env.MONGODB_DB_NAME || 'mess_manager'): Promise<Db | null> {
   try {
     const client = await getMongoClient();
     if (!client) return null;
