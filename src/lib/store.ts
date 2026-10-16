@@ -120,14 +120,17 @@ export class MessStore {
 
   // Transforms frozen CycleSnapshot into full BillingEngineOutput
   public snapshotToBillingOutput(snap: CycleSnapshotDoc): BillingEngineOutput {
+    let sumDues = 0;
+    let sumCredits = 0;
     const memberResults: Record<string, MemberBillingResult> = {};
     const allMembersSummary: MemberBillingResult[] = (snap.memberBalances || []).map((mb) => {
-      const status: 'পাওনাদার' | 'দেনাদার' | 'পরিশোধিত' =
-        mb.netBalance > 0 ? 'পাওনাদার' : mb.netBalance < 0 ? 'দেনাদার' : 'পরিশোধিত';
+      sumDues += mb.totalDues || 0;
+      sumCredits += mb.totalCredits || 0;
 
       const res: MemberBillingResult = {
         userId: mb.userId,
         name: mb.name,
+        isActive: true,
         mealUnits: mb.mealUnits,
         regularMealCost: mb.mealCost,
         fixedShare: mb.fixedShare,
@@ -135,9 +138,12 @@ export class MessStore {
         roomRent: mb.roomRent,
         extraShareNonPool: mb.extraShare || 0,
         totalDues: mb.totalDues,
+        generalDeposits: mb.totalCredits,
+        bigBazarDeposits: 0,
+        approvedBazarSpentOwnMoney: 0,
+        openingCarryCredit: 0,
         totalCredits: mb.totalCredits,
         netBalance: mb.netBalance,
-        status,
       };
       memberResults[mb.userId] = res;
       return res;
@@ -145,14 +151,22 @@ export class MessStore {
 
     return {
       mealRate: snap.mealRate,
+      rawMealRate: snap.mealRate,
       totalMealUnits: snap.totalMealUnits,
       mealPoolTotal: snap.mealPoolTotal,
       totalRegularBazar: snap.totalRegularBazar,
+      totalExtraBazarPool: 0,
       totalBigBazarCost: snap.totalBigBazar,
       bigBazarCarryToNextCycle: snap.bigBazarCarryToNext,
       totalUtility: snap.totalUtility,
       memberResults,
       allMembersSummary,
+      totals: {
+        totalDues: sumDues,
+        totalCredits: sumCredits,
+        netBalance: sumCredits - sumDues,
+        roundingDifference: 0,
+      },
     };
   }
 

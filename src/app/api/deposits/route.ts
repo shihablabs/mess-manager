@@ -149,7 +149,7 @@ export async function POST(request: Request) {
       }
 
       // Self-approval prohibition (SRS & Task গ & Item 3)
-      const creatorUser = store.users.find((u) => u._id === targetDeposit.userId);
+      const creatorUser = await db.collection('users').findOne(idFilter(targetDeposit.userId));
       const approverEmail = session?.user?.email;
       const selfCheck = checkSelfApproval(
         targetDeposit.userId,

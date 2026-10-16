@@ -13,7 +13,6 @@ describe('Closed Cycle Snapshot as Single Source of Truth (Item চ & SRS Sectio
       name: 'সদস্য ১',
       email: 'user1@example.com',
       role: 'member',
-      messId: 'mess_1',
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -36,7 +35,8 @@ describe('Closed Cycle Snapshot as Single Source of Truth (Item চ & SRS Sectio
       slotId: 'night',
       weight: 1.0,
       consumed: 1,
-      createdAt: new Date(),
+      source: 'default',
+      updatedAt: new Date(),
     });
     const openBilling = store.computeCurrentCycleBilling(cycleId);
     expect(openBilling.totalMealUnits).toBe(1);
@@ -96,11 +96,12 @@ describe('Closed Cycle Snapshot as Single Source of Truth (Item চ & SRS Sectio
       userId: 'user_1',
       date: '2026-10-25',
       amount: 999999,
+      description: 'tamper test',
       type: 'regular',
-      category: 'others',
       status: 'approved',
       items: [],
       createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     // 5. Verification: Closed billing output remains completely frozen and immune to live data tampering

@@ -278,7 +278,8 @@ export async function POST(request: Request) {
       if (isAccept) {
         const requesterId = reqItem.fromUserId || reqItem.userId;
         const requesterUser = store.users.find((u) => u._id === requesterId);
-        const approverEmail = (session?.user as any)?.email;
+        const approverUser = store.users.find((u) => u._id === userId);
+        const approverEmail = approverUser?.email;
         const selfCheck = checkSelfApproval(
           requesterId,
           userId,
