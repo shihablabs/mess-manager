@@ -198,6 +198,11 @@ export interface BazarDoc {
   updatedAt: Date;
 }
 
+export interface FixedEventItem {
+  name: string;
+  amount: number;
+}
+
 // 10. FixedEvents
 export interface FixedEventDoc {
   _id?: ObjectId | string;
@@ -209,6 +214,9 @@ export interface FixedEventDoc {
   cost: number;
   extraMealWeight: number; // default 0.5
   attendeeUserIds: string[];
+  buyerUserId?: string; // Who purchased the feast bazar
+  items?: FixedEventItem[]; // Itemized expenses
+  bazarId?: string; // Linked bazar entry
   createdAt: Date;
   updatedAt: Date;
 }

@@ -236,6 +236,9 @@ export class MessStore {
         cost: e.cost,
         extraMealWeight: e.extraMealWeight,
         attendeeUserIds: e.attendeeUserIds,
+        buyerUserId: e.buyerUserId,
+        bazarId: e.bazarId,
+        items: e.items,
       }));
 
     const bazarItemsInput = this.bazars

@@ -327,6 +327,31 @@ export const BazarTab: React.FC<BazarTabProps> = ({
     }
   };
 
+  const handleDeleteFixedEvent = async (id: string, title?: string) => {
+    const isConfirmed = await confirmAction({
+      title: 'বিশেষ ভোজ মুছে ফেলতে চান?',
+      text: `"${title || 'এই বিশেষ ভোজ'}" এবং এর সাথে সংযুক্ত বাজারের খরচ হিসাব থেকে মুছে ফেলা হবে।`,
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      confirmColor: '#e11d48',
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      const res = await fetch(`/api/fixed-events?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('বিশেষ ভোজ এবং সংযুক্ত বাজার এন্ট্রি মুছে ফেলা হয়েছে!');
+        onRefresh();
+      } else {
+        toast.error(data.error || 'মুছে ফেলতে ব্যর্থ হয়েছে');
+      }
+    } catch (err: any) {
+      toast.error('নেটওয়ার্ক ত্রুটি ঘটেছে');
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* 1. Header Banner & Actions */}
@@ -568,14 +593,51 @@ export const BazarTab: React.FC<BazarTabProps> = ({
             {fixedEvents.map((evt) => (
               <div
                 key={evt._id}
-                className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2 relative overflow-hidden"
+                className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2 relative overflow-hidden group hover:border-amber-500/30 transition-all"
               >
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-bold text-amber-300">{evt.title}</span>
-                  <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                    {evt.date}
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-xs font-bold text-amber-300 leading-snug">{evt.title}</span>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                      {evt.date}
+                    </span>
+                    {isManager && (
+                      <button
+                        onClick={() => handleDeleteFixedEvent(evt._id, evt.title)}
+                        className="text-slate-500 hover:text-rose-400 p-0.5 rounded hover:bg-rose-500/10 transition-colors"
+                        title="বিশেষ ভোজ ও সংযুক্ত বাজার খরচ মুছুন"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Buyer info */}
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                  <ShoppingBag className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                  <span>
+                    বাজার করেছেন:{' '}
+                    <strong className="text-amber-200">
+                      {evt.buyerName || evt.buyer?.name || 'মেস ম্যানেজার'}
+                    </strong>
                   </span>
                 </div>
+
+                {/* Itemized expenses if any */}
+                {evt.items && evt.items.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {evt.items.map((it: any, idx: number) => (
+                      <span
+                        key={idx}
+                        className="text-[10px] bg-slate-900 border border-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono"
+                      >
+                        {it.name}: ৳{it.amount}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 <div className="flex items-baseline justify-between pt-0.5">
                   <span className="text-xs font-black text-white font-mono">
                     ইভেন্ট খরচ: {formatTaka(evt.cost)}

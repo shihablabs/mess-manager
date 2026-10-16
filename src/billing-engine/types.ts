@@ -40,6 +40,9 @@ export interface FixedEventInput {
   cost: number;
   extraMealWeight: number; // default 0.5
   attendeeUserIds: string[];
+  buyerUserId?: string;
+  bazarId?: string;
+  items?: { name: string; amount: number }[];
 }
 
 export interface BazarItemInput {
