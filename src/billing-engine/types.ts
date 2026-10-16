@@ -16,6 +16,7 @@ export interface MemberInput {
   settledMealRate?: number | null; // Fixed/locked meal rate if settled at current rate
   rentSettlementType?: 'pro_rata' | 'full_month'; // 'pro_rata' (default) or 'full_month'
   openingCarryCredit?: number; // credit from previous cycle carry-over
+  openingBalance?: number; // Previous cycle closing balance (positive = credit, negative = due)
 }
 
 export interface MealSlotConfig {
@@ -120,7 +121,8 @@ export interface MemberBillingResult {
   proRataRatio?: number;
   settlementType?: 'current_rate_final' | 'cycle_end_adjustment';
   settledMealRate?: number;
-  rentSettlementType?: 'pro_rata' | 'full_month';
+  closingBalance?: number; // Final net balance stored in snapshot for carry-over
+  openingBalance?: number; // Starting balance brought forward
   unrecoveredRent?: number; // Rent waived due to pro-rata departure
 }
 

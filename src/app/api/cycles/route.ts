@@ -36,11 +36,11 @@ export async function POST(request: Request) {
     } = body;
 
     const cycle = store.cycles.find((c) => c._id === cycleId);
-    if (!cycle) {
+    if (!cycle && action !== 'create_cycle') {
       return NextResponse.json({ success: false, error: 'চক্র পাওয়া যায়নি' }, { status: 404 });
     }
 
-    if (action !== 'reopen_cycle' && action !== 'close_cycle') {
+    if (action !== 'reopen_cycle' && action !== 'close_cycle' && action !== 'create_cycle') {
       const cycleClosedResponse = await assertCycleOpen(cycleId, { db });
       if (cycleClosedResponse) return cycleClosedResponse;
     }
@@ -173,6 +173,8 @@ export async function POST(request: Request) {
           totalDues: m.totalDues,
           totalCredits: m.totalCredits,
           netBalance: m.netBalance,
+          closingBalance: m.netBalance,
+          openingBalance: m.openingBalance || 0,
         })),
         summaryNote: `চক্র সমাপ্তি: মিল রেট ৳${finalBilling.mealRate}, মোট মিল ${finalBilling.totalMealUnits}`,
       };
@@ -281,6 +283,107 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: 'চলমান চক্র ও বড় বাজার কনফিগারেশন সফলভাবে আপডেট করা হয়েছে',
+      });
+    }
+
+    // 5. Create new cycle and transfer previous cycle closing balances to opening balances (Decision ৫)
+    if (action === 'create_cycle') {
+      const {
+        name,
+        month,
+        startDate,
+        endDate,
+        previousCycleId,
+        isBigBazarEnabled = true,
+        bigBazarContributionPerMember = 1400,
+        newCycleId = `cycle_${Date.now()}`,
+      } = body;
+
+      if (!name || !startDate || !endDate) {
+        return NextResponse.json({ success: false, error: 'নাম, শুরুর তারিখ ও শেষ তারিখ আবশ্যক' }, { status: 400 });
+      }
+
+      // Find previous cycle snapshot to carry forward closing balances
+      let prevSnapshot = previousCycleId
+        ? store.cycleSnapshots.find((s) => s.cycleId === previousCycleId)
+        : store.cycleSnapshots[store.cycleSnapshots.length - 1];
+
+      if (!prevSnapshot && db) {
+        if (previousCycleId) {
+          prevSnapshot = (await db.collection('cycle_snapshots').findOne({ cycleId: previousCycleId })) as any;
+        } else {
+          const snaps = await db.collection('cycle_snapshots').find().sort({ closedAt: -1 }).limit(1).toArray();
+          if (snaps.length > 0) prevSnapshot = snaps[0] as any;
+        }
+      }
+
+      const closingBalanceMap = new Map<string, number>();
+      if (prevSnapshot && prevSnapshot.memberBalances) {
+        for (const mb of prevSnapshot.memberBalances) {
+          const bal = mb.closingBalance !== undefined ? mb.closingBalance : mb.netBalance;
+          closingBalanceMap.set(mb.userId, bal);
+        }
+      }
+
+      const newCycleDoc = {
+        _id: newCycleId,
+        messId: store.mess._id as string,
+        name,
+        month: month || startDate.slice(0, 7),
+        startDate,
+        endDate,
+        status: 'open' as const,
+        isBigBazarEnabled,
+        bigBazarContributionPerMember,
+        bigBazarCarryToNext: prevSnapshot?.bigBazarCarryToNext || 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      // Populate member_cycles with openingBalance from previous cycle
+      const activeUsers = store.users.filter((u) => u.role !== 'super_admin');
+      const newMemberCycles = activeUsers.map((u) => {
+        const prevMc = store.memberCycles.find((m) => m.userId === u._id && (m.cycleId === previousCycleId || (prevSnapshot && m.cycleId === prevSnapshot.cycleId)));
+        const openingBalance = closingBalanceMap.get(u._id as string) || 0;
+        return {
+          _id: `mc_${newCycleId}_${u._id}`,
+          userId: u._id as string,
+          cycleId: newCycleId,
+          messId: store.mess._id as string,
+          roomRent: prevMc ? prevMc.roomRent : 0,
+          isActive: true,
+          openingBalance,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      });
+
+      if (db) {
+        await db.collection('cycles').insertOne(newCycleDoc as any);
+        if (newMemberCycles.length > 0) {
+          await db.collection('member_cycles').insertMany(newMemberCycles as any);
+        }
+
+        await recordAuditLog({
+          messId: store.mess._id as string,
+          cycleId: newCycleId,
+          performedByUserId: adminUserId || 'admin',
+          action: 'CREATE_CYCLE',
+          targetCollection: 'cycles',
+          targetId: newCycleId,
+          newValue: {
+            cycle: newCycleDoc,
+            previousCycleId: prevSnapshot?.cycleId || null,
+            carriedBalancesCount: closingBalanceMap.size,
+          },
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'নতুন চক্র সফলভাবে তৈরি হয়েছে এবং পূর্ববর্তী চক্রের ব্যালেন্স হস্তান্তরিত হয়েছে',
+        cycle: newCycleDoc,
+        memberCycles: newMemberCycles,
       });
     }
 

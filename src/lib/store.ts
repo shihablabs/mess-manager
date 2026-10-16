@@ -148,6 +148,8 @@ export class MessStore {
         openingCarryCredit: 0,
         totalCredits: mb.totalCredits,
         netBalance: mb.netBalance,
+        closingBalance: mb.closingBalance ?? mb.netBalance,
+        openingBalance: mb.openingBalance ?? 0,
       };
       memberResults[mb.userId] = res;
       return res;
@@ -211,6 +213,7 @@ export class MessStore {
         settledMealRate: (mc as any)?.settledMealRate,
         rentSettlementType: (mc as any)?.rentSettlementType || 'pro_rata',
         isUtilityExempt: (mc as any)?.isUtilityExempt ?? false,
+        openingBalance: (mc as any)?.openingBalance || 0,
       };
     });
 

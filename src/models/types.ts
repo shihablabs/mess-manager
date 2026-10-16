@@ -119,6 +119,7 @@ export interface MemberCycleDoc {
   settledMealRate?: number | null;
   stayedDays?: number;
   rentSettlementType?: 'pro_rata' | 'full_month'; // 'pro_rata' (default) or 'full_month'
+  openingBalance?: number; // Previous cycle closing balance carried over (positive = credit, negative = due)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -296,6 +297,8 @@ export interface CycleSnapshotDoc {
     totalDues: number;
     totalCredits: number;
     netBalance: number;
+    closingBalance?: number; // Member closing balance preserved at cycle close
+    openingBalance?: number; // Opening balance brought into this cycle
   }>;
   summaryNote?: string;
 }
