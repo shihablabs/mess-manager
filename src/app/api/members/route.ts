@@ -449,6 +449,7 @@ export async function POST(request: Request) {
       }
 
       const settlementType = body.settlementType === 'cycle_end_adjustment' ? 'cycle_end_adjustment' : 'current_rate_final';
+      const rentSettlementType = body.rentSettlementType === 'full_month' ? 'full_month' : 'pro_rata';
       const effectiveLeftDate = body.leftDate || new Date().toISOString().split('T')[0];
 
       // Calculate running meal rate for 'current_rate_final'
@@ -463,6 +464,21 @@ export async function POST(request: Request) {
         if (!isNaN(s) && !isNaN(l)) {
           stayedDays = Math.max(1, Math.round((l - s) / (1000 * 60 * 60 * 24)) + 1);
         }
+      }
+
+      // Update in-memory store
+      const memCycle = store.memberCycles.find((m) => m.userId === userId.toString() && m.cycleId === cycleId);
+      if (memCycle) {
+        memCycle.isActive = false;
+        memCycle.individualSettled = true;
+        memCycle.settledAt = new Date();
+        memCycle.settlementRequested = false;
+        memCycle.settlementType = settlementType;
+        memCycle.settledMealRate = settledMealRate;
+        memCycle.stayedDays = stayedDays;
+        memCycle.leftDate = effectiveLeftDate;
+        memCycle.rentSettlementType = rentSettlementType;
+        memCycle.updatedAt = new Date();
       }
 
       if (db) {
@@ -480,6 +496,7 @@ export async function POST(request: Request) {
               settledMealRate,
               stayedDays,
               leftDate: effectiveLeftDate,
+              rentSettlementType,
               updatedAt: new Date(),
             },
           }
@@ -500,6 +517,7 @@ export async function POST(request: Request) {
             settledMealRate,
             stayedDays,
             leftDate: effectiveLeftDate,
+            rentSettlementType,
           },
         });
       }
@@ -509,6 +527,7 @@ export async function POST(request: Request) {
         message: 'সদস্যের হিসাব চূড়ান্ত নিষ্পত্তি সম্পন্ন হয়েছে',
         settlementType,
         settledMealRate,
+        rentSettlementType,
         stayedDays,
       });
     }

@@ -133,9 +133,13 @@ export class MessStore {
         isActive: true,
         mealUnits: mb.mealUnits,
         regularMealCost: mb.mealCost,
+        effectiveMealRate: mb.effectiveMealRate,
+        stayedDays: mb.stayedDays,
+        settlementType: mb.settlementType as any,
         fixedShare: mb.fixedShare,
         utilityShare: mb.utilityShare,
         roomRent: mb.roomRent,
+        unrecoveredRent: mb.unrecoveredRent || 0,
         extraShareNonPool: mb.extraShare || 0,
         totalDues: mb.totalDues,
         generalDeposits: mb.totalCredits,
@@ -159,6 +163,7 @@ export class MessStore {
       totalBigBazarCost: snap.totalBigBazar,
       bigBazarCarryToNextCycle: snap.bigBazarCarryToNext,
       totalUtility: snap.totalUtility,
+      unrecoveredRent: snap.unrecoveredRent || 0,
       memberResults,
       allMembersSummary,
       totals: {
@@ -166,6 +171,7 @@ export class MessStore {
         totalCredits: sumCredits,
         netBalance: sumCredits - sumDues,
         roundingDifference: 0,
+        unrecoveredRent: snap.unrecoveredRent || 0,
       },
     };
   }
@@ -198,9 +204,11 @@ export class MessStore {
         roomRent: mc ? mc.roomRent : 0,
         isActive: mc ? mc.isActive : false,
         leftDate: mc?.leftDate,
+        joinedDate: (u as any)?.joinedDate || (mc as any)?.joinedDate,
         stayedDays: (mc as any)?.stayedDays,
         settlementType: (mc as any)?.settlementType,
         settledMealRate: (mc as any)?.settledMealRate,
+        rentSettlementType: (mc as any)?.rentSettlementType || 'pro_rata',
         isUtilityExempt: (mc as any)?.isUtilityExempt ?? false,
       };
     });

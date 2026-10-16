@@ -98,11 +98,37 @@ export function calculateBilling(
     totalMealUnits += memberMealUnitsMap.get(m.userId) || 0;
   }
 
-  // 3. Meal Rate (Section 5.2)
+  // 3. Meal Rate (Section 5.2) with Mid-Cycle Departure Rebalancing (Item 1)
   const rawMealRate = totalMealUnits > 0 ? mealPoolTotal / totalMealUnits : 0;
-  const mealRate = Math.round(rawMealRate * 100) / 100; // 2 decimal places
+  const mealRate = Math.round(rawMealRate * 100) / 100; // overall cycle average meal rate (2 decimal places)
 
-  // 4. Utility bills (distributed according to applicableUserIds / headcount / eligible members)
+  // Identify members who locked their rate under 'current_rate_final'
+  let departedLockedUnits = 0;
+  let departedLockedCost = 0;
+
+  for (const m of members) {
+    if (
+      m.settlementType === 'current_rate_final' &&
+      m.settledMealRate !== undefined &&
+      m.settledMealRate !== null
+    ) {
+      const u = memberMealUnitsMap.get(m.userId) || 0;
+      departedLockedUnits += u;
+      departedLockedCost += u * m.settledMealRate;
+    }
+  }
+
+  // Formula (Item 1): (mealPoolTotal - departedLockedCost) / (totalMealUnits - departedLockedUnits)
+  const remainingMealUnits = Math.max(0, totalMealUnits - departedLockedUnits);
+  const remainingMealPool = Math.max(0, mealPoolTotal - departedLockedCost);
+
+  const rawRemainingRate =
+    remainingMealUnits > 0
+      ? remainingMealPool / remainingMealUnits
+      : rawMealRate;
+  const remainingMealRate = Math.round(rawRemainingRate * 100) / 100;
+
+  // 4. Utility bills (distributed by member's stayed days ÷ sum of applicable stayed days - Item 2)
   const totalUtility = utilityBills.reduce((sum, u) => sum + u.amount, 0);
   const memberUtilityShareMap = new Map<string, number>();
   members.forEach((m) => memberUtilityShareMap.set(m.userId, 0));
@@ -111,7 +137,8 @@ export function calculateBilling(
     (m) =>
       m.isActive ||
       m.settlementType !== undefined ||
-      (m.stayedDays !== undefined && m.stayedDays > 0),
+      (m.stayedDays !== undefined && m.stayedDays > 0) ||
+      Boolean(cycleInfo?.startDate && (m.leftDate !== undefined || m.joinedDate !== undefined)),
   );
 
   for (const bill of utilityBills) {
@@ -127,19 +154,41 @@ export function calculateBilling(
 
     // Apply utility exemption (m.isUtilityExempt)
     const nonExemptTargets = targetMembers.filter((m) => !m.isUtilityExempt);
+    if (nonExemptTargets.length === 0) continue;
 
-    const divisor = isSpecific
-      ? nonExemptTargets.length
-      : bill.applicableCount && bill.applicableCount > 0
-      ? bill.applicableCount
-      : nonExemptTargets.length;
+    // Calculate sum of stayed days across non-exempt target members
+    const memberDaysMap = new Map<string, number>();
+    let sumStayedDays = 0;
+    for (const m of nonExemptTargets) {
+      const days = calculateMemberProRata(m, cycleInfo).stayedDays;
+      memberDaysMap.set(m.userId, days);
+      sumStayedDays += days;
+    }
 
-    if (divisor > 0 && nonExemptTargets.length > 0) {
-      const perMember = bill.amount / divisor;
+    if (sumStayedDays > 0) {
+      // Pro-rata by stayed days (Item 2)
       for (const m of nonExemptTargets) {
+        const mDays = memberDaysMap.get(m.userId) || 0;
+        const share = bill.amount * (mDays / sumStayedDays);
         if (memberUtilityShareMap.has(m.userId)) {
           const current = memberUtilityShareMap.get(m.userId) || 0;
-          memberUtilityShareMap.set(m.userId, current + perMember);
+          memberUtilityShareMap.set(m.userId, current + share);
+        }
+      }
+    } else {
+      // Legacy fallback divisor if all members stayed 0 days
+      const divisor = isSpecific
+        ? nonExemptTargets.length
+        : bill.applicableCount && bill.applicableCount > 0
+        ? bill.applicableCount
+        : nonExemptTargets.length;
+      if (divisor > 0) {
+        const perMember = bill.amount / divisor;
+        for (const m of nonExemptTargets) {
+          if (memberUtilityShareMap.has(m.userId)) {
+            const current = memberUtilityShareMap.get(m.userId) || 0;
+            memberUtilityShareMap.set(m.userId, current + perMember);
+          }
         }
       }
     }
@@ -229,41 +278,56 @@ export function calculateBilling(
   let sumRawDues = 0;
   let sumRoundedDues = 0;
   let sumCredits = 0;
+  let totalUnrecoveredRent = 0;
 
   for (const member of members) {
     const proRata = calculateMemberProRata(member, cycleInfo);
     const units = memberMealUnitsMap.get(member.userId) || 0;
 
-    // Settle member meal rate logic (Option 1 vs Option 2):
-    // "এখনকার রেটে চূড়ান্ত" (current_rate_final) uses settledMealRate if present
-    // "চক্র শেষে সমন্বয়" (cycle_end_adjustment) uses floating cycle mealRate
-    let effectiveMealRate = mealRate;
+    // Settle member meal rate logic (Item 1):
+    // "এখনকার রেটে চূড়ান্ত" (current_rate_final) uses locked settledMealRate
+    // Other members (active & cycle_end_adjustment) use rebalanced remainingMealRate
+    let effectiveMealRate = remainingMealRate;
+    let isLocked = false;
     if (
       member.settlementType === "current_rate_final" &&
       member.settledMealRate !== undefined &&
       member.settledMealRate !== null
     ) {
       effectiveMealRate = member.settledMealRate;
+      isLocked = true;
     }
 
-    const rawMealCost = units * effectiveMealRate;
+    const rawMealCost = isLocked ? units * effectiveMealRate : units * rawRemainingRate;
     const fixedShare = memberFixedShareMap.get(member.userId) || 0;
 
-    // Utility share pro-rated by stayedDays / totalDays
+    // Utility share (Item 2): already proportionally distributed by stayed days in Step 4
     const isEligibleForUtil =
       (member.isActive ||
         member.settlementType !== undefined ||
-        (member.stayedDays !== undefined && member.stayedDays > 0)) &&
+        (member.stayedDays !== undefined && member.stayedDays > 0) ||
+        Boolean(cycleInfo?.startDate && (member.leftDate !== undefined || member.joinedDate !== undefined))) &&
       !member.isUtilityExempt;
-    const fullUtil = isEligibleForUtil
+    const rawUtilShare = isEligibleForUtil
       ? memberUtilityShareMap.get(member.userId) || 0
       : 0;
-    const rawUtilShare = fullUtil * proRata.ratio;
 
     const extraNonPool = memberExtraNonPoolMap.get(member.userId) || 0;
 
-    // Room rent pro-rated by stayedDays / totalDays
-    const rawRent = (member.roomRent || 0) * proRata.ratio;
+    // Room rent (Item 5):
+    // "দিনের অনুপাতে" (pro_rata - default) vs "পুরো মাস" (full_month)
+    const fullRent = member.roomRent || 0;
+    const rentSettlementType = member.rentSettlementType || 'pro_rata';
+    let rawRent = fullRent;
+    let rawUnrecoveredRent = 0;
+
+    if (rentSettlementType === 'full_month' || proRata.ratio >= 1) {
+      rawRent = fullRent;
+      rawUnrecoveredRent = 0;
+    } else {
+      rawRent = fullRent * proRata.ratio;
+      rawUnrecoveredRent = Math.max(0, fullRent - rawRent);
+    }
 
     const rawTotalDues =
       rawRent + rawUtilShare + rawMealCost + fixedShare + extraNonPool;
@@ -290,6 +354,11 @@ export function calculateBilling(
     const finalRent = options.roundToInteger
       ? Math.round(rawRent)
       : Number(rawRent.toFixed(2));
+    const finalUnrecoveredRent = options.roundToInteger
+      ? Math.round(rawUnrecoveredRent)
+      : Number(rawUnrecoveredRent.toFixed(2));
+    totalUnrecoveredRent += finalUnrecoveredRent;
+
     const finalExtraNonPool = options.roundToInteger
       ? Math.round(extraNonPool)
       : Number(extraNonPool.toFixed(2));
@@ -315,9 +384,12 @@ export function calculateBilling(
       isUtilityExempt: member.isUtilityExempt ?? false,
       mealUnits: units,
       regularMealCost: finalMealCost,
+      effectiveMealRate,
       fixedShare: finalFixedShare,
       utilityShare: finalUtilShare,
       roomRent: finalRent,
+      unrecoveredRent: finalUnrecoveredRent,
+      rentSettlementType,
       extraShareNonPool: finalExtraNonPool,
       totalDues: computedDues,
       generalDeposits: dep.general,
@@ -353,7 +425,9 @@ export function calculateBilling(
     totalMealUnits,
     mealRate,
     rawMealRate,
+    remainingMealRate,
     totalUtility,
+    unrecoveredRent: totalUnrecoveredRent,
     memberResults,
     allMembersSummary,
     totals: {
@@ -362,6 +436,7 @@ export function calculateBilling(
       netBalance: sumCredits - sumRoundedDues,
       roundingDifference,
       utilityRoundingDifference,
+      unrecoveredRent: totalUnrecoveredRent,
     },
   };
 }
@@ -429,6 +504,7 @@ export function calculateMemberProRata(
   member: {
     isActive?: boolean;
     leftDate?: string | null;
+    joinedDate?: string | null;
     stayedDays?: number;
     totalDaysInCycle?: number;
     settlementType?: string;
@@ -449,8 +525,14 @@ export function calculateMemberProRata(
     }
   }
 
-  // If member is not active and has no settlementType and no explicit stayedDays, treat as fixed dues (ratio = 1)
-  if (!member.isActive && !member.settlementType && member.stayedDays === undefined) {
+  // If member is not active and has no settlementType and no explicit stayedDays and no joined/left date, treat as fixed dues (ratio = 1)
+  if (
+    !member.isActive &&
+    !member.settlementType &&
+    member.stayedDays === undefined &&
+    !member.joinedDate &&
+    !member.leftDate
+  ) {
     return { stayedDays: totalDays, totalDays, ratio: 1 };
   }
 
@@ -458,6 +540,32 @@ export function calculateMemberProRata(
   let stayedDays = totalDays;
   if (member.stayedDays !== undefined && member.stayedDays !== null) {
     stayedDays = Math.max(0, Math.min(totalDays, member.stayedDays));
+  } else if (cycleInfo?.startDate && cycleInfo?.endDate && (member.joinedDate || member.leftDate)) {
+    const cycleStartMs = new Date(cycleInfo.startDate).getTime();
+    const cycleEndMs = new Date(cycleInfo.endDate).getTime();
+
+    let startMs = cycleStartMs;
+    if (member.joinedDate) {
+      const jMs = new Date(member.joinedDate).getTime();
+      if (!isNaN(jMs) && jMs > startMs) {
+        startMs = jMs;
+      }
+    }
+
+    let endMs = cycleEndMs;
+    if (member.leftDate) {
+      const lMs = new Date(member.leftDate).getTime();
+      if (!isNaN(lMs) && lMs < endMs) {
+        endMs = lMs;
+      }
+    }
+
+    if (endMs >= startMs) {
+      const days = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)) + 1;
+      stayedDays = Math.max(0, Math.min(totalDays, days));
+    } else {
+      stayedDays = 0;
+    }
   } else if (member.leftDate && cycleInfo?.startDate) {
     const s = new Date(cycleInfo.startDate).getTime();
     const l = new Date(member.leftDate).getTime();
@@ -486,6 +594,42 @@ export function calculateProRataAmount(
   const ratio = Math.max(0, Math.min(1, stayedDays / totalDays));
   const raw = baseAmount * ratio;
   return roundToInteger ? Math.round(raw) : Number(raw.toFixed(2));
+}
+
+/**
+ * Calculates the projected meal rate increase on remaining members
+ * if a member settles early at a specific rate (Item 4).
+ */
+export function calculateDepartureMealRateImpact(params: {
+  mealPoolTotal: number;
+  totalMealUnits: number;
+  departingMealUnits: number;
+  settledMealRate: number;
+}): {
+  currentMealRate: number;
+  projectedRemainingMealRate: number;
+  rateIncrease: number;
+  warningMessage?: string;
+} {
+  const { mealPoolTotal, totalMealUnits, departingMealUnits, settledMealRate } = params;
+  const currentMealRate = totalMealUnits > 0 ? Math.round((mealPoolTotal / totalMealUnits) * 100) / 100 : 0;
+  const remainingUnits = Math.max(0, totalMealUnits - departingMealUnits);
+  const remainingPool = Math.max(0, mealPoolTotal - (departingMealUnits * settledMealRate));
+  const rawProjected = remainingUnits > 0 ? remainingPool / remainingUnits : currentMealRate;
+  const projectedRemainingMealRate = Math.round(rawProjected * 100) / 100;
+  const rateIncrease = Math.max(0, Math.round((projectedRemainingMealRate - currentMealRate) * 100) / 100);
+
+  let warningMessage = '';
+  if (rateIncrease > 0) {
+    warningMessage = `এই রেটে ছাড়লে বাকিদের মিল রেট প্রায় ৳${rateIncrease.toFixed(2)} বাড়তে পারে।`;
+  }
+
+  return {
+    currentMealRate,
+    projectedRemainingMealRate,
+    rateIncrease,
+    warningMessage,
+  };
 }
 
 export { calculateSlotDistribution, generateBazarSlotRanges } from './slots';

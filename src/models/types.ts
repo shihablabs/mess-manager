@@ -114,9 +114,11 @@ export interface MemberCycleDoc {
   leftDate?: string | null;
   individualSettled?: boolean;
   settledAt?: Date | null;
+  settlementRequested?: boolean;
   settlementType?: 'current_rate_final' | 'cycle_end_adjustment';
   settledMealRate?: number | null;
   stayedDays?: number;
+  rentSettlementType?: 'pro_rata' | 'full_month'; // 'pro_rata' (default) or 'full_month'
   createdAt: Date;
   updatedAt: Date;
 }
@@ -275,14 +277,19 @@ export interface CycleSnapshotDoc {
   totalBigBazar: number;
   bigBazarCarryToNext: number;
   totalUtility: number;
+  unrecoveredRent?: number;
   memberBalances: Array<{
     userId: string;
     name: string;
     mealUnits: number;
     mealCost: number;
+    effectiveMealRate?: number;
+    stayedDays?: number;
+    settlementType?: string;
     fixedShare: number;
     utilityShare: number;
     roomRent: number;
+    unrecoveredRent?: number;
     extraShare: number;
     totalDues: number;
     totalCredits: number;

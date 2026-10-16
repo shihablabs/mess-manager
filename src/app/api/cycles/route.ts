@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     // 1. Settle individual member leaving mid-cycle
     if (action === 'settle_member') {
       const settlementType = body.settlementType === 'cycle_end_adjustment' ? 'cycle_end_adjustment' : 'current_rate_final';
+      const rentSettlementType = body.rentSettlementType === 'full_month' ? 'full_month' : 'pro_rata';
       const effectiveLeftDate = leftDate || new Date().toISOString().split('T')[0];
 
       // Calculate running meal rate for 'current_rate_final'
@@ -57,6 +58,20 @@ export async function POST(request: Request) {
         }
       }
 
+      // Update in-memory store
+      const memCycle = store.memberCycles.find((m) => m.userId === memberId && m.cycleId === cycleId);
+      if (memCycle) {
+        memCycle.isActive = false;
+        memCycle.leftDate = effectiveLeftDate;
+        memCycle.stayedDays = stayedDays;
+        memCycle.settlementType = settlementType;
+        memCycle.settledMealRate = settledMealRate;
+        memCycle.rentSettlementType = rentSettlementType;
+        memCycle.individualSettled = true;
+        memCycle.settledAt = new Date();
+        memCycle.updatedAt = new Date();
+      }
+
       if (db) {
         const prevMc = await db.collection('member_cycles').findOne({ userId: memberId, cycleId });
 
@@ -69,6 +84,7 @@ export async function POST(request: Request) {
               stayedDays,
               settlementType,
               settledMealRate,
+              rentSettlementType,
               individualSettled: true,
               settledAt: new Date(),
               updatedAt: new Date(),
@@ -90,6 +106,7 @@ export async function POST(request: Request) {
             stayedDays,
             settlementType,
             settledMealRate,
+            rentSettlementType,
             individualSettled: true,
           },
         });
@@ -99,6 +116,7 @@ export async function POST(request: Request) {
         message: 'সদস্যের হিসাব সফলভাবে নিষ্পত্তি হয়েছে',
         settlementType,
         settledMealRate,
+        rentSettlementType,
         stayedDays,
       });
     }
@@ -125,14 +143,19 @@ export async function POST(request: Request) {
         totalBigBazar: finalBilling.totalBigBazarCost,
         bigBazarCarryToNext: finalBilling.bigBazarCarryToNextCycle,
         totalUtility: finalBilling.totalUtility,
+        unrecoveredRent: finalBilling.unrecoveredRent || 0,
         memberBalances: finalBilling.allMembersSummary.map((m) => ({
           userId: m.userId,
           name: m.name,
           mealUnits: m.mealUnits,
           mealCost: m.regularMealCost,
+          effectiveMealRate: m.effectiveMealRate,
+          stayedDays: m.stayedDays,
+          settlementType: m.settlementType,
           fixedShare: m.fixedShare,
           utilityShare: m.utilityShare,
           roomRent: m.roomRent,
+          unrecoveredRent: m.unrecoveredRent || 0,
           extraShare: m.extraShareNonPool,
           totalDues: m.totalDues,
           totalCredits: m.totalCredits,

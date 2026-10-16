@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { MemberBillingResult, BillingEngineOutput } from '@/billing-engine/types';
+import { calculateDepartureMealRateImpact } from '@/billing-engine';
 import { formatTaka, formatMealUnits } from '@/lib/money';
 import { Printer, X, CheckCircle, FileText, UserMinus, Clock, AlertTriangle } from '@/components/icons';
 import { AppUser } from '@/lib/session';
@@ -31,6 +32,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [settlementRequested, setSettlementRequested] = useState(false);
   const [settlementType, setSettlementType] = useState<'current_rate_final' | 'cycle_end_adjustment'>('current_rate_final');
+  const [rentSettlementType, setRentSettlementType] = useState<'pro_rata' | 'full_month'>('pro_rata');
   const [departureDate, setDepartureDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   React.useEffect(() => {
@@ -121,6 +123,7 @@ export const StatementModal: React.FC<StatementModalProps> = ({
           action: 'confirm_settlement',
           userId: member.userId,
           settlementType,
+          rentSettlementType,
           leftDate: departureDate,
         }),
       });
@@ -223,15 +226,31 @@ export const StatementModal: React.FC<StatementModalProps> = ({
             <div className="space-y-2 text-xs border border-slate-800 rounded-xl p-3 bg-slate-950/40 print:border-gray-300 print:bg-white">
               {/* Prominent Distinct House Rent */}
               <div className="flex justify-between py-1.5 border-b border-slate-800/80 print:border-gray-200 bg-amber-500/5 print:bg-gray-50 px-2 rounded">
-                <span className="font-bold text-amber-300 print:text-black">
-                  🏠 নির্ধারিত বাসা / রুম ভাড়া (ডিফল্ট ফিক্সড চার্জ)
-                </span>
+                <div className="flex flex-col">
+                  <span className="font-bold text-amber-300 print:text-black">
+                    🏠 নির্ধারিত বাসা / রুম ভাড়া (ডিফল্ট ফিক্সড চার্জ)
+                  </span>
+                  {member.stayedDays !== undefined && member.totalDays && member.stayedDays < member.totalDays && (
+                    <span className="text-[10px] text-amber-400/80">
+                      (অবস্থান: {member.stayedDays}/{member.totalDays} দিন{member.unrecoveredRent ? ` • অনাদায়ী অংশ: ৳${member.unrecoveredRent}` : ''})
+                    </span>
+                  )}
+                </div>
                 <span className="font-mono font-bold text-amber-300 print:text-black">
                   {formatTaka(member.roomRent)}
                 </span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
-                <span>মিল বাবদ খরচ ({formatMealUnits(member.mealUnits)} × {formatTaka(calculation.mealRate)})</span>
+                <div className="flex flex-col">
+                  <span>
+                    মিল বাবদ খরচ ({formatMealUnits(member.mealUnits)} × {formatTaka(member.effectiveMealRate ?? calculation.mealRate)})
+                  </span>
+                  {member.effectiveMealRate !== undefined && member.effectiveMealRate !== calculation.mealRate && (
+                    <span className="text-[10px] text-indigo-400">
+                      ({member.settlementType === 'current_rate_final' ? 'মাঝপথে ছাড়ায় লকড রেট' : 'সমন্বয়কৃত চূড়ান্ত রেট'})
+                    </span>
+                  )}
+                </div>
                 <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.regularMealCost)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
@@ -239,7 +258,14 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                 <span className="font-mono font-bold text-slate-200 print:text-black">{formatTaka(member.fixedShare)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800/80 print:border-gray-200 px-2">
-                <span>ইউটিলিটি ও আনুষঙ্গিক বিলের ভাগ</span>
+                <div className="flex flex-col">
+                  <span>ইউটিলিটি ও আনুষঙ্গিক বিলের ভাগ</span>
+                  {member.stayedDays !== undefined && member.totalDays && member.stayedDays < member.totalDays && !member.isUtilityExempt && (
+                    <span className="text-[10px] text-slate-400">
+                      (দিনের অনুপাতে: {member.stayedDays}/{member.totalDays} দিন)
+                    </span>
+                  )}
+                </div>
                 <span className="font-mono font-bold text-slate-200 print:text-black">
                   {member.isUtilityExempt ? 'মওকুফ (৳০)' : formatTaka(member.utilityShare)}
                 </span>
@@ -386,10 +412,10 @@ export const StatementModal: React.FC<StatementModalProps> = ({
 
             {isManagerOrSuperAdmin && (
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                      মেস ছাড়ার তারিখ (দিনের অনুপাত)
+                      মেস ছাড়ার তারিখ
                     </label>
                     <input
                       type="date"
@@ -431,9 +457,65 @@ export const StatementModal: React.FC<StatementModalProps> = ({
                       </label>
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      রুম ভাড়ার সমন্বয়
+                    </label>
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="rentSettlementType"
+                          value="pro_rata"
+                          checked={rentSettlementType === 'pro_rata'}
+                          onChange={() => setRentSettlementType('pro_rata')}
+                          className="accent-emerald-500"
+                        />
+                        <span>
+                          <strong className="text-emerald-400">দিনের অনুপাতে</strong> (ডিফল্ট)
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="rentSettlementType"
+                          value="full_month"
+                          checked={rentSettlementType === 'full_month'}
+                          onChange={() => setRentSettlementType('full_month')}
+                          className="accent-indigo-500"
+                        />
+                        <span>
+                          <strong className="text-indigo-400">পুরো মাস</strong>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
+
+                {settlementType === 'current_rate_final' && (() => {
+                  const impact = calculateDepartureMealRateImpact({
+                    mealPoolTotal: calculation.mealPoolTotal,
+                    totalMealUnits: calculation.totalMealUnits,
+                    departingMealUnits: member.mealUnits,
+                    settledMealRate: calculation.mealRate,
+                  });
+                  return impact.rateIncrease > 0 ? (
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold block">মিল রেট বৃদ্ধির সতর্কবার্তা:</span>
+                        <p>
+                          এই রেটে ছাড়লে বাকিদের মিল রেট প্রায় ৳{impact.rateIncrease.toFixed(2)} বাড়তে পারে (৳{impact.currentMealRate.toFixed(2)} → ৳{impact.projectedRemainingMealRate.toFixed(2)})।
+                        </p>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
                 <p className="text-[10px] text-slate-400 italic">
-                  * দিনের অনুপাতে (pro-rata) রুম ভাড়া ও ইউটিলিটি স্বয়ংক্রিয়ভাবে ইঞ্জিনে সমন্বয় হবে।
+                  * {rentSettlementType === 'pro_rata'
+                      ? 'দিনের অনুপাত বেছে নিলে বাকি অংশ অনাদায়ী ভাড়া (unrecovered rent) হিসেবে মেসের রিপোর্টে সংরক্ষিত থাকবে, অন্য কোনো সদস্যের ঘাড়ে চাপানো হবে না।'
+                      : 'পুরো মাস বেছে নিলে সদস্য পূর্ণ মাসের নির্ধারিত রুম ভাড়া পরিশোধ করবেন।'}
                 </p>
               </div>
             )}

@@ -9,10 +9,12 @@ export interface MemberInput {
   isActive: boolean;
   isUtilityExempt?: boolean; // When true, utility bills are waived (e.g. absent whole month)
   leftDate?: string | null;
+  joinedDate?: string | null; // Mid-cycle join date
   stayedDays?: number; // Explicit stayed days if calculated or overridden
   totalDaysInCycle?: number; // Total days in this cycle
   settlementType?: 'current_rate_final' | 'cycle_end_adjustment';
   settledMealRate?: number | null; // Fixed/locked meal rate if settled at current rate
+  rentSettlementType?: 'pro_rata' | 'full_month'; // 'pro_rata' (default) or 'full_month'
   openingCarryCredit?: number; // credit from previous cycle carry-over
 }
 
@@ -112,11 +114,14 @@ export interface MemberBillingResult {
   netBalance: number; // totalCredits - totalDues (+ means refund, - means payable)
 
   // Mid-cycle departure & settlement metadata
+  effectiveMealRate?: number; // Exact meal rate applied to this member
   stayedDays?: number;
   totalDays?: number;
   proRataRatio?: number;
   settlementType?: 'current_rate_final' | 'cycle_end_adjustment';
   settledMealRate?: number;
+  rentSettlementType?: 'pro_rata' | 'full_month';
+  unrecoveredRent?: number; // Rent waived due to pro-rata departure
 }
 
 export interface BillingEngineOutput {
@@ -128,7 +133,9 @@ export interface BillingEngineOutput {
   totalMealUnits: number;
   mealRate: number; // rounded to 2 decimal places
   rawMealRate: number;
+  remainingMealRate?: number; // rebalanced rate for remaining/active members if someone settled early
   totalUtility: number;
+  unrecoveredRent?: number; // total unrecovered rent across departing members
   
   memberResults: Record<string, MemberBillingResult>;
   allMembersSummary: MemberBillingResult[];
@@ -139,5 +146,6 @@ export interface BillingEngineOutput {
     netBalance: number;
     roundingDifference: number;
     utilityRoundingDifference?: number;
+    unrecoveredRent?: number;
   };
 }

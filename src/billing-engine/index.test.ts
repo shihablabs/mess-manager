@@ -637,17 +637,21 @@ describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
     const full = result.memberResults['u_full'];
     const half = result.memberResults['u_half'];
 
-    // Full member: rent 3000, utility 500
+    // Full member: rent 3000, utility 1000 * (30/45) = 667
     expect(full.roomRent).toBe(3000);
-    expect(full.utilityShare).toBe(500);
-    expect(full.totalDues).toBe(3500);
+    expect(full.utilityShare).toBe(667);
+    expect(full.totalDues).toBe(3667);
 
-    // Half member: rent 3000 * (15/30) = 1500, utility 500 * (15/30) = 250
+    // Half member: rent 3000 * (15/30) = 1500, utility 1000 * (15/45) = 333
     expect(half.stayedDays).toBe(15);
     expect(half.proRataRatio).toBe(0.5);
     expect(half.roomRent).toBe(1500);
-    expect(half.utilityShare).toBe(250);
-    expect(half.totalDues).toBe(1750);
+    expect(half.unrecoveredRent).toBe(1500);
+    expect(half.utilityShare).toBe(333);
+    expect(half.totalDues).toBe(1833);
+
+    // Sum of utility collected equals total utility bill (zero deficit)
+    expect(full.utilityShare + half.utilityShare).toBe(1000);
   });
 
   it('correctly applies "current_rate_final" locked meal rate vs "cycle_end_adjustment" floating rate', () => {
@@ -675,7 +679,7 @@ describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
       { userId: 'u_floating', date: '2026-10-15', slotId: 'all', weight: 10, consumed: true },
     ];
 
-    // Later bazars increased total bazar to 1600 for 20 meals -> current meal rate is 1600 / 20 = 80
+    // Later bazars increased total bazar to 1600 for 20 meals -> overall rate was 1600 / 20 = 80
     const bazarItems = [
       { id: 'b1', userId: 'u_floating', amount: 1600, type: 'regular' as const, isApproved: true },
     ];
@@ -691,12 +695,20 @@ describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
     });
 
     expect(result.mealRate).toBe(80);
+    // Rebalanced rate for remaining/floating members: (1600 - 500) / 10 = 110
+    expect(result.remainingMealRate).toBe(110);
 
     // Locked member pays at their settledMealRate of 50: 10 * 50 = 500
     expect(result.memberResults['u_locked'].regularMealCost).toBe(500);
 
-    // Floating member adjusts to the current/final cycle meal rate of 80: 10 * 80 = 800
-    expect(result.memberResults['u_floating'].regularMealCost).toBe(800);
+    // Floating member adjusts to the rebalanced final cycle meal rate of 110: 10 * 110 = 1100
+    expect(result.memberResults['u_floating'].regularMealCost).toBe(1100);
+
+    // Total meal cost collected matches total meal pool (1600) with zero deficit
+    const totalCollectedMeal =
+      result.memberResults['u_locked'].regularMealCost +
+      result.memberResults['u_floating'].regularMealCost;
+    expect(totalCollectedMeal).toBe(1600);
   });
 
   it('correctly handles legacy utility bills with applicableCount and no applicableUserIds (Task খ)', () => {
