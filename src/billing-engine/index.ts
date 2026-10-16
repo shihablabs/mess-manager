@@ -128,10 +128,11 @@ export function calculateBilling(
     // Apply utility exemption (m.isUtilityExempt)
     const nonExemptTargets = targetMembers.filter((m) => !m.isUtilityExempt);
 
-    const divisor =
-      bill.applicableCount && bill.applicableCount > 0
-        ? bill.applicableCount
-        : nonExemptTargets.length;
+    const divisor = isSpecific
+      ? nonExemptTargets.length
+      : bill.applicableCount && bill.applicableCount > 0
+      ? bill.applicableCount
+      : nonExemptTargets.length;
 
     if (divisor > 0 && nonExemptTargets.length > 0) {
       const perMember = bill.amount / divisor;
@@ -393,17 +394,27 @@ export function calculateUtilityBillPerPerson(
   }>,
 ): number {
   if (!bill.amount || bill.amount <= 0) return 0;
-  if (bill.applicableCount && bill.applicableCount > 0) {
-    return Math.round((bill.amount / bill.applicableCount) * 100) / 100;
-  }
   const getUid = (m: any) => String(m.userId || m._id || m.id || "");
   const active = members.filter((m) => m.isActive !== false);
   const isSpecific =
-    bill.applicableUserIds && bill.applicableUserIds.length > 0;
-  const targets = isSpecific
-    ? active.filter((m) => bill.applicableUserIds!.includes(getUid(m)))
-    : active;
-  const nonExempt = targets.filter((m) => !m.isUtilityExempt);
+    Array.isArray(bill.applicableUserIds) && bill.applicableUserIds.length > 0;
+
+  if (isSpecific) {
+    const targets = active.filter((m) =>
+      bill.applicableUserIds!.includes(getUid(m)),
+    );
+    const nonExempt = targets.filter((m) => !m.isUtilityExempt);
+    if (nonExempt.length === 0) return 0;
+    return Math.round((bill.amount / nonExempt.length) * 100) / 100;
+  }
+
+  // Legacy fallback: when applicableUserIds is absent, use applicableCount if available
+  if (bill.applicableCount && bill.applicableCount > 0) {
+    return Math.round((bill.amount / bill.applicableCount) * 100) / 100;
+  }
+
+  // General fallback: split equally across all non-exempt active members
+  const nonExempt = active.filter((m) => !m.isUtilityExempt);
   if (nonExempt.length === 0) return 0;
   return Math.round((bill.amount / nonExempt.length) * 100) / 100;
 }

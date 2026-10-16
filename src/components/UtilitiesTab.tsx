@@ -845,7 +845,8 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
             ) : (
               bills.map((bill) => {
                 const perPerson = calculateUtilityBillPerPerson(bill, members);
-                const isCustomSelection = bill.applicableUserIds && bill.applicableUserIds.length > 0;
+                const isCustomSelection = Array.isArray(bill.applicableUserIds) && bill.applicableUserIds.length > 0;
+                const isHeadcountSelection = !isCustomSelection && Boolean(bill.applicableCount && bill.applicableCount > 0);
                 const activeNonExempt = members.filter((m) => !m.isUtilityExempt);
 
                 return (
@@ -855,7 +856,9 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({
                         <span className="text-slate-200 font-bold">{bill.type} বিল</span>
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
                           {isCustomSelection
-                            ? `নির্বাচিত ${bill.applicableUserIds.length} জনের মাঝে ভাগ`
+                            ? `নির্বাচিত ${bill.applicableUserIds!.length} জনের মাঝে ভাগ`
+                            : isHeadcountSelection
+                            ? `নির্দিষ্ট ${bill.applicableCount} জনের মাঝে ভাগ`
                             : `সকল সদস্য (${activeNonExempt.length} জন)`}
                         </span>
                         {bill.paidByUserId && (

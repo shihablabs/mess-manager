@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateBilling } from './index';
+import { calculateBilling, calculateUtilityBillPerPerson } from './index';
 import { BillingEngineInput } from './types';
 
 describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
@@ -697,6 +697,78 @@ describe('Billing Engine (SRS Section 5 Calculation Engine)', () => {
 
     // Floating member adjusts to the current/final cycle meal rate of 80: 10 * 80 = 800
     expect(result.memberResults['u_floating'].regularMealCost).toBe(800);
+  });
+
+  it('correctly handles legacy utility bills with applicableCount and no applicableUserIds (Task খ)', () => {
+    const members = [
+      { userId: 'u1', name: 'User 1', roomRent: 2000, isActive: true, isUtilityExempt: false },
+      { userId: 'u2', name: 'User 2', roomRent: 2000, isActive: true, isUtilityExempt: false },
+      { userId: 'u3', name: 'User 3', roomRent: 2000, isActive: true, isUtilityExempt: false },
+      { userId: 'u4', name: 'User 4', roomRent: 2000, isActive: true, isUtilityExempt: true }, // exempt
+    ];
+
+    // Legacy bill: has applicableCount: 3, but NO applicableUserIds
+    const legacyBill = {
+      id: 'b_legacy',
+      name: 'Old Electricity Bill',
+      amount: 1500,
+      applicableCount: 3,
+    };
+
+    // calculateUtilityBillPerPerson should divide by applicableCount: 1500 / 3 = 500
+    const perPerson = calculateUtilityBillPerPerson(legacyBill, members);
+    expect(perPerson).toBe(500);
+
+    // calculateBilling should charge the 3 non-exempt members 500 each, and exempt member 0
+    const result = calculateBilling({
+      members,
+      mealRecords: [],
+      fixedEvents: [],
+      bazarItems: [],
+      deposits: [],
+      utilityBills: [legacyBill],
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+    });
+
+    expect(result.memberResults['u1'].utilityShare).toBe(500);
+    expect(result.memberResults['u2'].utilityShare).toBe(500);
+    expect(result.memberResults['u3'].utilityShare).toBe(500);
+    expect(result.memberResults['u4'].utilityShare).toBe(0);
+  });
+
+  it('prioritizes applicableUserIds over legacy applicableCount when both exist (Task খ)', () => {
+    const members = [
+      { userId: 'u1', name: 'User 1', roomRent: 2000, isActive: true, isUtilityExempt: false },
+      { userId: 'u2', name: 'User 2', roomRent: 2000, isActive: true, isUtilityExempt: false },
+      { userId: 'u3', name: 'User 3', roomRent: 2000, isActive: true, isUtilityExempt: false },
+    ];
+
+    // Bill with specific 2 members, but stale applicableCount: 5 left in document
+    const specificBill = {
+      id: 'b_specific',
+      name: 'AC Bill',
+      amount: 2000,
+      applicableUserIds: ['u1', 'u2'],
+      applicableCount: 5, // should be ignored in favor of applicableUserIds
+    };
+
+    // 2000 / 2 = 1000 per person
+    const perPerson = calculateUtilityBillPerPerson(specificBill, members);
+    expect(perPerson).toBe(1000);
+
+    const result = calculateBilling({
+      members,
+      mealRecords: [],
+      fixedEvents: [],
+      bazarItems: [],
+      deposits: [],
+      utilityBills: [specificBill],
+      bigBazarConfig: { isEnabled: false, perMemberContribution: 0, leftoverValueCarry: 0 },
+    });
+
+    expect(result.memberResults['u1'].utilityShare).toBe(1000);
+    expect(result.memberResults['u2'].utilityShare).toBe(1000);
+    expect(result.memberResults['u3'].utilityShare).toBe(0);
   });
 });
 
